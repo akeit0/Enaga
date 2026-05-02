@@ -1,5 +1,7 @@
 using Enaga.Html.Dom;
 using Enaga.Html;
+using System.Text;
+using System.Text.Json;
 using Okojo;
 using Okojo.Hosting;
 using Okojo.Objects;
@@ -32,6 +34,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private readonly Dictionary<HtmlNodeId, List<JsFunction>> clickListeners = [];
     private readonly Dictionary<HtmlNodeId, JsUserDataObject<HtmlDomElement>> elementObjects = [];
     private JsUserDataObject<HtmlDomDocument>? documentObject;
+    private JsPlainObject? locationObject;
 
     private HtmlBrowserScriptRuntime(HtmlDomDocument document, string documentSource, string? styleSheet, string? basePath)
     {
@@ -52,15 +55,22 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         hostPump = runtime.CreateHostPump();
         InstallConsole(runtime.MainRealm, documentSource);
         InstallWindow(runtime.MainRealm);
+        InstallBrowserFetch(runtime.MainRealm);
     }
 
     public HtmlDocument CurrentDocument { get; private set; }
 
     public HtmlBrowserTextInputValueResolver? TextInputValueResolver { get; set; }
 
+    public string? PendingNavigationRequest { get; private set; }
+
+    public bool PendingNavigationReplacesHistory { get; private set; }
+
     public event Action<HtmlDocument>? DocumentMutated;
 
     public event Action? EventLoopWorkQueued;
+
+    public event Action<string>? NavigationRequested;
 
     public static HtmlBrowserScriptRuntime? CreateAndRun(HtmlDocument document, string documentSource)
     {
@@ -171,6 +181,191 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         return suffixIndex >= 0 ? value[..suffixIndex] : value;
     }
 
+    private static HttpRequestMessage BuildFetchRequest(string url, JsValue initValue)
+    {
+        var method = HttpMethod.Get;
+        string? bodyText = null;
+        var request = new HttpRequestMessage(method, url);
+        if (initValue.TryGetObject(out var initObj))
+        {
+            if (initObj.TryGetProperty("method", out var methodValue) && !methodValue.IsUndefined)
+            {
+                method = new HttpMethod(methodValue.IsString ? methodValue.AsString() : methodValue.ToString());
+                request.Method = method;
+            }
+
+            if (initObj.TryGetProperty("body", out var bodyValue) && !bodyValue.IsUndefined && !bodyValue.IsNull)
+            {
+                bodyText = bodyValue.IsString ? bodyValue.AsString() : bodyValue.ToString();
+                request.Content = new StringContent(bodyText, Encoding.UTF8);
+            }
+
+            if (initObj.TryGetProperty("headers", out var headersValue) &&
+                headersValue.TryGetObject(out var headersObj))
+            {
+                var names = headersObj.GetEnumerableOwnPropertyNames();
+                for (var index = 0; index < names.Count; index++)
+                {
+                    var name = names[index];
+                    if (!headersObj.TryGetProperty(name, out var headerValue))
+                        continue;
+
+                    var value = headerValue.IsString ? headerValue.AsString() : headerValue.ToString();
+                    if (!request.Headers.TryAddWithoutValidation(name, value))
+                    {
+                        request.Content ??= new ByteArrayContent([]);
+                        _ = request.Content.Headers.TryAddWithoutValidation(name, value);
+                    }
+                }
+            }
+        }
+
+        return request;
+    }
+
+    private static bool TryReadLocalFetch(string resolvedUrl, out byte[] bytes, out string contentType)
+    {
+        string? path = null;
+        if (Uri.TryCreate(resolvedUrl, UriKind.Absolute, out var uri))
+        {
+            if (uri.IsFile)
+                path = uri.LocalPath;
+            else
+            {
+                bytes = [];
+                contentType = string.Empty;
+                return false;
+            }
+        }
+        else
+        {
+            path = resolvedUrl;
+        }
+
+        if (!File.Exists(path))
+        {
+            bytes = [];
+            contentType = string.Empty;
+            return false;
+        }
+
+        bytes = File.ReadAllBytes(path);
+        contentType = GuessContentType(path);
+        return true;
+    }
+
+    private static string GuessContentType(string path)
+        => Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".json" => "application/json",
+            ".html" or ".htm" => "text/html; charset=utf-8",
+            ".css" => "text/css; charset=utf-8",
+            ".js" or ".mjs" or ".ダウンロード" => "text/javascript; charset=utf-8",
+            ".txt" => "text/plain; charset=utf-8",
+            _ => "application/octet-stream"
+        };
+
+    private static Dictionary<string, string> CollectHeaders(HttpResponseMessage response)
+    {
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var header in response.Headers)
+            headers[header.Key.ToLowerInvariant()] = string.Join(", ", header.Value);
+        foreach (var header in response.Content.Headers)
+            headers[header.Key.ToLowerInvariant()] = string.Join(", ", header.Value);
+        return headers;
+    }
+
+    private static JsPlainObject CreateFetchResponse(
+        JsRealm realm,
+        int status,
+        string statusText,
+        string url,
+        byte[] bodyBytes,
+        IReadOnlyDictionary<string, string> headers)
+    {
+        var response = new JsPlainObject(realm);
+        response.DefineDataProperty("ok", status is >= 200 and < 300 ? JsValue.True : JsValue.False, OpenFlags);
+        response.DefineDataProperty("status", JsValue.FromInt32(status), OpenFlags);
+        response.DefineDataProperty("statusText", JsValue.FromString(statusText), OpenFlags);
+        response.DefineDataProperty("url", JsValue.FromString(url), OpenFlags);
+        response.DefineDataProperty("headers", JsValue.FromObject(CreateFetchHeaders(realm, headers)), OpenFlags);
+        response.DefineDataProperty("text", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo info) =>
+        {
+            var bytes = (byte[])((JsHostFunction)info.Function).UserData!;
+            return info.Realm.WrapTask(Task.FromResult(JsValue.FromString(Encoding.UTF8.GetString(bytes))));
+        }, "text", 0) { UserData = bodyBytes }), OpenFlags);
+        response.DefineDataProperty("json", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo info) =>
+        {
+            var bytes = (byte[])((JsHostFunction)info.Function).UserData!;
+            using var json = JsonDocument.Parse(bytes);
+            return info.Realm.WrapTask(Task.FromResult(ConvertJsonElementToJsValue(info.Realm, json.RootElement)));
+        }, "json", 0) { UserData = bodyBytes }), OpenFlags);
+        response.DefineDataProperty("arrayBuffer", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo info) =>
+        {
+            var bytes = (byte[])((JsHostFunction)info.Function).UserData!;
+            return info.Realm.WrapTask(Task.FromResult(JsValue.FromObject(CreateArrayBuffer(info.Realm, bytes))));
+        }, "arrayBuffer", 0) { UserData = bodyBytes }), OpenFlags);
+        return response;
+    }
+
+    private static JsPlainObject CreateFetchHeaders(JsRealm realm, IReadOnlyDictionary<string, string> headers)
+    {
+        var headersObject = new JsPlainObject(realm);
+        headersObject.DefineDataProperty("get", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo info) =>
+        {
+            var headers = (IReadOnlyDictionary<string, string>)((JsHostFunction)info.Function).UserData!;
+            var name = info.GetArgumentStringOrDefault(0, string.Empty).ToLowerInvariant();
+            return headers.TryGetValue(name, out var value) ? JsValue.FromString(value) : JsValue.Null;
+        }, "get", 1) { UserData = headers }), OpenFlags);
+        headersObject.DefineDataProperty("has", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo info) =>
+        {
+            var headers = (IReadOnlyDictionary<string, string>)((JsHostFunction)info.Function).UserData!;
+            var name = info.GetArgumentStringOrDefault(0, string.Empty).ToLowerInvariant();
+            return headers.ContainsKey(name) ? JsValue.True : JsValue.False;
+        }, "has", 1) { UserData = headers }), OpenFlags);
+        return headersObject;
+    }
+
+    private static JsValue ConvertJsonElementToJsValue(JsRealm realm, JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Null or JsonValueKind.Undefined => JsValue.Null,
+            JsonValueKind.False => JsValue.False,
+            JsonValueKind.True => JsValue.True,
+            JsonValueKind.Number => new JsValue(element.GetDouble()),
+            JsonValueKind.String => JsValue.FromString(element.GetString() ?? string.Empty),
+            JsonValueKind.Array => ConvertJsonArrayToJsValue(realm, element),
+            JsonValueKind.Object => ConvertJsonObjectToJsValue(realm, element),
+            _ => JsValue.Undefined
+        };
+    }
+
+    private static JsValue ConvertJsonArrayToJsValue(JsRealm realm, JsonElement element)
+    {
+        var array = realm.CreateArray();
+        uint index = 0;
+        foreach (var item in element.EnumerateArray())
+            array.SetElement(index++, ConvertJsonElementToJsValue(realm, item));
+        return JsValue.FromObject(array);
+    }
+
+    private static JsValue ConvertJsonObjectToJsValue(JsRealm realm, JsonElement element)
+    {
+        var obj = new JsPlainObject(realm);
+        foreach (var property in element.EnumerateObject())
+            obj.DefineDataProperty(property.Name, ConvertJsonElementToJsValue(realm, property.Value), OpenFlags);
+        return JsValue.FromObject(obj);
+    }
+
+    private static JsArrayBufferObject CreateArrayBuffer(JsRealm realm, byte[] bytes)
+    {
+        var typedArray = new JsTypedArrayObject(realm, checked((uint)bytes.Length));
+        for (uint index = 0; index < bytes.Length; index++)
+            typedArray.SetElement(index, JsValue.FromInt32(bytes[(int)index]));
+        return typedArray.Buffer;
+    }
+
     public void DispatchClick(HtmlDomElement sourceElement)
     {
         var targetElement = ResolveTargetElement(sourceElement);
@@ -254,6 +449,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private void InstallWindow(JsRealm realm)
     {
         var documentValue = JsValue.FromObject(CreateDocumentObject(realm));
+        var locationValue = JsValue.FromObject(CreateLocationObject(realm));
         var window = new JsUserDataObject<HtmlBrowserScriptRuntime>(realm, useDictionaryMode: true)
         {
             UserData = this
@@ -261,12 +457,125 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         window.DefineDataProperty("window", JsValue.FromObject(window), OpenFlags);
         window.DefineDataProperty("self", JsValue.FromObject(window), OpenFlags);
         window.DefineDataProperty("document", documentValue, OpenFlags);
-        window.DefineDataProperty("location", JsValue.FromString(documentSource), OpenFlags);
+        window.DefineDataProperty("location", locationValue, OpenFlags);
 
         realm.Global["window"] = JsValue.FromObject(window);
         realm.Global["self"] = JsValue.FromObject(window);
         realm.Global["document"] = documentValue;
-        realm.Global["location"] = JsValue.FromString(documentSource);
+        realm.Global["location"] = locationValue;
+    }
+
+    private JsPlainObject CreateLocationObject(JsRealm realm)
+    {
+        if (locationObject is not null)
+            return locationObject;
+
+        var obj = new JsPlainObject(realm);
+        obj.DefineAccessorProperty(
+            "href",
+            new JsHostFunction(realm, (in CallInfo _) => JsValue.FromString(documentSource), "get href", 0),
+            new JsHostFunction(realm, (in CallInfo info) =>
+            {
+                RequestNavigation(info.GetArgumentStringOrDefault(0, string.Empty), replacesHistory: false);
+                return JsValue.Undefined;
+            }, "set href", 1),
+            OpenFlags);
+        obj.DefineDataProperty("replace", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            RequestNavigation(info.GetArgumentStringOrDefault(0, string.Empty), replacesHistory: true);
+            return JsValue.Undefined;
+        }, "replace", 1)), OpenFlags);
+        obj.DefineDataProperty("toString", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo _) =>
+        {
+            return JsValue.FromString(documentSource);
+        }, "toString", 0)), OpenFlags);
+        locationObject = obj;
+        return obj;
+    }
+
+    private void RequestNavigation(string url, bool replacesHistory)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        var resolvedUrl = ResolveResourceUrl(url);
+        PendingNavigationRequest = resolvedUrl;
+        PendingNavigationReplacesHistory = replacesHistory;
+        NavigationRequested?.Invoke(resolvedUrl);
+    }
+
+    private void InstallBrowserFetch(JsRealm realm)
+    {
+        var fetchValue = JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            var input = info.GetArgumentOrDefault(0, JsValue.Undefined);
+            var init = info.GetArgumentOrDefault(1, JsValue.Undefined);
+            var url = input.IsString ? input.AsString() : input.ToString();
+            var task = FetchAsync(info.Realm, url, init);
+            _ = task.ContinueWith(static (_, state) => ((HtmlBrowserScriptRuntime)state!).EventLoopWorkQueued?.Invoke(),
+                this,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                 TaskScheduler.Default);
+            return info.Realm.WrapTask(task);
+        }, "fetch", 2));
+        realm.Global["fetch"] = fetchValue;
+        if (realm.Global["window"].TryGetObject(out var window))
+            window.DefineDataProperty("fetch", fetchValue, OpenFlags);
+    }
+
+    private async Task<JsValue> FetchAsync(JsRealm realm, string url, JsValue init)
+    {
+        var resolvedUrl = ResolveResourceUrl(url);
+        if (TryReadLocalFetch(resolvedUrl, out var localBytes, out var localContentType))
+        {
+            return JsValue.FromObject(CreateFetchResponse(
+                realm,
+                status: 200,
+                statusText: "OK",
+                url: resolvedUrl,
+                localBytes,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["content-type"] = localContentType
+                }));
+        }
+
+        using var request = BuildFetchRequest(resolvedUrl, init);
+        using var response = await ScriptHttpClient.SendAsync(request).ConfigureAwait(false);
+        var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+        return JsValue.FromObject(CreateFetchResponse(
+            realm,
+            (int)response.StatusCode,
+            response.ReasonPhrase ?? string.Empty,
+            response.RequestMessage?.RequestUri?.ToString() ?? resolvedUrl,
+            bytes,
+            CollectHeaders(response)));
+    }
+
+    private string ResolveResourceUrl(string url)
+    {
+        var trimmed = url.Trim();
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absolute))
+            return absolute.ToString();
+
+        if (!string.IsNullOrWhiteSpace(basePath))
+        {
+            if (Uri.TryCreate(basePath, UriKind.Absolute, out var baseUri))
+            {
+                if (baseUri.IsFile)
+                    return Path.GetFullPath(Path.Combine(baseUri.LocalPath, Uri.UnescapeDataString(trimmed)));
+                return new Uri(baseUri, trimmed).ToString();
+            }
+
+            return Path.GetFullPath(Path.Combine(basePath, Uri.UnescapeDataString(trimmed)));
+        }
+
+        if (Uri.TryCreate(documentSource, UriKind.Absolute, out var documentUri))
+            return new Uri(documentUri, trimmed).ToString();
+
+        var documentDirectory = Path.GetDirectoryName(Path.GetFullPath(documentSource));
+        return Path.GetFullPath(Path.Combine(documentDirectory ?? Environment.CurrentDirectory, Uri.UnescapeDataString(trimmed)));
     }
 
     private JsUserDataObject<HtmlDomDocument> CreateDocumentObject(JsRealm realm)

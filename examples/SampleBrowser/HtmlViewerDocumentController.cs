@@ -115,6 +115,7 @@ internal sealed class SampleBrowserDocumentController : IDisposable
             {
                 scriptRuntime.DocumentMutated -= HandleScriptDocumentMutated;
                 scriptRuntime.EventLoopWorkQueued -= HandleScriptEventLoopWorkQueued;
+                scriptRuntime.NavigationRequested -= HandleScriptNavigationRequested;
                 scriptRuntime.TextInputValueResolver = null;
             }
             source.BeforeRenderFrame -= PumpScriptRuntimeBeforeRender;
@@ -188,6 +189,18 @@ internal sealed class SampleBrowserDocumentController : IDisposable
 
                 history.Add(new HistoryEntry(normalizedSource, styleSheetSource));
                 historyIndex = history.Count - 1;
+            }
+            else if (historyUpdate == HistoryUpdate.Replace)
+            {
+                if (historyIndex >= 0 && historyIndex < history.Count)
+                {
+                    history[historyIndex] = new HistoryEntry(normalizedSource, styleSheetSource);
+                }
+                else
+                {
+                    history.Add(new HistoryEntry(normalizedSource, styleSheetSource));
+                    historyIndex = history.Count - 1;
+                }
             }
 
             version = ++navigationVersion;
@@ -273,6 +286,7 @@ internal sealed class SampleBrowserDocumentController : IDisposable
         {
             scriptRuntime.DocumentMutated -= HandleScriptDocumentMutated;
             scriptRuntime.EventLoopWorkQueued -= HandleScriptEventLoopWorkQueued;
+            scriptRuntime.NavigationRequested -= HandleScriptNavigationRequested;
             scriptRuntime.TextInputValueResolver = null;
         }
         scriptRuntime?.Dispose();
@@ -281,7 +295,10 @@ internal sealed class SampleBrowserDocumentController : IDisposable
         {
             scriptRuntime.DocumentMutated += HandleScriptDocumentMutated;
             scriptRuntime.EventLoopWorkQueued += HandleScriptEventLoopWorkQueued;
+            scriptRuntime.NavigationRequested += HandleScriptNavigationRequested;
             scriptRuntime.TextInputValueResolver = source.TryGetTextInputValueByElementId;
+            if (scriptRuntime.PendingNavigationRequest is { } pendingNavigation)
+                HandleScriptNavigationRequested(pendingNavigation);
         }
     }
 
@@ -290,6 +307,14 @@ internal sealed class SampleBrowserDocumentController : IDisposable
 
     private void HandleScriptEventLoopWorkQueued()
         => source.RequestRenderWake();
+
+    private void HandleScriptNavigationRequested(string url)
+    {
+        var historyUpdate = scriptRuntime?.PendingNavigationReplacesHistory == true
+            ? HistoryUpdate.Replace
+            : HistoryUpdate.Push;
+        _ = NavigateAsync(url, styleSheetSource: null, historyUpdate);
+    }
 
     private void PumpScriptRuntimeBeforeRender()
     {
@@ -363,7 +388,8 @@ internal sealed class SampleBrowserDocumentController : IDisposable
     private enum HistoryUpdate
     {
         Keep,
-        Push
+        Push,
+        Replace
     }
 
     private sealed record HistoryEntry(string DocumentSource, string? StyleSheetSource);

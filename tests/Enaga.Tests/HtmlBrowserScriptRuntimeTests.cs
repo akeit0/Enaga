@@ -229,6 +229,76 @@ public sealed class HtmlBrowserScriptRuntimeTests
     }
 
     [Fact]
+    public void Fetch_ResolvesRelativeUrlAgainstDocumentBasePath()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var assetDirectory = Path.Combine(tempDirectory, "login_files");
+        Directory.CreateDirectory(assetDirectory);
+        File.WriteAllText(Path.Combine(assetDirectory, "data.json"), """{"message":"relative"}""");
+
+        try
+        {
+            var document = new HtmlDocument("""
+                <body>
+                  <div id="status"></div>
+                  <script>
+                    (async function () {
+                      const response = await window.fetch("./login_files/data.json");
+                      const payload = await response.json();
+                      document.getElementById("status").textContent = payload.message;
+                    })();
+                  </script>
+                </body>
+                """, BasePath: tempDirectory);
+
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, Path.Combine(tempDirectory, "login.html"));
+
+            Assert.NotNull(runtime);
+            Assert.Contains("<div id=\"status\">relative</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void LocationReplace_RequestsNavigationWithResolvedRelativeUrl()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+        try
+        {
+            var document = new HtmlDocument("""
+                <body>
+                  <button id="go">go</button>
+                  <script>
+                    document.getElementById("go").onclick = function () {
+                      window.location.replace("./next.html");
+                    };
+                  </script>
+                </body>
+                """, BasePath: tempDirectory);
+
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, Path.Combine(tempDirectory, "login.html"));
+            Assert.NotNull(runtime);
+            string? requestedUrl = null;
+            runtime.NavigationRequested += url => requestedUrl = url;
+
+            var parsed = new Enaga.Html.Dom.HtmlDocumentParser().Parse(document.Html, document.BasePath).ToDomDocument();
+            var button = Assert.IsType<HtmlDomElement>(parsed.GetElementById("go"));
+            runtime.DispatchClick(button);
+
+            Assert.Equal(Path.GetFullPath(Path.Combine(tempDirectory, "next.html")), requestedUrl);
+            Assert.True(runtime.PendingNavigationReplacesHistory);
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ReactHost_BenchmarkPump_ResumesAwaitedTimeout()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
