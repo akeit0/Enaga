@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Enaga.Browser;
 using Enaga.Html;
 using Enaga.Html.Dom;
@@ -199,6 +202,40 @@ public sealed class HtmlBrowserScriptRuntimeTests
     }
 
     [Fact]
+    public void CreateAndRun_LoadsRemoteExternalScriptWithBrowserHeadersAndReferer()
+    {
+        string? serverReferer = null;
+        using var server = new TestHttpServer(request =>
+        {
+            if (request.Path == "/static/_js/iana.js?version=1" &&
+                request.Headers.TryGetValue("User-Agent", out var userAgent) &&
+                userAgent.Contains("Mozilla/5.0", StringComparison.Ordinal) &&
+                request.Headers.TryGetValue("Referer", out var referer) &&
+                string.Equals(referer, serverReferer, StringComparison.Ordinal) &&
+                request.Headers.TryGetValue("Sec-Fetch-Dest", out var fetchDest) &&
+                string.Equals(fetchDest, "script", StringComparison.OrdinalIgnoreCase))
+            {
+                return TestHttpResponse.Ok("document.getElementById('status').textContent = 'remote-loaded';");
+            }
+
+            return TestHttpResponse.Forbidden();
+        });
+        serverReferer = server.Url("/domains");
+
+        var document = new HtmlDocument("""
+            <body>
+              <div id="status"></div>
+              <script type="text/javascript" src="./static/_js/iana.js?version=1"></script>
+            </body>
+            """, BasePath: server.Url("/"));
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, serverReferer);
+
+        Assert.NotNull(runtime);
+        Assert.Contains("<div id=\"status\">remote-loaded</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CreateAndRun_PreservesHeadStylesAfterBodySerialization()
     {
         var document = new HtmlDocument("""
@@ -333,5 +370,106 @@ public sealed class HtmlBrowserScriptRuntimeTests
         {
             Directory.Delete(tempDirectory, recursive: true);
         }
+    }
+
+    private sealed class TestHttpServer : IDisposable
+    {
+        private readonly Func<TestHttpRequest, TestHttpResponse> respond;
+        private readonly TcpListener listener;
+        private readonly CancellationTokenSource cancellation = new();
+        private readonly Task serverTask;
+
+        public TestHttpServer(Func<TestHttpRequest, TestHttpResponse> respond)
+        {
+            this.respond = respond;
+            listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            serverTask = Task.Run(RunAsync);
+        }
+
+        public string Url(string path)
+        {
+            var endpoint = (IPEndPoint)listener.LocalEndpoint;
+            return $"http://127.0.0.1:{endpoint.Port}{path}";
+        }
+
+        public void Dispose()
+        {
+            cancellation.Cancel();
+            listener.Stop();
+            serverTask.Wait(TimeSpan.FromSeconds(2));
+            cancellation.Dispose();
+        }
+
+        private async Task RunAsync()
+        {
+            while (!cancellation.IsCancellationRequested)
+            {
+                TcpClient client;
+                try
+                {
+                    client = await listener.AcceptTcpClientAsync(cancellation.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (SocketException) when (cancellation.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                _ = Task.Run(() => HandleClientAsync(client), cancellation.Token);
+            }
+        }
+
+        private async Task HandleClientAsync(TcpClient client)
+        {
+            using var _ = client;
+            await using var stream = client.GetStream();
+            using var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true);
+            var requestLine = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (requestLine is null)
+                return;
+
+            var requestParts = requestLine.Split(' ', 3);
+            var path = requestParts[1];
+            var headersByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            string? line;
+            while (!string.IsNullOrEmpty(line = await reader.ReadLineAsync().ConfigureAwait(false)))
+            {
+                var separator = line.IndexOf(':', StringComparison.Ordinal);
+                if (separator > 0)
+                    headersByName[line[..separator]] = line[(separator + 1)..].Trim();
+            }
+
+            var response = respond(new TestHttpRequest(path, headersByName));
+
+            var bodyBytes = Encoding.UTF8.GetBytes(response.Body);
+            var headerBuilder = new StringBuilder()
+                .Append("HTTP/1.1 ")
+                .Append(response.Status)
+                .Append("\r\nContent-Type: text/javascript; charset=utf-8\r\nContent-Length: ")
+                .Append(bodyBytes.Length)
+                .Append("\r\nConnection: close\r\n");
+            foreach (var header in response.Headers)
+                headerBuilder.Append(header.Key).Append(": ").Append(header.Value).Append("\r\n");
+            headerBuilder.Append("\r\n");
+
+            var headers = Encoding.ASCII.GetBytes(headerBuilder.ToString());
+            await stream.WriteAsync(headers).ConfigureAwait(false);
+            await stream.WriteAsync(bodyBytes).ConfigureAwait(false);
+        }
+    }
+
+    private sealed record TestHttpRequest(string Path, IReadOnlyDictionary<string, string> Headers);
+
+    private sealed record TestHttpResponse(string Status, string Body, IReadOnlyDictionary<string, string> Headers)
+    {
+        public static TestHttpResponse Ok(string body, IReadOnlyDictionary<string, string>? headers = null)
+            => new("200 OK", body, headers ?? new Dictionary<string, string>());
+
+        public static TestHttpResponse Forbidden()
+            => new("403 Forbidden", string.Empty, new Dictionary<string, string>());
     }
 }

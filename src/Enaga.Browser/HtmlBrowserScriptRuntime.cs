@@ -1,5 +1,6 @@
 using Enaga.Html.Dom;
 using Enaga.Html;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using Okojo;
@@ -15,7 +16,10 @@ public delegate bool HtmlBrowserTextInputValueResolver(string elementId, out str
 public sealed class HtmlBrowserScriptRuntime : IDisposable
 {
     private static readonly JsShapePropertyFlags OpenFlags = JsShapePropertyFlags.Open;
-    private static readonly HttpClient ScriptHttpClient = new();
+    private static readonly HttpClient ScriptHttpClient = CreateScriptHttpClient();
+    private const string ScriptUserAgent = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Enaga.Browser/1.0 Safari/537.36";
+    private const string ScriptAcceptHeader = "text/javascript, application/javascript, application/ecmascript, */*;q=0.8";
+    private const string FetchAcceptHeader = "*/*";
     private static readonly HostTaskQueueKey[] SEventLoopQueueOrder =
     [
         WebTaskQueueKeys.Timers,
@@ -82,7 +86,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     public static HtmlBrowserScriptRuntime? CreateAndRun(HtmlDocument document, string documentSource)
     {
         var parsed = new HtmlDocumentParser().Parse(document.Html, document.BasePath);
-        var scripts = LoadExecutableScriptTexts(parsed.AuthorScripts, parsed.BasePath);
+        var scripts = LoadExecutableScriptTexts(parsed.AuthorScripts, parsed.BasePath, documentSource);
         if (scripts.Count == 0)
             return null;
 
@@ -104,7 +108,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         return scriptRuntime;
     }
 
-    private static IReadOnlyList<string> LoadExecutableScriptTexts(IReadOnlyList<HtmlDomScript> scripts, string? basePath)
+    private static IReadOnlyList<string> LoadExecutableScriptTexts(IReadOnlyList<HtmlDomScript> scripts, string? basePath, string documentSource)
     {
         if (scripts.Count == 0)
             return [];
@@ -124,7 +128,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
             try
             {
-                executableScripts.Add(ReadExternalScriptText(script.Source!, basePath));
+                executableScripts.Add(ReadExternalScriptText(script.Source!, basePath, documentSource));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException or UriFormatException)
             {
@@ -135,16 +139,17 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         return executableScripts;
     }
 
-    private static string ReadExternalScriptText(string source, string? basePath)
+    private static string ReadExternalScriptText(string source, string? basePath, string documentSource)
     {
-        var trimmed = StripUrlSuffix(source.Trim());
+        var trimmed = source.Trim();
+        var referer = ResolveRequestReferer(basePath, documentSource);
         if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absoluteUri))
         {
             if (absoluteUri.IsFile)
                 return File.ReadAllText(absoluteUri.LocalPath);
 
             if (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps)
-                return ScriptHttpClient.GetStringAsync(absoluteUri).GetAwaiter().GetResult();
+                return ReadRemoteScriptText(absoluteUri, referer);
 
             throw new UriFormatException($"Unsupported script URI scheme '{absoluteUri.Scheme}'.");
         }
@@ -156,19 +161,82 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         {
             if (baseUri.IsFile)
             {
-                var filePath = Path.GetFullPath(Path.Combine(baseUri.LocalPath, Uri.UnescapeDataString(trimmed)));
+                var filePath = Path.GetFullPath(Path.Combine(baseUri.LocalPath, Uri.UnescapeDataString(StripUrlSuffix(trimmed))));
                 return File.ReadAllText(filePath);
             }
 
-            var resolvedUri = new Uri(baseUri, trimmed);
+            var resolvedUri = new Uri(baseUri, StripUrlFragment(trimmed));
             if (resolvedUri.Scheme == Uri.UriSchemeHttp || resolvedUri.Scheme == Uri.UriSchemeHttps)
-                return ScriptHttpClient.GetStringAsync(resolvedUri).GetAwaiter().GetResult();
+                return ReadRemoteScriptText(resolvedUri, referer);
 
             throw new UriFormatException($"Unsupported script URI scheme '{resolvedUri.Scheme}'.");
         }
 
-        var path = Path.GetFullPath(Path.Combine(basePath, Uri.UnescapeDataString(trimmed)));
+        var path = Path.GetFullPath(Path.Combine(basePath, Uri.UnescapeDataString(StripUrlSuffix(trimmed))));
         return File.ReadAllText(path);
+    }
+
+    private static string ReadRemoteScriptText(Uri uri, Uri? referer)
+    {
+        using var request = CreateBrowserHttpRequest(HttpMethod.Get, uri, ScriptAcceptHeader, referer, fetchDestination: "script");
+        using var response = ScriptHttpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+    }
+
+    private static HttpClient CreateScriptHttpClient()
+    {
+        var handler = new SocketsHttpHandler
+        {
+            AllowAutoRedirect = true,
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
+            CookieContainer = new CookieContainer(),
+            UseCookies = true
+        };
+        var client = new HttpClient(handler);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(ScriptUserAgent);
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.8");
+        return client;
+    }
+
+    private static HttpRequestMessage CreateBrowserHttpRequest(HttpMethod method, Uri uri, string accept, Uri? referer, string? fetchDestination)
+    {
+        var request = new HttpRequestMessage(method, uri);
+        ApplyBrowserRequestHeaders(request, accept, referer, fetchDestination);
+        return request;
+    }
+
+    private static void ApplyBrowserRequestHeaders(HttpRequestMessage request, string accept, Uri? referer, string? fetchDestination)
+    {
+        if (!request.Headers.UserAgent.Any())
+            request.Headers.UserAgent.ParseAdd(ScriptUserAgent);
+        if (!request.Headers.Accept.Any())
+            request.Headers.Accept.ParseAdd(accept);
+        if (!request.Headers.AcceptLanguage.Any())
+            request.Headers.AcceptLanguage.ParseAdd("en-US,en;q=0.8");
+        if (referer is not null)
+            request.Headers.Referrer = referer;
+        if (!string.IsNullOrWhiteSpace(fetchDestination))
+            request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", fetchDestination);
+        request.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", "no-cors");
+        request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "same-origin");
+    }
+
+    private static Uri? ResolveRequestReferer(string? basePath, string documentSource)
+    {
+        if (Uri.TryCreate(documentSource, UriKind.Absolute, out var documentUri) &&
+            (documentUri.Scheme == Uri.UriSchemeHttp || documentUri.Scheme == Uri.UriSchemeHttps))
+        {
+            return documentUri;
+        }
+
+        if (Uri.TryCreate(basePath, UriKind.Absolute, out var baseUri) &&
+            (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            return baseUri;
+        }
+
+        return null;
     }
 
     private static string? MergeStyleSheets(IReadOnlyList<string> authorStyleTexts, string? loadedStyleSheet)
@@ -188,11 +256,17 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         return suffixIndex >= 0 ? value[..suffixIndex] : value;
     }
 
-    private static HttpRequestMessage BuildFetchRequest(string url, JsValue initValue)
+    private static string StripUrlFragment(string value)
+    {
+        var fragmentIndex = value.IndexOf('#', StringComparison.Ordinal);
+        return fragmentIndex >= 0 ? value[..fragmentIndex] : value;
+    }
+
+    private HttpRequestMessage BuildFetchRequest(string url, JsValue initValue)
     {
         var method = HttpMethod.Get;
         string? bodyText = null;
-        var request = new HttpRequestMessage(method, url);
+        var request = CreateBrowserHttpRequest(method, new Uri(url), FetchAcceptHeader, ResolveRequestReferer(basePath, documentSource), fetchDestination: "empty");
         if (initValue.TryGetObject(out var initObj))
         {
             if (initObj.TryGetProperty("method", out var methodValue) && !methodValue.IsUndefined)
