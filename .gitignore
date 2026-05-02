@@ -485,5 +485,3 @@ $RECYCLE.BIN/
 node_modules/
 dist/
 *.lscache
-
-okojo/
