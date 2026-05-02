@@ -1,0 +1,25 @@
+<Project Sdk="Godot.NET.Sdk/4.6.2">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <RootNamespace>godotsample</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Enaga.Rendering.Skia\Enaga.Rendering.Skia.csproj" />
+    <ProjectReference Include="..\..\src\Enaga.React.OkojoRuntime\Enaga.React.OkojoRuntime.csproj" />
+    <ProjectReference
+      Include="..\..\src\Enaga.Overlay.Windows\Enaga.Overlay.Windows.csproj" />
+    <Reference Include="Okojo" HintPath="..\..\okojo\src\Okojo\bin\Release\net10.0\Okojo.dll" />
+    <Reference Include="Okojo.Hosting"
+      HintPath="..\..\okojo\src\Okojo.Hosting\bin\Release\net10.0\Okojo.Hosting.dll" />
+    <Reference Include="Okojo.Annotations"
+      HintPath="..\..\okojo\src\Okojo.Annotations\bin\Release\netstandard2.0\Okojo.Annotations.dll" />
+    <Reference Include="Okojo.Node"
+      HintPath="..\..\okojo\src\Okojo.Node\bin\Release\net10.0\Okojo.Node.dll" />
+    <Analyzer
+      Include="..\..\okojo\src\Okojo.SourceGenerator\bin\Release\netstandard2.0\Okojo.SourceGenerator.dll" />
+
+  </ItemGroup>
+</Project>

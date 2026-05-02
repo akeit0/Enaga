@@ -1,0 +1,56 @@
+<Solution>
+    <Folder Name="/src/">
+        <Project Path="src/Enaga.Core/Enaga.Core.csproj" />
+        <Project Path="src/Enaga.Scene/Enaga.Scene.csproj" />
+        <Project Path="src/Enaga.Input/Enaga.Input.csproj" />
+        <Project Path="src/Enaga.Layout/Enaga.Layout.csproj" />
+        <Project Path="src/Enaga.Rendering/Enaga.Rendering.csproj" />
+        <Project Path="src/Enaga.Rendering.Skia/Enaga.Rendering.Skia.csproj" />
+        <Project Path="src/Enaga.Hosting/Enaga.Hosting.csproj" />
+        <Project Path="src/Enaga.React.OkojoRuntime/Enaga.React.OkojoRuntime.csproj" />
+        <Project Path="src/Enaga.Windowing.Silk/Enaga.Windowing.Silk.csproj" />
+        <Project Path="src/Enaga.Platforms.Mac/Enaga.Platforms.Mac.csproj" />
+        <Project Path="src/Enaga.Platforms.Windows/Enaga.Platforms.Windows.csproj" />
+        <Project Path="src/NativeInlineIme.Windows/NativeInlineIme.Windows.csproj" />
+        <Project Path="src/Enaga.Html.Layout/Enaga.Html.Layout.csproj" />
+        <Project Path="src/Enaga.Html.Dom/Enaga.Html.Dom.csproj" />
+        <Project Path="src/Enaga.Html.Css/Enaga.Html.Css.csproj" />
+        <Project Path="src/Enaga.Html.Style/Enaga.Html.Style.csproj" />
+        <Project Path="src/Enaga.Html/Enaga.Html.csproj" />
+        <Project Path="src/Enaga.Html.Loader/Enaga.Html.Loader.csproj" />
+        <Project Path="src/Enaga.Browser/Enaga.Browser.csproj" />
+        <Project Path="src/NativeInlineIme.Windows.Demo/NativeInlineIme.Windows.Demo.csproj" />
+    </Folder>
+    <Folder Name="/tests/">
+        <Project Path="tests/Enaga.Tests/Enaga.Tests.csproj" />
+    </Folder>
+    <Folder Name="/benchmarks/">
+        <Project Path="benchmarks/Enaga.Benchmarks/Enaga.Benchmarks.csproj" />
+    </Folder>
+    <Folder Name="/examples/" />
+    <Folder Name="/examples/SampleApp/">
+        <Project Path="examples/SampleApp/Enaga.SampleApp/Enaga.SampleApp.csproj" />
+        <Project Path="examples/SampleApp/Enaga.SampleApp.Core/Enaga.SampleApp.Core.csproj" />
+        <Project
+            Path="examples/SampleApp/Enaga.SampleApp.SyntaxHighlighting/Enaga.SampleApp.SyntaxHighlighting.csproj" />
+        <Project Path="examples/SampleApp/Enaga.SampleApp.Windows/Enaga.SampleApp.Windows.csproj" />
+    </Folder>
+    <Folder Name="/examples/LayoutVisualizer/">
+        <Project Path="examples/LayoutVisualizer/Enaga.LayoutVisualizer.csproj" />
+    </Folder>
+    <Folder Name="/examples/SampleBrowser/">
+        <Project Path="examples/SampleBrowser/SampleBrowser.csproj" />
+    </Folder>
+    <!-- <Folder Name="/okojo/" />
+  <Folder Name="/okojo/src/">
+    <Project Path="okojo/src/Okojo.Annotations/Okojo.Annotations.csproj" />
+    <Project Path="okojo/src/Okojo.Diagnostics/Okojo.Diagnostics.csproj" />
+    <Project Path="okojo/src/Okojo.Hosting/Okojo.Hosting.csproj" />
+    <Project Path="okojo/src/Okojo.Node/Okojo.Node.csproj" />
+    <Project Path="okojo/src/Okojo.Repl/Okojo.Repl.csproj" />
+    <Project Path="okojo/src/Okojo.SourceGenerator/Okojo.SourceGenerator.csproj" />
+    <Project Path="okojo/src/Okojo.WebAssembly/Okojo.WebAssembly.csproj" />
+    <Project Path="okojo/src/Okojo.WebPlatform/Okojo.WebPlatform.csproj" />
+    <Project Path="okojo/src/Okojo/Okojo.csproj" />
+  </Folder> -->
+</Solution>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Enaga.Html</AssemblyName>
+    <RootNamespace>Enaga.Html</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.Scene\Enaga.Scene.csproj" />
+    <ProjectReference Include="..\Enaga.Input\Enaga.Input.csproj" />
+    <ProjectReference Include="..\Enaga.Rendering\Enaga.Rendering.csproj" />
+    <ProjectReference Include="..\Enaga.Html.Layout\Enaga.Html.Layout.csproj" />
+    <ProjectReference Include="..\Enaga.Html.Style\Enaga.Html.Style.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TextCopy" Version="6.2.1" />
+  </ItemGroup>
+</Project>

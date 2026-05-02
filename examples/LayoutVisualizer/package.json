@@ -1,0 +1,14 @@
+{
+  "name": "okojo-reactapp-layout-visualizer",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "react": "19.2.5",
+    "react-reconciler": "0.33.0",
+    "scheduler": "0.27.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.0"
+  }
+}

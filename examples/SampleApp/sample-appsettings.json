@@ -1,0 +1,16 @@
+{
+  // This file is copied next to the native sample executable as sample-appsettings.json.
+  // Relative paths resolve from the loaded config file.
+  // Prefer relative paths or forward slashes in JSON settings for cross-platform use.
+  // "window": {
+  //   "width": 1440,
+  //   "height": 900
+  // },
+  // "react": {
+  //   "diagnostics": {
+  //     "areas": ["configuration", "reload"],
+  //     "file": "logs/sample-host.log"
+  //   }
+  // }
+  "react": {}
+}

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Enaga.SampleApp</AssemblyName>
+    <RootNamespace>Enaga.SampleApp</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.SampleApp.Core\Enaga.SampleApp.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\Enaga.Core\Enaga.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\sample-appsettings.json" Link="sample-appsettings.json"
+      CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <ProjectReference Include="..\..\..\src\Enaga.Platforms.Windows\Enaga.Platforms.Windows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+    <ProjectReference Include="..\..\..\src\Enaga.Platforms.Mac\Enaga.Platforms.Mac.csproj" />
+  </ItemGroup>
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+</Project>

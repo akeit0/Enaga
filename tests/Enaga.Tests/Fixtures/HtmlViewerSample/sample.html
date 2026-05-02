@@ -1,0 +1,204 @@
+<body class="shell">
+  <header class="topbar">
+    <div class="topbar-row">
+      <div class="brand-block">
+        <p class="brand-mark">Harbor Ledger</p>
+        <p class="brand-copy">A calm planning workspace for small import teams.</p>
+      </div>
+      <div class="nav-group">
+        <button class="nav-button">Shipments</button>
+        <button class="nav-button">Reports</button>
+        <button class="nav-button">Support</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section id="hero" class="hero">
+      <p class="eyebrow">Quarterly planning</p>
+      <h1>Coordinate vendor orders, port arrivals, and warehouse capacity in one quiet view.</h1>
+      <p class="lede">
+        This sample page is a <strong>fictional operations dashboard</strong>. It keeps the fixture independent
+        from the renderer project while still covering navigation, cards, responsive rows,
+        long text, form controls, hover states, scrollable content, <em>italic annotations</em>,
+        and <span class="inline-proof"><strong><a href="docs/inline-layout.html">nested inline formatting</a></strong></span>.
+      </p>
+
+      <div class="cta-row">
+        <button id="hero-primary" class="button primary-button">Open shipment board</button>
+        <button id="hero-secondary" class="button secondary-button">Review forecast</button>
+      </div>
+
+      <div id="stats-row" class="stats-row">
+        <div class="stat-card">
+          <p class="stat-value">42 orders</p>
+          <p class="stat-label">Confirmed purchase orders across six active vendors.</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-value">18 arrivals</p>
+          <p class="stat-label">Containers scheduled before the end of the next cycle.</p>
+        </div>
+        <div class="stat-card accent">
+          <p class="stat-value">91% ready</p>
+          <p class="stat-label">Warehouse teams have allocated receiving capacity.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-intro">
+      <p class="section-kicker">Operations brief</p>
+      <h2>What the team checks each morning</h2>
+      <p class="section-copy">
+        Coordinators compare <strong>inbound freight</strong>, available docks, exceptions, and account notes
+        before committing the next set of delivery windows.<br />
+        Review the
+        <a href="docs/receiving-playbook.html"><strong>receiving playbook</strong></a>
+        when a shipment needs <span>special <u>handling</u></span>
+        or an <i>ETA exception</i>.
+      </p>
+      <p class="inline-demo">
+        Status <span class="status-chip">customs hold</span>
+        <span class="truncate-note">Long reference: Vessel MV North Harbor / rail interchange / account escalation note</span>
+      </p>
+      <p class="pre-note">Dock note:  keep two doors open
+before the 08:30 carrier call.</p>
+    </section>
+
+    <section class="media-row">
+      <div class="image-panel">
+        <img id="warehouse-photo" src="../SampleApp/assets/demo.jpg" width="420" height="236" />
+      </div>
+      <div class="panel media-copy-panel">
+        <p class="section-kicker">Field snapshot</p>
+        <h2>Use the same page for summaries and supporting media.</h2>
+        <p class="panel-copy">
+          Operations teams often need a picture, a short decision trail, and links to related procedures in one view.
+          <small>Updated notes should stay readable even when the line wraps.</small>
+        </p>
+        <p class="selector-proof">
+          Direct panel note with descendant selector color and direct-child highlight.
+        </p>
+        <div class="nested-proof">
+          <p class="selector-proof">Nested panel note inherits only the descendant selector.</p>
+        </div>
+        <ul class="brief-list">
+          <li>Confirm receiving capacity before assigning a carrier window.</li>
+          <li>Check <strong>exceptions</strong> against the <a href="docs/account-notes.html"><em>account note policy</em></a>.</li>
+          <li>Flag <span><u>temperature-sensitive</u> freight</span> for the morning shift lead.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="feature-row" class="row">
+      <div class="card accent">
+        <p class="card-kicker">Inventory</p>
+        <h2>Capacity signals</h2>
+        <p>Cards summarize reserved space, pending transfers, and overflow risks for the week.</p>
+      </div>
+      <div class="card">
+        <p class="card-kicker">Freight</p>
+        <h2>Arrival windows</h2>
+        <p>Schedule changes are grouped by port, carrier, and receiving location.</p>
+      </div>
+      <div class="card">
+        <p class="card-kicker">Accounts</p>
+        <h2>Customer notes</h2>
+        <p>Teams track delivery constraints, contacts, and follow-up items beside each order.</p>
+      </div>
+    </section>
+
+    <section class="unit-demo">
+      <div class="unit-card em-card">
+        <p class="unit-value">em spacing</p>
+        <p class="panel-copy">Padding and type scale from this card's local font size.</p>
+      </div>
+      <div class="unit-card viewport-card">
+        <p class="unit-value">vh / vw sizing</p>
+        <p class="panel-copy">Inset and minimum height respond directly to the viewport.</p>
+      </div>
+      <div class="unit-card percent-card">
+        <p class="unit-value">percent padding</p>
+        <p class="panel-copy">All padding sides resolve from the containing block width.</p>
+      </div>
+    </section>
+
+    <section class="logical-demo">
+      <div class="logical-panel">
+        <p class="section-kicker">LTR logical margins</p>
+        <h2>Inline start begins on the left.</h2>
+        <div class="logical-row">
+          <span class="logical-chip">start</span>
+          <p class="logical-copy">This row uses margin-inline-start, margin-inline-end, and margin-block.</p>
+        </div>
+      </div>
+      <div class="logical-panel rtl">
+        <p class="section-kicker">RTL logical margins</p>
+        <h2>Inline start begins on the right.</h2>
+        <div class="logical-row">
+          <span class="logical-chip">start</span>
+          <p class="logical-copy">The same logical properties flip sides when direction is rtl.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="detail-row" class="split-row">
+      <div class="panel roadmap-panel">
+        <p class="section-kicker">Readiness checklist</p>
+        <h2>Prepare the next receiving cycle before trucks are assigned.</h2>
+        <p class="panel-copy">
+          The planner highlights a few operational checks that keep late changes visible without requiring a separate report.
+        </p>
+
+        <ol class="checklist">
+          <li class="check-item">Confirm <strong>supplier holds</strong> before purchase orders move to the shipping lane.</li>
+          <li class="check-item">Balance dock schedules when the <a href="docs/dock-capacity.html"><i>receiving team is near capacity</i></a>.</li>
+          <li class="check-item">Update customer promises<br />when an arrival window changes.</li>
+        </ol>
+      </div>
+
+      <div class="panel surface-panel">
+        <p class="section-kicker">Planner note</p>
+        <h2>Edit the handoff message for tomorrow's shift.</h2>
+        <p class="panel-copy">
+          This side stays interactive so the sample covers text fields and multi-line editing.
+        </p>
+
+        <div class="form-panel">
+          <div class="field">
+            <p class="field-label">Shift contact</p>
+            <input placeholder="name@example.com" value="ops@example.test" />
+          </div>
+          <div class="field">
+            <p class="field-label">Handoff note</p>
+            <textarea placeholder="Add a planning note">Please prioritize the north dock deliveries and confirm the revised carrier ETA before noon.</textarea>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="button primary-button">Save handoff</button>
+          <button class="button secondary-button">Clear draft</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="testimonial-row">
+      <div class="quote-card">
+        <p class="quote-text">"A single morning view helps the team spot <strong>timing conflicts</strong> before they turn into <em>missed appointments</em>."</p>
+        <p class="quote-author">Receiving lead</p>
+      </div>
+      <div class="quote-card accent">
+        <p class="quote-text">"The useful detail is not the chart count.<br />It is knowing which customer promises need a quick call."</p>
+        <p class="quote-author">Account operations</p>
+      </div>
+    </section>
+
+    <section class="footer-banner">
+      <div class="footer-copy">
+        <p class="section-kicker">Next review</p>
+        <h2>Lock the weekly capacity plan after the final carrier update.</h2>
+        <p class="panel-copy">The team will revisit open exceptions once the afternoon arrivals are confirmed.</p>
+      </div>
+      <button id="footer-action" class="button primary-button">Publish weekly plan</button>
+    </section>
+  </main>
+</body>

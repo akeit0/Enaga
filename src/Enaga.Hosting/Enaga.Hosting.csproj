@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>Enaga.Hosting</AssemblyName>
+    <RootNamespace>Enaga.Hosting</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.Windowing.Silk\Enaga.Windowing.Silk.csproj" />
+  </ItemGroup>
+
+</Project>

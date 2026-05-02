@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+    <DefineConstants>$(DefineConstants);HOST_WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+    <DefineConstants>$(DefineConstants);HOST_UNIX</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'osx-arm64'">
+    <DefineConstants>$(DefineConstants);RID_OSX_ARM64;HOST_MACOS</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <DefineConstants>$(DefineConstants);RID_LINUX_X64</DefineConstants>
+  </PropertyGroup>
+</Project>

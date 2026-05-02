@@ -1,0 +1,33 @@
+<body>
+  <main id="main-content" style="font-family: Arial, sans-serif; padding: 24px; line-height: 1.5;">
+    <h1>SampleBrowser navigation demo</h1>
+    <p>Click these links to load them inside this viewer instead of opening a browser:</p>
+    <ul>
+      <li><a href="https://www.iana.org/help/example-domains">IANA example domains</a></li>
+      <li><a href="https://wa3.i-3-i.info/word1580.html">Japanese HTML article with cookie gate</a></li>
+    </ul>
+	<select id='region' >
+                    <option value='apac'>APAC</option>
+                    <option value='emea'>EMEA</option>
+                    <option value='amer'>AMER</option>
+                  </select>
+    <button id="demo-button">Run JS click handler</button>
+    <p id="demo-paragraph">You can also type a URL into the bar at the top and press <strong>Enter</strong>.</p>
+    <script>
+      let main = document.getElementById("main-content");
+      const paragraph = document.getElementById("demo-paragraph");
+      let counter = 0;
+
+      document.getElementById("demo-button").
+        addEventListener("click", event => {
+          console.log("button clicked", event.target.id);
+          let count = ++counter;
+          paragraph.textContent =
+            `Button clicked ${count} time${count === 1 ? "" : "s"}.`;
+
+          let e = main.appendChild(document.createElement("p"));
+          e.textContent = `Added a new line element at ${new Date().toLocaleTimeString()}`;
+        });
+    </script>
+  </main>
+</body>

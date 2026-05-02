@@ -1,0 +1,25 @@
+{
+  "name": "okojo-reactapp-sampleapp-react",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:react": "node ./scripts/build-react.mjs",
+    "build:react:fast-refresh": "node ./scripts/build-react.mjs --fast-refresh",
+    "watch:react:fast-refresh": "node ./scripts/build-react.mjs --fast-refresh --watch",
+    "build:react:all": "pnpm run build:react && pnpm run build:react:fast-refresh"
+  },
+  "dependencies": {
+    "react": "19.2.5",
+    "react-reconciler": "0.33.0",
+    "scheduler": "0.27.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@types/react": "^19.2.14",
+    "@types/react-reconciler": "^0.33.0",
+    "esbuild": "0.28.0",
+    "react-refresh": "^0.18.0",
+    "tsx": "^4.20.6",
+    "typescript": "^6.0.3"
+  }
+}

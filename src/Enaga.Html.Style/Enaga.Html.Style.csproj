@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Enaga.Html.Style</AssemblyName>
+    <RootNamespace>Enaga.Html.Style</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.Html.Dom\Enaga.Html.Dom.csproj" />
+    <ProjectReference Include="..\Enaga.Html.Css\Enaga.Html.Css.csproj" />
+  </ItemGroup>
+
+</Project>

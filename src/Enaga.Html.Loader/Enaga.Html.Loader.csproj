@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Enaga.Html.Loader</AssemblyName>
+    <RootNamespace>Enaga.Html.Loader</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.Html\Enaga.Html.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AngleSharp" Version="1.4.0" />
+  </ItemGroup>
+
+</Project>

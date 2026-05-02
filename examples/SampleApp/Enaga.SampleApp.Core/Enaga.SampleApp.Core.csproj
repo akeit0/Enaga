@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Enaga.SampleApp.Core</AssemblyName>
+    <RootNamespace>Enaga.SampleApp</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference
+      Include="..\Enaga.SampleApp.SyntaxHighlighting\Enaga.SampleApp.SyntaxHighlighting.csproj" />
+    <ProjectReference Include="..\..\..\src\Enaga.Core\Enaga.Core.csproj" />
+    <ProjectReference Include="..\..\..\okojo\src\Okojo\Okojo.csproj" />
+    <ProjectReference Include="..\..\..\okojo\src\Okojo.Annotations\Okojo.Annotations.csproj" />
+    <ProjectReference
+      Include="..\..\..\okojo\src\Okojo.SourceGenerator\Okojo.SourceGenerator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

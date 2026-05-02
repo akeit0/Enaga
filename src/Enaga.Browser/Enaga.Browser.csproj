@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Enaga.Browser</AssemblyName>
+    <RootNamespace>Enaga.Browser</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.Html\Enaga.Html.csproj" />
+    <ProjectReference Include="..\Enaga.Html.Dom\Enaga.Html.Dom.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Okojo" HintPath="..\..\okojo\src\Okojo\bin\Release\net10.0\Okojo.dll" />
+    <Reference Include="Okojo.WebPlatform" HintPath="..\..\okojo\src\Okojo.WebPlatform\bin\Release\net10.0\Okojo.WebPlatform.dll" />
+  </ItemGroup>
+
+</Project>

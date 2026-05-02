@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Enaga.Platforms.Windows</AssemblyName>
+    <RootNamespace>Enaga.Platforms.Windows</RootNamespace>
+    <EnableDefaultCompileItems Condition="'$(OS)' != 'Windows_NT'">false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.Core\Enaga.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <ProjectReference Include="..\NativeInlineIme.Windows\NativeInlineIme.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

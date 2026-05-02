@@ -1,0 +1,20 @@
+{
+  "name": "okojo-reactapp-layout-visualizer-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.9"
+  }
+}

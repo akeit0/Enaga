@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Enaga.Overlay.Windows</AssemblyName>
+    <RootNamespace>Enaga.Overlay.Windows</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.Scene\Enaga.Scene.csproj" />
+    <ProjectReference Include="..\Enaga.Input\Enaga.Input.csproj" />
+    <ProjectReference Include="..\Enaga.Rendering\Enaga.Rendering.csproj" />
+    <ProjectReference Include="..\Enaga.Rendering.Skia\Enaga.Rendering.Skia.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="3.119.2" />
+    <PackageReference Include="SkiaSharp.Direct3D.Vortice" Version="3.119.2" />
+    <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
+    <PackageReference Include="Vortice.DirectComposition" Version="3.8.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
+  </ItemGroup>
+
+</Project>

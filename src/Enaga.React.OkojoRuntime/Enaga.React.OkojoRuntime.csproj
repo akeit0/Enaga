@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Enaga.React.OkojoRuntime</AssemblyName>
+    <RootNamespace>Enaga</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.Scene\Enaga.Scene.csproj" />
+    <ProjectReference Include="..\Enaga.Input\Enaga.Input.csproj" />
+    <ProjectReference Include="..\Enaga.Layout\Enaga.Layout.csproj" />
+    <ProjectReference Include="..\Enaga.Rendering\Enaga.Rendering.csproj" />
+    <Reference Include="Okojo" HintPath="..\..\okojo\src\Okojo\bin\Release\net10.0\Okojo.dll" />
+    <Reference Include="Okojo.Hosting" HintPath="..\..\okojo\src\Okojo.Hosting\bin\Release\net10.0\Okojo.Hosting.dll" />
+    <Reference Include="Okojo.Node" HintPath="..\..\okojo\src\Okojo.Node\bin\Release\net10.0\Okojo.Node.dll" />
+    <Reference Include="Okojo.Annotations" HintPath="..\..\okojo\src\Okojo.Annotations\bin\Release\netstandard2.0\Okojo.Annotations.dll" />
+    <Analyzer Include="..\..\okojo\src\Okojo.SourceGenerator\bin\Release\netstandard2.0\Okojo.SourceGenerator.dll"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TextCopy" Version="6.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Enaga.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Enaga.Benchmarks</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,258 @@
+using Enaga.Input;
+using Enaga.Scene;
+
+namespace Enaga.Html;
+
+internal static class HtmlFragmentTreeFactory
+{
+    public static HtmlFragmentTree Create(
+        string rootId,
+        float rootWidth,
+        float rootHeight,
+        IReadOnlyList<HtmlPlacedNode> placedNodes,
+        IReadOnlyDictionary<string, SceneLayoutBox>? layout = null)
+    {
+        var rootFragmentId = CreateFragmentId(rootId);
+        var fragments = new List<HtmlFragment>(placedNodes.Count + 5)
+        {
+            new(
+                rootFragmentId,
+                CreateFormattingNodeId(rootId),
+                ParentId: null,
+                Children: [],
+                HtmlFragmentKind.BlockBox,
+                new HtmlLayoutRect(0, 0, rootWidth, rootHeight),
+                new HtmlLayoutRect(0, 0, rootWidth, rootHeight),
+                PaintVersion: 1,
+                SceneNodeId: rootId,
+                SourceSceneNodeId: rootId)
+        };
+        if (layout is not null && layout.TryGetValue(rootId, out var rootBox))
+            AddScrollBarFragments(fragments, rootId, rootId, rootFragmentId, rootBox);
+
+        for (var index = 0; index < placedNodes.Count; index++)
+        {
+            var placed = placedNodes[index];
+            var id = placed.Id;
+            var kind = ResolveFragmentKind(placed.Node);
+            var rect = new HtmlLayoutRect(placed.AbsLeft, placed.AbsTop, placed.Width, placed.Height);
+            fragments.Add(new HtmlFragment(
+                CreateFragmentId(id),
+                CreateFormattingNodeId(placed.Node.Id),
+                ParentId: string.IsNullOrWhiteSpace(placed.ParentId) ? rootFragmentId : CreateFragmentId(placed.ParentId),
+                Children: [],
+                kind,
+                BorderBox: rect,
+                VisualOverflow: ResolveVisualOverflow(placed, rect),
+                PaintVersion: ResolvePaintVersion(placed),
+                SceneNodeId: id,
+                SourceSceneNodeId: placed.Node.Id));
+            if (layout is not null && layout.TryGetValue(id, out var box))
+                AddScrollBarFragments(fragments, id, placed.Node.Id, CreateFragmentId(id), box);
+        }
+
+        return new HtmlFragmentTree(rootFragmentId, fragments);
+    }
+
+    private static HtmlFragmentKind ResolveFragmentKind(HtmlPlacedNode placed)
+        => ResolveFragmentKind(placed.Node);
+
+    private static HtmlFragmentKind ResolveFragmentKind(HtmlSceneNode node)
+    {
+        if (node.Id.StartsWith("marker-", StringComparison.Ordinal))
+            return HtmlFragmentKind.ListMarker;
+        if (node.Id.StartsWith("td-", StringComparison.Ordinal) ||
+            node.Id.StartsWith("th-", StringComparison.Ordinal))
+            return HtmlFragmentKind.TableCell;
+
+        return node.NodeKind switch
+        {
+            Enaga.Scene.SceneNodeKind.Text => HtmlFragmentKind.TextRun,
+            Enaga.Scene.SceneNodeKind.Image => HtmlFragmentKind.Image,
+            Enaga.Scene.SceneNodeKind.ScrollView => HtmlFragmentKind.BlockBox,
+            _ => HtmlFragmentKind.BlockBox
+        };
+    }
+
+    private static void AddScrollBarFragments(
+        List<HtmlFragment> fragments,
+        string sceneNodeId,
+        string sourceSceneNodeId,
+        HtmlFragmentId parentId,
+        SceneLayoutBox box)
+    {
+        if (box.NodeKind != SceneNodeKind.ScrollView)
+            return;
+
+        var paintVersion = ResolveScrollBarPaintVersion(box);
+        if (SceneScrollBarLayout.ResolveVerticalScrollBar(box) is { } vertical)
+        {
+            var gutterWidth = Math.Max(0, box.ScrollBarWidth);
+            AddGeneratedFragment(
+                fragments,
+                sceneNodeId,
+                sourceSceneNodeId,
+                parentId,
+                HtmlGeneratedFragmentRole.VerticalScrollBarGutter,
+                new HtmlLayoutRect(box.AbsLeft + box.Width - gutterWidth, box.AbsTop, gutterWidth, box.Height),
+                paintVersion);
+            AddGeneratedFragment(
+                fragments,
+                sceneNodeId,
+                sourceSceneNodeId,
+                parentId,
+                HtmlGeneratedFragmentRole.VerticalScrollBarThumb,
+                ToLayoutRect(vertical.ThumbRect),
+                paintVersion);
+        }
+
+        if (SceneScrollBarLayout.ResolveHorizontalScrollBar(box) is { } horizontal)
+        {
+            var gutterHeight = Math.Max(0, box.ScrollBarWidth);
+            AddGeneratedFragment(
+                fragments,
+                sceneNodeId,
+                sourceSceneNodeId,
+                parentId,
+                HtmlGeneratedFragmentRole.HorizontalScrollBarGutter,
+                new HtmlLayoutRect(box.AbsLeft, box.AbsTop + box.Height - gutterHeight, box.Width, gutterHeight),
+                paintVersion);
+            AddGeneratedFragment(
+                fragments,
+                sceneNodeId,
+                sourceSceneNodeId,
+                parentId,
+                HtmlGeneratedFragmentRole.HorizontalScrollBarThumb,
+                ToLayoutRect(horizontal.ThumbRect),
+                paintVersion);
+        }
+    }
+
+    private static void AddGeneratedFragment(
+        List<HtmlFragment> fragments,
+        string sceneNodeId,
+        string sourceSceneNodeId,
+        HtmlFragmentId parentId,
+        HtmlGeneratedFragmentRole role,
+        HtmlLayoutRect rect,
+        uint paintVersion)
+    {
+        if (rect.IsEmpty)
+            return;
+
+        fragments.Add(new HtmlFragment(
+            CreateGeneratedFragmentId(sceneNodeId, role),
+            CreateFormattingNodeId(sourceSceneNodeId),
+            parentId,
+            Children: [],
+            HtmlFragmentKind.ScrollBar,
+            rect,
+            rect,
+            paintVersion,
+            SceneNodeId: "",
+            SourceSceneNodeId: sourceSceneNodeId,
+            GeneratedRole: role));
+    }
+
+    private static HtmlLayoutRect ToLayoutRect(SceneScrollBarLayout.ScrollBarRect rect)
+        => new(rect.Left, rect.Top, rect.Width, rect.Height);
+
+    private static HtmlLayoutRect ResolveVisualOverflow(HtmlPlacedNode placed, HtmlLayoutRect borderBox)
+    {
+        var style = placed.Node.Style;
+        var shadowOutset = 0f;
+        if (style.BackgroundShadows is { Length: > 0 } shadows)
+        {
+            for (var index = 0; index < shadows.Length; index++)
+                shadowOutset = Math.Max(shadowOutset, Math.Abs(shadows[index].OffsetX) + Math.Abs(shadows[index].OffsetY) + shadows[index].Blur + shadows[index].Spread);
+        }
+        if (style.TextShadows is { Length: > 0 } textShadows)
+        {
+            for (var index = 0; index < textShadows.Length; index++)
+                shadowOutset = Math.Max(shadowOutset, Math.Abs(textShadows[index].OffsetX) + Math.Abs(textShadows[index].OffsetY) + textShadows[index].Blur);
+        }
+
+        var borderOutset = Math.Max(
+            Math.Max(style.BorderLeftWidth, style.BorderRightWidth),
+            Math.Max(style.BorderTopWidth, style.BorderBottomWidth));
+        var outset = Math.Max(0, Math.Max(shadowOutset, borderOutset));
+        return outset <= 0
+            ? borderBox
+            : new HtmlLayoutRect(borderBox.Left - outset, borderBox.Top - outset, borderBox.Width + outset * 2, borderBox.Height + outset * 2);
+    }
+
+    private static uint ResolvePaintVersion(HtmlPlacedNode placed)
+    {
+        var hash = new HashCode();
+        hash.Add(placed.Node.StyleVersion);
+        hash.Add(placed.Node.LayoutVersion);
+        hash.Add(placed.Node.Style.BackgroundColor);
+        hash.Add(placed.Node.Style.BackgroundImageSource);
+        hash.Add(placed.Node.Style.BackgroundImageFit);
+        hash.Add(placed.Node.Style.BorderColor);
+        hash.Add(placed.Node.Style.BorderWidth);
+        hash.Add(placed.Node.Style.BorderRadius);
+        hash.Add(placed.Node.Style.BorderStyle);
+        hash.Add(placed.Node.Style.BorderLeftColor);
+        hash.Add(placed.Node.Style.BorderTopColor);
+        hash.Add(placed.Node.Style.BorderRightColor);
+        hash.Add(placed.Node.Style.BorderBottomColor);
+        hash.Add(placed.Node.Style.BorderLeftWidth);
+        hash.Add(placed.Node.Style.BorderTopWidth);
+        hash.Add(placed.Node.Style.BorderRightWidth);
+        hash.Add(placed.Node.Style.BorderBottomWidth);
+        hash.Add(placed.Node.Style.Color);
+        hash.Add(placed.Node.Style.FontFamily);
+        hash.Add(placed.Node.Style.FontSize);
+        hash.Add(placed.Node.Style.FontWeight);
+        hash.Add(placed.Node.Style.Italic);
+        hash.Add(placed.Node.Style.Underline);
+        hash.Add(placed.TextContent);
+        hash.Add(placed.Node.ImageSource);
+        hash.Add(placed.Node.LinkHref);
+        return unchecked((uint)hash.ToHashCode());
+    }
+
+    private static uint ResolveScrollBarPaintVersion(SceneLayoutBox box)
+    {
+        var hash = new HashCode();
+        hash.Add(box.ScrollBarWidth);
+        hash.Add(box.ScrollBarTrackColor);
+        hash.Add(box.ScrollBarThumbColor);
+        hash.Add(box.Width);
+        hash.Add(box.Height);
+        hash.Add(box.ContentWidth);
+        hash.Add(box.ContentHeight);
+        hash.Add(box.HorizontalScrollEnabled);
+        return unchecked((uint)hash.ToHashCode());
+    }
+
+    private static HtmlFragmentId CreateFragmentId(string id)
+        => new(StableHash(id));
+
+    private static HtmlFragmentId CreateGeneratedFragmentId(string id, HtmlGeneratedFragmentRole role)
+        => new(StableHash(id, (int)role));
+
+    private static HtmlFormattingNodeId CreateFormattingNodeId(string id)
+        => new(StableHash(id));
+
+    private static int StableHash(string value)
+        => StableHash(value, 0);
+
+    private static int StableHash(string value, int discriminator)
+    {
+        unchecked
+        {
+            var hash = 2166136261u;
+            for (var index = 0; index < value.Length; index++)
+            {
+                hash ^= value[index];
+                hash *= 16777619u;
+            }
+
+            hash ^= (uint)discriminator;
+            hash *= 16777619u;
+            return (int)(hash & 0x7fffffffu);
+        }
+    }
+}

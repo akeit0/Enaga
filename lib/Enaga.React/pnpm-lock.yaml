@@ -1,0 +1,80 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      react:
+        specifier: 19.2.5
+        version: 19.2.5
+      react-reconciler:
+        specifier: 0.33.0
+        version: 0.33.0(react@19.2.5)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      '@types/react-reconciler':
+        specifier: ^0.33.0
+        version: 0.33.0(@types/react@19.2.14)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+packages:
+
+  '@types/react-reconciler@0.33.0':
+    resolution: {integrity: sha512-HZOXsKT0tGI9LlUw2LuedXsVeB88wFa536vVL0M6vE8zN63nI+sSr1ByxmPToP5K5bukaVscyeCJcF9guVNJ1g==}
+    peerDependencies:
+      '@types/react': '*'
+
+  '@types/react@19.2.14':
+    resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
+
+  csstype@3.2.3:
+    resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  react-reconciler@0.33.0:
+    resolution: {integrity: sha512-KetWRytFv1epdpJc3J4G75I4WrplZE5jOL7Yq0p34+OVOKF4Se7WrdIdVC45XsSSmUTlht2FM/fM1FZb1mfQeA==}
+    engines: {node: '>=0.10.0'}
+    peerDependencies:
+      react: ^19.2.0
+
+  react@19.2.5:
+    resolution: {integrity: sha512-llUJLzz1zTUBrskt2pwZgLq59AemifIftw4aB7JxOqf1HY2FDaGDxgwpAPVzHU1kdWabH7FauP4i1oEeer2WCA==}
+    engines: {node: '>=0.10.0'}
+
+  scheduler@0.27.0:
+    resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
+
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+snapshots:
+
+  '@types/react-reconciler@0.33.0(@types/react@19.2.14)':
+    dependencies:
+      '@types/react': 19.2.14
+
+  '@types/react@19.2.14':
+    dependencies:
+      csstype: 3.2.3
+
+  csstype@3.2.3: {}
+
+  react-reconciler@0.33.0(react@19.2.5):
+    dependencies:
+      react: 19.2.5
+      scheduler: 0.27.0
+
+  react@19.2.5: {}
+
+  scheduler@0.27.0: {}
+
+  typescript@6.0.3: {}
