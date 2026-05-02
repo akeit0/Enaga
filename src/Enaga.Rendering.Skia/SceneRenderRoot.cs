@@ -371,7 +371,9 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
                 DrawScaleOverlay(canvas, viewportScale, width, scaleOverlayOpacity);
         }
         else
+        {
             painter.SkipPaint(commitReused);
+        }
 
         var runtimeState = source is IRenderRuntimeStateSource runtimeStateSource
             ? runtimeStateSource.GetRenderRuntimeStateSnapshot()
@@ -401,9 +403,13 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
             height,
             runtimeState);
         if (scaleOverlayVisible)
+        {
             renderWakeRequested?.Invoke();
+        }
         if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
             SceneOverlayPainter.DrawOverlayMessage(canvas, errorMessage!);
+        }
     }
 
     public void SetRenderGpuContext(GRContext? context)

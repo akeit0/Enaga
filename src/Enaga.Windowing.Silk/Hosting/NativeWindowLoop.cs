@@ -6,6 +6,7 @@ namespace Enaga.Hosting;
 
 internal sealed class NativeWindowLoop : IDisposable
 {
+    private const double IdleEventPollMs = 16.67;
     private readonly double activeFramesPerSecond;
     private readonly SilkGlfw? glfwApi;
     private readonly Func<bool> hasImmediateWork;
@@ -79,11 +80,12 @@ internal sealed class NativeWindowLoop : IDisposable
         while (!window.IsClosing)
         {
             var framesPerSecond = appliedFramesPerSecond ?? activeFramesPerSecond;
-            var frameIntervalMs = 1000d / Math.Max(1, framesPerSecond);
+            var renderPaused = framesPerSecond <= 0;
+            var frameIntervalMs = renderPaused ? double.PositiveInfinity : 1000d / Math.Max(1, framesPerSecond);
             var nowMs = ElapsedMs;
             var remainingMs = Math.Max(0, GetNextFrameDueMs() - nowMs);
             if (remainingMs > 0.05)
-                WaitForWork(remainingMs);
+                WaitForWork(double.IsPositiveInfinity(remainingMs) ? IdleEventPollMs : remainingMs);
             else
                 ProcessEvents(resetWakeSignal: true);
 
@@ -93,6 +95,7 @@ internal sealed class NativeWindowLoop : IDisposable
                 if (hasImmediateWork())
                 {
                     ApplyRenderCadence(activeFramesPerSecond);
+                    renderPaused = false;
                     ScheduleFrameNoLaterThan(nowMs);
                 }
 
@@ -103,8 +106,14 @@ internal sealed class NativeWindowLoop : IDisposable
             }
             if (!window.IsClosing)
             {
+                if (renderPaused)
+                    continue;
+
                 window.DoRender();
                 nowMs = ElapsedMs;
+                if ((appliedFramesPerSecond ?? activeFramesPerSecond) <= 0)
+                    continue;
+
                 AdvanceNextFrameDueMs(nowMs, frameIntervalMs);
             }
         }
@@ -136,7 +145,7 @@ internal sealed class NativeWindowLoop : IDisposable
 
     private void ApplyRenderCadence(double framesPerSecond)
     {
-        var targetFramesPerSecond = Math.Max(1, framesPerSecond);
+        var targetFramesPerSecond = framesPerSecond <= 0 ? 0 : Math.Max(1, framesPerSecond);
         if (appliedFramesPerSecond is { } applied &&
             Math.Abs(applied - targetFramesPerSecond) < 0.001)
         {
@@ -144,6 +153,13 @@ internal sealed class NativeWindowLoop : IDisposable
         }
 
         appliedFramesPerSecond = targetFramesPerSecond;
+        if (targetFramesPerSecond <= 0)
+        {
+            lock (scheduleGate)
+            {
+                nextFrameDueMs = double.PositiveInfinity;
+            }
+        }
     }
 
     private double GetNextFrameDueMs()

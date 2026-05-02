@@ -306,7 +306,13 @@ internal sealed class SampleBrowserDocumentController : IDisposable
         => source.UpdateDocument(document);
 
     private void HandleScriptEventLoopWorkQueued()
-        => source.RequestRenderWake();
+    {
+        HtmlBrowserScriptRuntime? runtime;
+        lock (sync)
+            runtime = disposed ? null : scriptRuntime;
+
+        runtime?.PumpEventLoopUntilIdle();
+    }
 
     private void HandleScriptNavigationRequested(string url)
     {

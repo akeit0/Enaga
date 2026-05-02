@@ -97,6 +97,13 @@ internal sealed class HtmlSceneTreeBuilder
                         break;
                     }
 
+                    var childStyle = ResolveElementStyle(element, styleTree);
+                    if (childStyle.Display == HtmlDisplay.Contents)
+                    {
+                        children.AddRange(BuildChildren(element, childStyle, idGenerator, inheritedLinkHref, basePath, viewportWidth, viewportHeight, styleTree));
+                        break;
+                    }
+
                     string? markerText = null;
                     if (parentIsList &&
                         !inheritedStyle.SuppressListMarker &&
@@ -126,7 +133,39 @@ internal sealed class HtmlSceneTreeBuilder
             }
         }
 
-        return GroupInlineRuns(parent, parentAllowsInlineContent, NormalizeInlinePunctuation(parentAllowsInlineContent, children), inheritedStyle, idGenerator);
+        return GroupInlineRuns(parent, parentAllowsInlineContent, ApplyFlexOrder(inheritedStyle, NormalizeInlinePunctuation(parentAllowsInlineContent, children)), inheritedStyle, idGenerator);
+    }
+
+    private static IReadOnlyList<HtmlSceneNode> ApplyFlexOrder(HtmlComputedStyle parentStyle, IReadOnlyList<HtmlSceneNode> children)
+    {
+        if (children.Count < 2 || parentStyle.Display != HtmlDisplay.Flex)
+            return children;
+
+        List<(HtmlSceneNode Node, int Index)>? ordered = null;
+        for (var index = 0; index < children.Count; index++)
+        {
+            if (children[index].Style.Order == 0)
+                continue;
+
+            ordered = new List<(HtmlSceneNode Node, int Index)>(children.Count);
+            for (var copyIndex = 0; copyIndex < children.Count; copyIndex++)
+                ordered.Add((children[copyIndex], copyIndex));
+            break;
+        }
+
+        if (ordered is null)
+            return children;
+
+        ordered.Sort(static (left, right) =>
+        {
+            var order = left.Node.Style.Order.CompareTo(right.Node.Style.Order);
+            return order != 0 ? order : left.Index.CompareTo(right.Index);
+        });
+
+        var result = new HtmlSceneNode[ordered.Count];
+        for (var index = 0; index < ordered.Count; index++)
+            result[index] = ordered[index].Node;
+        return result;
     }
 
     private static bool IsTableRowNode(HtmlSceneNode node)
@@ -159,6 +198,8 @@ internal sealed class HtmlSceneTreeBuilder
         var style = ResolveElementStyle(element, styleTree);
         if (style.Display == HtmlDisplay.None)
             return [];
+        if (style.Display == HtmlDisplay.Contents)
+            return BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
 
         if (style.Display != HtmlDisplay.Inline &&
             style.Display != HtmlDisplay.InlineBlock &&

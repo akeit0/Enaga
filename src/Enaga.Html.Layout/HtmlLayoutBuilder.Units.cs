@@ -40,10 +40,14 @@ internal sealed partial class HtmlLayoutBuilder
         return resolved ?? nodes;
     }
 
-    private static IReadOnlyList<HtmlSceneNode> ResolveContainerPercentUnits(IReadOnlyList<HtmlSceneNode> nodes, float containerWidth)
+    private IReadOnlyList<HtmlSceneNode> ResolveContainerPercentUnits(IReadOnlyList<HtmlSceneNode> nodes, float containerWidth)
     {
         if (nodes.Count == 0)
             return nodes;
+
+        var cacheKey = new ContainerPercentResolveKey(nodes, QuantizeMeasureKey(containerWidth));
+        if (measurementCache.TryGetContainerPercentNodes(cacheKey, out var cached))
+            return cached;
 
         HtmlSceneNode[]? resolved = null;
         for (var index = 0; index < nodes.Count; index++)
@@ -72,7 +76,9 @@ internal sealed partial class HtmlLayoutBuilder
             };
         }
 
-        return resolved ?? nodes;
+        var resolvedNodes = resolved ?? nodes;
+        measurementCache.SetContainerPercentNodes(cacheKey, resolvedNodes);
+        return resolvedNodes;
     }
 }
 

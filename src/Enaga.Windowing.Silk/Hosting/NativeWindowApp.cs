@@ -13,8 +13,7 @@ namespace Enaga.Hosting;
 public sealed class NativeWindowApp : IDisposable
 {
     private const double DefaultFramesPerSecond = 60;
-    private const double InteractionRenderBurstMs = 140;
-    private const double VulkanIdleFramesPerSecond = 20;
+    private const double IdleFramesPerSecond = 0;
     private const int ResizeSettlePresentFrames = 6;
     private readonly double activeFramesPerSecond;
     private readonly RenderGraphicsBackend graphicsBackend;
@@ -35,7 +34,6 @@ public sealed class NativeWindowApp : IDisposable
     private bool renderingFrame;
     private bool startupFramePending = true;
     private bool startupFrameReadyToShow;
-    private double interactiveRenderUntilMs;
     private int resizeSettlePresentFramesRemaining;
     private SilkWindowInputRouter? inputRouter;
     private SKColor? startupClearColor;
@@ -215,7 +213,7 @@ public sealed class NativeWindowApp : IDisposable
 
         if (ShouldSkipIdleFrame())
         {
-            ApplyRenderCadence(VulkanIdleFramesPerSecond);
+            ApplyRenderCadence(IdleFramesPerSecond);
             return;
         }
 
@@ -223,10 +221,6 @@ public sealed class NativeWindowApp : IDisposable
 
         var frameStartTimestamp = timeProvider.GetTimestamp();
 
-        // IMPORTANT: Windows inline IME is sensitive to the current render/present cadence.
-        // Experiments that skipped identical frames or gated Present() while keeping the rest
-        // of the host alive reintroduced composition/caret jitter. Until the IME dependency is
-        // better understood, keep the full render -> IME update -> present sequence intact.
         if (!surfaceManager.HasSurface)
             return;
 
@@ -256,16 +250,24 @@ public sealed class NativeWindowApp : IDisposable
                 RecordRenderDiagnostics(timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds, surfaceManager.LastDiagnostics);
                 return;
             }
-
             var physicalDirtyRects = presentFullFrame
                 ? surfaceManager.FullFrameDirtyRect(frameTarget)
                 : surfaceManager.ScaleDirtyRectsToFramebuffer(dirtyRects, frameTarget);
-            if (!dirtyRects.IsEmpty) window.IsVisible = true;
             hostUpdatePending = false;
+            if (physicalDirtyRects.IsEmpty)
+            {
+                ApplyRenderCadence(IdleFramesPerSecond);
+                RecordRenderDiagnostics(timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds, surfaceManager.LastDiagnostics);
+                return;
+            }
+
+            window.IsVisible = true;
             surfaceManager.Present(physicalDirtyRects);
             if (resizeSettlePresentFramesRemaining > 0)
                 resizeSettlePresentFramesRemaining--;
             RecordRenderDiagnostics(timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds, surfaceManager.LastDiagnostics);
+            if (ShouldSkipIdleFrame())
+                ApplyRenderCadence(IdleFramesPerSecond);
         }
         finally
         {
@@ -324,9 +326,6 @@ public sealed class NativeWindowApp : IDisposable
         if (inputRouter?.HasHeldKeyboardKeys == true)
             return false;
 
-        if (GetElapsed().TotalMilliseconds < interactiveRenderUntilMs)
-            return false;
-
         var runtimeState = diagnosticsProvider.GetRenderRootDiagnosticsSnapshot().RuntimeState;
         return !runtimeState.ImeOpen &&
                !runtimeState.CompositionActive &&
@@ -337,7 +336,6 @@ public sealed class NativeWindowApp : IDisposable
 
     private void RequestInteractiveBurst()
     {
-        interactiveRenderUntilMs = Math.Max(interactiveRenderUntilMs, GetElapsed().TotalMilliseconds + InteractionRenderBurstMs);
         ApplyRenderCadence(activeFramesPerSecond);
         wakeSignal.Set();
     }
@@ -352,7 +350,9 @@ public sealed class NativeWindowApp : IDisposable
 
     private void OnRenderWakeRequested()
     {
-        RequestHostUpdate();
+        hostUpdatePending = true;
+        windowLoop.RequestImmediateFrame();
+        WakeWindowEventLoop();
     }
 
     private void ApplyRenderCadence(double framesPerSecond)

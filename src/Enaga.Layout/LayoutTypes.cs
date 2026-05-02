@@ -421,7 +421,8 @@ public enum MainAxisJustification : byte
     Center,
     End,
     SpaceBetween,
-    SpaceAround
+    SpaceAround,
+    SpaceEvenly
 }
 
 [Flags]

@@ -60,7 +60,7 @@ public sealed class HtmlBrowserScriptRuntimeTests
     }
 
     [Fact]
-    public void RenderFrame_PumpsQueuedScriptWork_OnRendererSideLoop()
+    public void EventLoopWake_PumpsQueuedScriptWork_WithoutRenderWakeUntilDocumentChanges()
     {
         var document = new HtmlDocument("""
             <body>
@@ -79,8 +79,7 @@ public sealed class HtmlBrowserScriptRuntimeTests
         var source = new HtmlSceneFrameSource(runtime.CurrentDocument);
         var renderWakeRequested = false;
         runtime.DocumentMutated += source.UpdateDocument;
-        runtime.EventLoopWorkQueued += source.RequestRenderWake;
-        source.BeforeRenderFrame += () => runtime.PumpEventLoopUntilIdle();
+        runtime.EventLoopWorkQueued += () => runtime.PumpEventLoopUntilIdle();
         source.RenderWakeRequested += () => renderWakeRequested = true;
 
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);

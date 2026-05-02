@@ -5,7 +5,7 @@ using SkiaSharp;
 
 namespace SampleBrowser;
 
-internal sealed class SampleBrowserRenderRoot : IRenderRoot, IRenderGpuContextSink, IRenderSurfaceInvalidationSink, IInputSink, IPointerCursorSource, ITextCompositionRangeSink, IOverlayInputHitTestSource, IRenderWakeSource, IRenderDirtyRectSource, IDisposable
+internal sealed class SampleBrowserRenderRoot : IRenderRoot, IRenderGpuContextSink, IRenderSurfaceInvalidationSink, IInputSink, IPointerCursorSource, ITextCompositionRangeSink, IOverlayInputHitTestSource, IRenderWakeSource, IRenderDirtyRectSource, IRenderDiagnosticsProvider, IDisposable
 {
     private readonly SceneRenderRoot contentRoot;
     private readonly SampleBrowserToolbarSource? toolbarSource;
@@ -14,6 +14,7 @@ internal sealed class SampleBrowserRenderRoot : IRenderRoot, IRenderGpuContextSi
     private float lastPointerY;
     private bool toolbarFocused;
     private SceneDamageRect[] lastDirtyRects = [];
+    private RenderRootDiagnosticsSnapshot lastDiagnostics;
 
     public SampleBrowserRenderRoot(ISceneFrameSource contentSource, SampleBrowserToolbarSource? toolbarSource)
     {
@@ -64,7 +65,8 @@ internal sealed class SampleBrowserRenderRoot : IRenderRoot, IRenderGpuContextSi
             canvas.Restore();
         }
 
-        lastDirtyRects = [new SceneDamageRect(0, 0, Math.Max(1, width), Math.Max(1, height))];
+        CaptureDirtyRects(toolbarHeight);
+        CaptureDiagnostics(width, height);
     }
 
     public void SetRenderGpuContext(GRContext? context)
@@ -221,9 +223,61 @@ internal sealed class SampleBrowserRenderRoot : IRenderRoot, IRenderGpuContextSi
     public ReadOnlySpan<SceneDamageRect> GetLastDirtyRects()
         => lastDirtyRects;
 
+    public RenderRootDiagnosticsSnapshot GetRenderRootDiagnosticsSnapshot()
+        => lastDiagnostics;
+
     public void Dispose()
     {
         contentRoot.Dispose();
         toolbarRoot?.Dispose();
     }
+
+    private void CaptureDirtyRects(int toolbarHeight)
+    {
+        var dirtyRects = new List<SceneDamageRect>();
+        foreach (var rect in contentRoot.GetLastDirtyRects())
+            dirtyRects.Add(new SceneDamageRect(rect.X, rect.Y + toolbarHeight, rect.Width, rect.Height));
+
+        if (toolbarRoot is not null)
+        {
+            foreach (var rect in toolbarRoot.GetLastDirtyRects())
+                dirtyRects.Add(rect);
+        }
+
+        lastDirtyRects = dirtyRects.ToArray();
+    }
+
+    private void CaptureDiagnostics(int width, int height)
+    {
+        var contentDiagnostics = contentRoot.GetRenderRootDiagnosticsSnapshot();
+        var toolbarDiagnostics = toolbarRoot?.GetRenderRootDiagnosticsSnapshot() ?? default;
+        var runtimeState = CombineRuntimeState(contentDiagnostics.RuntimeState, toolbarDiagnostics.RuntimeState);
+        var dirtyPixels = 0L;
+        foreach (var rect in lastDirtyRects)
+            dirtyPixels += rect.PixelCount;
+
+        lastDiagnostics = new RenderRootDiagnosticsSnapshot(
+            contentDiagnostics.DiagnosticsEnabled || toolbarDiagnostics.DiagnosticsEnabled,
+            contentDiagnostics.SourceFrameMs + toolbarDiagnostics.SourceFrameMs,
+            contentDiagnostics.PaintMs + toolbarDiagnostics.PaintMs,
+            contentDiagnostics.PaintedFrame || toolbarDiagnostics.PaintedFrame,
+            contentDiagnostics.CommitReused && toolbarDiagnostics.CommitReused,
+            contentDiagnostics.PictureReused && toolbarDiagnostics.PictureReused,
+            lastDirtyRects,
+            lastDirtyRects.Length,
+            dirtyPixels,
+            contentDiagnostics.DamageReasons | toolbarDiagnostics.DamageReasons,
+            width,
+            height,
+            runtimeState);
+    }
+
+    private static RenderRuntimeStateSnapshot CombineRuntimeState(RenderRuntimeStateSnapshot content, RenderRuntimeStateSnapshot toolbar)
+        => new(
+            content.ImeOpen || toolbar.ImeOpen,
+            content.CompositionActive || toolbar.CompositionActive,
+            content.AnimationEnabled || toolbar.AnimationEnabled,
+            content.ShaderAnimationEnabled || toolbar.ShaderAnimationEnabled,
+            content.RenderInvalidated || toolbar.RenderInvalidated,
+            content.ViewCallCount + toolbar.ViewCallCount);
 }

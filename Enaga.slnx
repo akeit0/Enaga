@@ -23,6 +23,7 @@
     </Folder>
     <Folder Name="/tests/">
         <Project Path="tests/Enaga.Tests/Enaga.Tests.csproj" />
+        <Project Path="tests/Enaga.Html.Tests/Enaga.Html.Tests.csproj" />
     </Folder>
     <Folder Name="/benchmarks/">
         <Project Path="benchmarks/Enaga.Benchmarks/Enaga.Benchmarks.csproj" />

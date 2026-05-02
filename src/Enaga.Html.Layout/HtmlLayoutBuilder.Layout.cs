@@ -130,8 +130,7 @@ internal sealed partial class HtmlLayoutBuilder
             height = style.IntrinsicImageHeight * (height * 0.01f);
             units &= ~(LayoutValueUnitFlags.WidthPercent | LayoutValueUnitFlags.HeightPercent);
         }
-        else if (node.NodeKind == SceneNodeKind.Image &&
-            style.ImageAspectRatio > 0 &&
+        else if (style.ImageAspectRatio > 0 &&
             LayoutValue.IsSet(width) &&
             (style.IsHeightPercent || !LayoutValue.IsSet(height)))
         {
@@ -144,8 +143,7 @@ internal sealed partial class HtmlLayoutBuilder
                 units &= ~LayoutValueUnitFlags.HeightPercent;
             }
         }
-        else if (node.NodeKind == SceneNodeKind.Image &&
-                 style.ImageAspectRatio > 0 &&
+        else if (style.ImageAspectRatio > 0 &&
                  LayoutValue.IsSet(height) &&
                  !LayoutValue.IsSet(width))
         {

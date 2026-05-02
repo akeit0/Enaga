@@ -418,6 +418,7 @@ internal static class HtmlCssParser
             "justify-content" => CssPropertyId.JustifyContent,
             "align-items" => CssPropertyId.AlignItems,
             "align-self" => CssPropertyId.AlignSelf,
+            "order" => CssPropertyId.Order,
             "position" => CssPropertyId.Position,
             "box-sizing" => CssPropertyId.BoxSizing,
             "width" => CssPropertyId.Width,
@@ -426,6 +427,7 @@ internal static class HtmlCssParser
             "max-width" => CssPropertyId.MaxWidth,
             "min-height" => CssPropertyId.MinHeight,
             "max-height" => CssPropertyId.MaxHeight,
+            "aspect-ratio" => CssPropertyId.AspectRatio,
             "left" => CssPropertyId.Left,
             "top" => CssPropertyId.Top,
             "right" => CssPropertyId.Right,
@@ -496,6 +498,9 @@ internal static class HtmlCssParser
             "overflow" or "overflow-x" or "overflow-y" => CssPropertyId.Overflow,
             "contain" => CssPropertyId.Contain,
             "object-fit" => CssPropertyId.ObjectFit,
+            "place-content" => CssPropertyId.PlaceContent,
+            "place-items" => CssPropertyId.PlaceItems,
+            "place-self" => CssPropertyId.PlaceSelf,
             _ => CssPropertyId.Unknown
         };
     }

@@ -18,6 +18,7 @@ internal sealed partial class HtmlComputedStyle
     public MainAxisJustification JustifyContent { get; private set; } = Defaults.JustifyContent;
     public CrossAlignment AlignItems { get; private set; } = Defaults.AlignItems;
     public CrossAlignment AlignSelf { get; private set; } = Defaults.AlignSelf;
+    public int Order { get; private set; }
     public PositionMode Position { get; private set; } = Defaults.Position;
     public SceneBoxSizing BoxSizing { get; private set; } = Defaults.BoxSizing;
     public float Left { get; private set; } = Defaults.UnsetLength;
@@ -188,6 +189,7 @@ internal sealed partial class HtmlComputedStyle
            left.JustifyContent == right.JustifyContent &&
            left.AlignItems == right.AlignItems &&
            left.AlignSelf == right.AlignSelf &&
+           left.Order == right.Order &&
            left.Position == right.Position &&
            left.BoxSizing == right.BoxSizing &&
            Same(left.Left, right.Left) &&
@@ -261,6 +263,7 @@ internal sealed partial class HtmlComputedStyle
            left.FlexWrap == right.FlexWrap &&
            left.Direction == right.Direction &&
            left.AlignSelf == right.AlignSelf &&
+           left.Order == right.Order &&
            left.Position == right.Position &&
            left.BoxSizing == right.BoxSizing &&
            Same(left.Left, right.Left) &&
@@ -1125,10 +1128,12 @@ internal sealed partial class HtmlComputedStyle
                 var parsedDisplay = normalized switch
                 {
                     "none" => (HtmlDisplay?)HtmlDisplay.None,
+                    "contents" => HtmlDisplay.Contents,
                     "flex" => HtmlDisplay.Flex,
+                    "inline-flex" => HtmlDisplay.Flex,
                     "inline-block" => HtmlDisplay.InlineBlock,
                     "inline" => HtmlDisplay.Inline,
-                    "block" => HtmlDisplay.Block,
+                    "block" or "flow-root" or "list-item" => HtmlDisplay.Block,
                     _ => null
                 };
                 if (parsedDisplay is not { } display)
@@ -1136,7 +1141,8 @@ internal sealed partial class HtmlComputedStyle
 
                 HasExplicitDisplay = true;
                 Display = display;
-                if (Display is HtmlDisplay.Inline or HtmlDisplay.InlineBlock)
+                if (Display is HtmlDisplay.Inline or HtmlDisplay.InlineBlock ||
+                    CssEquals(normalized, "inline-flex"))
                 {
                     PreferIntrinsicWidth = true;
                     FlexGrow = 0;
@@ -1159,20 +1165,17 @@ internal sealed partial class HtmlComputedStyle
                 Direction = CssEquals(normalized, "rtl") ? LayoutDirection.Rtl : LayoutDirection.Ltr;
                 break;
             case CssPropertyId.JustifyContent:
-                JustifyContent = normalized switch
-                {
-                    "center" => MainAxisJustification.Center,
-                    "flex-end" or "end" => MainAxisJustification.End,
-                    "space-between" => MainAxisJustification.SpaceBetween,
-                    "space-around" => MainAxisJustification.SpaceAround,
-                    _ => MainAxisJustification.Start
-                };
+                JustifyContent = ParseJustifyContent(normalized);
                 break;
             case CssPropertyId.AlignItems:
                 AlignItems = ParseAlignment(normalized);
                 break;
             case CssPropertyId.AlignSelf:
                 AlignSelf = ParseAlignment(normalized);
+                break;
+            case CssPropertyId.Order:
+                if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var order))
+                    Order = order;
                 break;
             case CssPropertyId.Position:
                 Position = normalized switch
@@ -1202,6 +1205,10 @@ internal sealed partial class HtmlComputedStyle
                 break;
             case CssPropertyId.MaxHeight:
                 SetLength(normalized, HtmlLengthProperty.MaxHeight);
+                break;
+            case CssPropertyId.AspectRatio:
+                if (TryParseAspectRatio(normalized, out var aspectRatio))
+                    ImageAspectRatio = aspectRatio;
                 break;
             case CssPropertyId.Left:
                 SetLength(normalized, HtmlLengthProperty.Left);
@@ -1498,6 +1505,15 @@ internal sealed partial class HtmlComputedStyle
                 break;
             case CssPropertyId.ObjectFit:
                 ImageFit = normalized.ToString();
+                break;
+            case CssPropertyId.PlaceContent:
+                JustifyContent = ParseJustifyContent(ParseSecondOrFirstPlaceValue(normalized));
+                break;
+            case CssPropertyId.PlaceItems:
+                AlignItems = ParseAlignment(ParseFirstPlaceValue(normalized));
+                break;
+            case CssPropertyId.PlaceSelf:
+                AlignSelf = ParseAlignment(ParseFirstPlaceValue(normalized));
                 break;
             case CssPropertyId.ScrollbarWidth:
                 if (ParseLengthValue(normalized, HtmlLengthProperty.Width) is { } scrollbarWidth)
@@ -2051,10 +2067,58 @@ internal sealed partial class HtmlComputedStyle
         return value switch
         {
             "center" => CrossAlignment.Center,
-            "flex-end" or "end" => CrossAlignment.End,
+            "flex-end" or "end" or "self-end" => CrossAlignment.End,
             "stretch" => CrossAlignment.Stretch,
             _ => CrossAlignment.Start
         };
+    }
+
+    private static MainAxisJustification ParseJustifyContent(ReadOnlySpan<char> value)
+    {
+        return value switch
+        {
+            "center" => MainAxisJustification.Center,
+            "flex-end" or "end" or "self-end" => MainAxisJustification.End,
+            "space-between" => MainAxisJustification.SpaceBetween,
+            "space-around" => MainAxisJustification.SpaceAround,
+            "space-evenly" => MainAxisJustification.SpaceEvenly,
+            _ => MainAxisJustification.Start
+        };
+    }
+
+    private static ReadOnlySpan<char> ParseFirstPlaceValue(ReadOnlySpan<char> value)
+    {
+        Span<Range> parts = stackalloc Range[2];
+        var partCount = SplitWhitespace(value, parts);
+        return partCount == 0 ? value : value[parts[0]];
+    }
+
+    private static ReadOnlySpan<char> ParseSecondOrFirstPlaceValue(ReadOnlySpan<char> value)
+    {
+        Span<Range> parts = stackalloc Range[2];
+        var partCount = SplitWhitespace(value, parts);
+        return partCount > 1 ? value[parts[1]] : partCount == 1 ? value[parts[0]] : value;
+    }
+
+    private static bool TryParseAspectRatio(ReadOnlySpan<char> value, out float aspectRatio)
+    {
+        aspectRatio = 0;
+        var normalized = value.Trim();
+        if (normalized.IsWhiteSpace() || CssEquals(normalized, "auto"))
+            return false;
+
+        var slash = normalized.IndexOf('/');
+        if (slash >= 0)
+        {
+            return float.TryParse(normalized[..slash].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var numerator) &&
+                   float.TryParse(normalized[(slash + 1)..].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var denominator) &&
+                   numerator > 0 &&
+                   denominator > 0 &&
+                   (aspectRatio = numerator / denominator) > 0;
+        }
+
+        return float.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out aspectRatio) &&
+               aspectRatio > 0;
     }
 
     private CssLength? ParseLengthValue(ReadOnlySpan<char> value, HtmlLengthProperty property)
@@ -2614,6 +2678,7 @@ internal enum HtmlViewportLengthFlags : ulong
 internal enum HtmlDisplay : byte
 {
     None,
+    Contents,
     Inline,
     InlineBlock,
     Block,

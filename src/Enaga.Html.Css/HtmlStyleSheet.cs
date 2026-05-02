@@ -198,7 +198,6 @@ internal sealed record HtmlCssRule(
 
 internal sealed class HtmlSelector
 {
-    private static readonly System.Buffers.SearchValues<char> invalidSelectorChars = System.Buffers.SearchValues.Create("+~[");
     private readonly HtmlSelectorPart[] parts;
     private readonly HtmlSelectorCombinator[] combinators;
 
@@ -217,7 +216,7 @@ internal sealed class HtmlSelector
     {
         selector = default!;
         if (selectorText.IsWhiteSpace() ||
-            selectorText.IndexOfAny(invalidSelectorChars) >= 0)
+            HasUnsupportedSiblingCombinator(selectorText))
         {
             return false;
         }
@@ -241,8 +240,7 @@ internal sealed class HtmlSelector
             }
 
             var start = index;
-            while (index < normalizedSelector.Length && !char.IsWhiteSpace(normalizedSelector[index]) && normalizedSelector[index] != '>')
-                index++;
+            index = FindSelectorPartEnd(normalizedSelector, index);
 
             if (!TryParsePart(normalizedSelector[start..index], out var part))
                 return false;
@@ -311,6 +309,7 @@ internal sealed class HtmlSelector
         string? tagName = null;
         string? id = null;
         var classes = new List<string>();
+        var attributes = new List<HtmlAttributeSelector>();
         var span = normalizedSelector;
         var index = 0;
         while (index < span.Length)
@@ -319,7 +318,7 @@ internal sealed class HtmlSelector
             {
                 index += 1;
                 var start = index;
-                while (index < span.Length && span[index] is not '.' and not '#')
+                while (index < span.Length && span[index] is not '.' and not '#' and not '[')
                     index += 1;
 
                 classes.Add(span[start..index].ToString());
@@ -330,15 +329,29 @@ internal sealed class HtmlSelector
             {
                 index += 1;
                 var start = index;
-                while (index < span.Length && span[index] is not '.' and not '#')
+                while (index < span.Length && span[index] is not '.' and not '#' and not '[')
                     index += 1;
 
                 id = span[start..index].ToString();
                 continue;
             }
 
+            if (span[index] == '[')
+            {
+                var close = FindAttributeSelectorEnd(span, index);
+                if (close < 0)
+                    return false;
+
+                if (!TryParseAttributeSelector(span[(index + 1)..close], out var attribute))
+                    return false;
+
+                attributes.Add(attribute);
+                index = close + 1;
+                continue;
+            }
+
             var tagStart = index;
-            while (index < span.Length && span[index] is not '.' and not '#')
+            while (index < span.Length && span[index] is not '.' and not '#' and not '[')
                 index += 1;
 
             tagName = span[tagStart..index].ToString();
@@ -349,9 +362,191 @@ internal sealed class HtmlSelector
             string.IsNullOrWhiteSpace(tagName) ? null : tagName.ToLowerInvariant(),
             string.IsNullOrWhiteSpace(id) ? null : id,
             classNames,
+            attributes.Count == 0 ? [] : [.. attributes],
             requiresHover,
             requiresFirstChild);
         return true;
+    }
+
+    private static int FindAttributeSelectorEnd(ReadOnlySpan<char> selectorText, int start)
+    {
+        var quote = '\0';
+        for (var index = start + 1; index < selectorText.Length; index++)
+        {
+            var ch = selectorText[index];
+            if (quote != '\0')
+            {
+                if (ch == quote)
+                    quote = '\0';
+                else if (ch == '\\' && index + 1 < selectorText.Length)
+                    index++;
+                continue;
+            }
+
+            if (ch is '\'' or '"')
+            {
+                quote = ch;
+                continue;
+            }
+
+            if (ch == ']')
+                return index;
+        }
+
+        return -1;
+    }
+
+    private static int FindSelectorPartEnd(ReadOnlySpan<char> selectorText, int start)
+    {
+        var quote = '\0';
+        var bracketDepth = 0;
+        var index = start;
+        while (index < selectorText.Length)
+        {
+            var ch = selectorText[index];
+            if (quote != '\0')
+            {
+                if (ch == quote)
+                    quote = '\0';
+                else if (ch == '\\' && index + 1 < selectorText.Length)
+                    index++;
+                index++;
+                continue;
+            }
+
+            if (ch is '\'' or '"')
+            {
+                quote = ch;
+                index++;
+                continue;
+            }
+
+            if (ch == '[')
+            {
+                bracketDepth++;
+                index++;
+                continue;
+            }
+
+            if (ch == ']' && bracketDepth > 0)
+            {
+                bracketDepth--;
+                index++;
+                continue;
+            }
+
+            if (bracketDepth == 0 && (char.IsWhiteSpace(ch) || ch == '>'))
+                break;
+
+            index++;
+        }
+
+        return index;
+    }
+
+    private static bool HasUnsupportedSiblingCombinator(ReadOnlySpan<char> selectorText)
+    {
+        var quote = '\0';
+        var bracketDepth = 0;
+        for (var index = 0; index < selectorText.Length; index++)
+        {
+            var ch = selectorText[index];
+            if (quote != '\0')
+            {
+                if (ch == quote)
+                    quote = '\0';
+                else if (ch == '\\' && index + 1 < selectorText.Length)
+                    index++;
+                continue;
+            }
+
+            if (ch is '\'' or '"')
+            {
+                quote = ch;
+                continue;
+            }
+
+            if (ch == '[')
+            {
+                bracketDepth++;
+                continue;
+            }
+
+            if (ch == ']' && bracketDepth > 0)
+            {
+                bracketDepth--;
+                continue;
+            }
+
+            if (bracketDepth == 0 && ch is '+' or '~')
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseAttributeSelector(ReadOnlySpan<char> selectorText, out HtmlAttributeSelector selector)
+    {
+        selector = default;
+        var text = selectorText.Trim();
+        if (text.IsWhiteSpace())
+            return false;
+
+        var caseInsensitive = false;
+        if (text.Length >= 2 &&
+            char.IsWhiteSpace(text[^2]) &&
+            (text[^1] is 'i' or 'I'))
+        {
+            caseInsensitive = true;
+            text = text[..^2].TrimEnd();
+        }
+
+        var opIndex = -1;
+        var match = HtmlAttributeMatch.Exists;
+        if (TryFindAttributeOperator(text, "~=", HtmlAttributeMatch.Includes, out opIndex, out match) ||
+            TryFindAttributeOperator(text, "|=", HtmlAttributeMatch.DashMatch, out opIndex, out match) ||
+            TryFindAttributeOperator(text, "^=", HtmlAttributeMatch.Prefix, out opIndex, out match) ||
+            TryFindAttributeOperator(text, "$=", HtmlAttributeMatch.Suffix, out opIndex, out match) ||
+            TryFindAttributeOperator(text, "*=", HtmlAttributeMatch.Substring, out opIndex, out match) ||
+            TryFindAttributeOperator(text, "=", HtmlAttributeMatch.Exact, out opIndex, out match))
+        {
+            var name = text[..opIndex].Trim().ToString();
+            var value = TrimQuotes(text[(opIndex + (match == HtmlAttributeMatch.Exact ? 1 : 2))..].Trim()).ToString();
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrEmpty(value))
+                return false;
+
+            selector = new HtmlAttributeSelector(name, match, value, caseInsensitive);
+            return true;
+        }
+
+        var attrName = text.ToString();
+        if (string.IsNullOrWhiteSpace(attrName))
+            return false;
+
+        selector = new HtmlAttributeSelector(attrName, HtmlAttributeMatch.Exists, null, caseInsensitive);
+        return true;
+    }
+
+    private static bool TryFindAttributeOperator(
+        ReadOnlySpan<char> text,
+        string op,
+        HtmlAttributeMatch operatorMatch,
+        out int opIndex,
+        out HtmlAttributeMatch match)
+    {
+        opIndex = text.IndexOf(op.AsSpan(), StringComparison.Ordinal);
+        match = operatorMatch;
+        return opIndex > 0;
+    }
+
+    private static ReadOnlySpan<char> TrimQuotes(ReadOnlySpan<char> value)
+    {
+        var trimmed = value.Trim();
+        return trimmed.Length >= 2 &&
+               ((trimmed[0] == '"' && trimmed[^1] == '"') ||
+                (trimmed[0] == '\'' && trimmed[^1] == '\''))
+            ? trimmed[1..^1]
+            : trimmed;
     }
 
     private static string[] FilterClassNames(List<string> classes)
@@ -479,11 +674,70 @@ internal enum HtmlSelectorCombinator : byte
     Child
 }
 
-internal readonly record struct HtmlSelectorPart(string? TagName, string? Id, string[] ClassNames, bool RequiresHover, bool RequiresFirstChild)
+internal enum HtmlAttributeMatch : byte
+{
+    Exists,
+    Exact,
+    Includes,
+    DashMatch,
+    Prefix,
+    Suffix,
+    Substring
+}
+
+internal readonly record struct HtmlAttributeSelector(string Name, HtmlAttributeMatch Match, string? Value, bool CaseInsensitive)
+{
+    public bool Matches(HtmlDomElement element)
+    {
+        var attrValue = element.GetAttribute(Name);
+        if (attrValue is null)
+            return false;
+
+        if (Match == HtmlAttributeMatch.Exists)
+            return true;
+
+        var expected = Value ?? string.Empty;
+        var comparison = CaseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return Match switch
+        {
+            HtmlAttributeMatch.Exact => string.Equals(attrValue, expected, comparison),
+            HtmlAttributeMatch.Includes => AttributeListIncludes(attrValue, expected, comparison),
+            HtmlAttributeMatch.DashMatch => string.Equals(attrValue, expected, comparison) ||
+                                            attrValue.StartsWith(expected + "-", comparison),
+            HtmlAttributeMatch.Prefix => attrValue.StartsWith(expected, comparison),
+            HtmlAttributeMatch.Suffix => attrValue.EndsWith(expected, comparison),
+            HtmlAttributeMatch.Substring => attrValue.Contains(expected, comparison),
+            _ => false
+        };
+    }
+
+    private static bool AttributeListIncludes(string value, string expected, StringComparison comparison)
+    {
+        var span = value.AsSpan();
+        var index = 0;
+        while (index < span.Length)
+        {
+            while (index < span.Length && char.IsWhiteSpace(span[index]))
+                index++;
+
+            var start = index;
+            while (index < span.Length && !char.IsWhiteSpace(span[index]))
+                index++;
+
+            if (start < index && span[start..index].Equals(expected.AsSpan(), comparison))
+                return true;
+        }
+
+        return false;
+    }
+}
+
+internal readonly record struct HtmlSelectorPart(string? TagName, string? Id, string[] ClassNames, HtmlAttributeSelector[] AttributeSelectors, bool RequiresHover, bool RequiresFirstChild)
 {
     public int Specificity =>
         (string.IsNullOrEmpty(Id) ? 0 : 100) +
         ClassNames.Length * 10 +
+        AttributeSelectors.Length * 10 +
         (string.IsNullOrEmpty(TagName) ? 0 : 1) +
         (RequiresHover ? 10 : 0) +
         (RequiresFirstChild ? 10 : 0);
@@ -509,6 +763,12 @@ internal readonly record struct HtmlSelectorPart(string? TagName, string? Id, st
         for (var index = 0; index < ClassNames.Length; index++)
         {
             if (!element.HasClass(ClassNames[index]))
+                return false;
+        }
+
+        for (var index = 0; index < AttributeSelectors.Length; index++)
+        {
+            if (!AttributeSelectors[index].Matches(element))
                 return false;
         }
 

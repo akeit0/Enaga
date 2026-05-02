@@ -368,6 +368,12 @@ public sealed class LayoutCalculator
             return (slot * 0.5f, gap + slot);
         }
 
+        if (justifyContent == MainAxisJustification.SpaceEvenly && validCount > 0)
+        {
+            var slot = remainingMainSize / (validCount + 1);
+            return (slot, gap + slot);
+        }
+
         return justifyContent switch
         {
             MainAxisJustification.Center => (Math.Max(0, remainingMainSize * 0.5f), gap),

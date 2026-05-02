@@ -35,6 +35,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private readonly Dictionary<HtmlNodeId, JsUserDataObject<HtmlDomElement>> elementObjects = [];
     private JsUserDataObject<HtmlDomDocument>? documentObject;
     private JsPlainObject? locationObject;
+    private ulong documentVersion;
 
     private HtmlBrowserScriptRuntime(HtmlDomDocument document, string documentSource, string? styleSheet, string? basePath)
     {
@@ -60,6 +61,8 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     public HtmlDocument CurrentDocument { get; private set; }
 
+    public ulong DocumentVersion => documentVersion;
+
     public HtmlBrowserTextInputValueResolver? TextInputValueResolver { get; set; }
 
     public string? PendingNavigationRequest { get; private set; }
@@ -68,6 +71,10 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     public event Action<HtmlDocument>? DocumentMutated;
 
+    /// <summary>
+    /// Raised when JavaScript host work is ready to be pumped. This is not a render invalidation signal.
+    /// Pump the event loop first, then rely on <see cref="DocumentMutated"/> to wake rendering when the view changed.
+    /// </summary>
     public event Action? EventLoopWorkQueued;
 
     public event Action<string>? NavigationRequested;
@@ -394,13 +401,16 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         runtime.Dispose();
     }
 
-    public void PumpEventLoopUntilIdle(int maxTurns = 256)
+    public bool PumpEventLoopUntilIdle(int maxTurns = 256)
     {
+        var initialDocumentVersion = documentVersion;
         for (var turn = 0; turn < maxTurns; turn++)
         {
             if (!HostTurnRunner.RunTurn(hostTaskScheduler, hostPump, SEventLoopQueueOrder))
-                return;
+                return documentVersion != initialDocumentVersion;
         }
+
+        return documentVersion != initialDocumentVersion;
     }
 
     private void DispatchClick(HtmlDomElement element, HtmlDomElement targetElement, JsObject targetObject)
@@ -865,7 +875,12 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     private void NotifyDocumentMutated()
     {
-        CurrentDocument = new HtmlDocument(document.ToHtml(), styleSheet, basePath);
+        var nextHtml = document.ToHtml();
+        if (string.Equals(CurrentDocument.Html, nextHtml, StringComparison.Ordinal))
+            return;
+
+        CurrentDocument = new HtmlDocument(nextHtml, styleSheet, basePath);
+        documentVersion++;
         DocumentMutated?.Invoke(CurrentDocument);
     }
 
