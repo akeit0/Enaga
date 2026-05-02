@@ -41,6 +41,7 @@ internal sealed class SampleBrowserDocumentController : IDisposable
         currentDocumentSource = documentSource;
         currentStyleSheetSource = styleSheetSource;
         history.Add(new HistoryEntry(documentSource, styleSheetSource));
+        source.BeforeRenderFrame += PumpScriptRuntimeBeforeRender;
         ReplaceScriptRuntime(scriptRuntime);
         UpdateToolbarState();
         ResetWatcher();
@@ -111,7 +112,12 @@ internal sealed class SampleBrowserDocumentController : IDisposable
             watcher?.Dispose();
             watcher = null;
             if (scriptRuntime is not null)
+            {
                 scriptRuntime.DocumentMutated -= HandleScriptDocumentMutated;
+                scriptRuntime.EventLoopWorkQueued -= HandleScriptEventLoopWorkQueued;
+                scriptRuntime.TextInputValueResolver = null;
+            }
+            source.BeforeRenderFrame -= PumpScriptRuntimeBeforeRender;
             scriptRuntime?.Dispose();
             scriptRuntime = null;
         }
@@ -264,15 +270,35 @@ internal sealed class SampleBrowserDocumentController : IDisposable
             return;
 
         if (scriptRuntime is not null)
+        {
             scriptRuntime.DocumentMutated -= HandleScriptDocumentMutated;
+            scriptRuntime.EventLoopWorkQueued -= HandleScriptEventLoopWorkQueued;
+            scriptRuntime.TextInputValueResolver = null;
+        }
         scriptRuntime?.Dispose();
         scriptRuntime = next;
         if (scriptRuntime is not null)
+        {
             scriptRuntime.DocumentMutated += HandleScriptDocumentMutated;
+            scriptRuntime.EventLoopWorkQueued += HandleScriptEventLoopWorkQueued;
+            scriptRuntime.TextInputValueResolver = source.TryGetTextInputValueByElementId;
+        }
     }
 
     private void HandleScriptDocumentMutated(Enaga.Html.HtmlDocument document)
         => source.UpdateDocument(document);
+
+    private void HandleScriptEventLoopWorkQueued()
+        => source.RequestRenderWake();
+
+    private void PumpScriptRuntimeBeforeRender()
+    {
+        HtmlBrowserScriptRuntime? runtime;
+        lock (sync)
+            runtime = disposed ? null : scriptRuntime;
+
+        runtime?.PumpEventLoopUntilIdle();
+    }
 
     private void UpdateToolbarState(string? message = null)
         => toolbarSource?.SetState(currentDocumentSource, historyIndex > 0, historyIndex < history.Count - 1, message);

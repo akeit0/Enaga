@@ -63,6 +63,8 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
 
     public event Action? RenderWakeRequested;
 
+    public event Action? BeforeRenderFrame;
+
     public void Dispose()
     {
         if (!ReferenceEquals(Options.BackendServices, RuntimeBackendServices.Missing))
@@ -84,6 +86,11 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
         RenderWakeRequested?.Invoke();
     }
 
+    public void RequestRenderWake()
+    {
+        RenderWakeRequested?.Invoke();
+    }
+
     public SceneLayoutCommit BuildCommit(int width, int height)
     {
         lock (sync)
@@ -94,6 +101,7 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
 
     public SceneFrameResult RenderFrame(int width, int height, TimeSpan elapsed)
     {
+        BeforeRenderFrame?.Invoke();
         lock (sync)
         {
             var resolvedWidth = Math.Max(1, width);

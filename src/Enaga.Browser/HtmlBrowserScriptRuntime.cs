@@ -8,6 +8,8 @@ using Okojo.WebPlatform;
 
 namespace Enaga.Browser;
 
+public delegate bool HtmlBrowserTextInputValueResolver(string elementId, out string value);
+
 public sealed class HtmlBrowserScriptRuntime : IDisposable
 {
     private static readonly JsShapePropertyFlags OpenFlags = JsShapePropertyFlags.Open;
@@ -37,7 +39,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         this.styleSheet = styleSheet;
         this.basePath = basePath;
         CurrentDocument = new HtmlDocument(document.ToHtml(), styleSheet, basePath);
-        hostTaskScheduler = new BrowserHostTaskScheduler(static () => { });
+        hostTaskScheduler = new BrowserHostTaskScheduler(() => EventLoopWorkQueued?.Invoke());
         runtime = JsRuntime.Create(builder => {
             builder.UseLowLevelHost(host => host.UseTaskScheduler(hostTaskScheduler));
             builder.UseWebDelayScheduler(hostTaskScheduler);
@@ -53,7 +55,11 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     public HtmlDocument CurrentDocument { get; private set; }
 
+    public HtmlBrowserTextInputValueResolver? TextInputValueResolver { get; set; }
+
     public event Action<HtmlDocument>? DocumentMutated;
+
+    public event Action? EventLoopWorkQueued;
 
     public static HtmlBrowserScriptRuntime? CreateAndRun(HtmlDocument document, string documentSource)
     {
@@ -251,6 +257,11 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             CreateElementTextGetter(realm, "innerText", static element => element.InnerText),
             CreateElementTextSetter(realm, "innerText"),
             OpenFlags);
+        obj.DefineAccessorProperty(
+            "value",
+            CreateElementValueGetter(realm),
+            CreateElementValueSetter(realm),
+            OpenFlags);
         obj.DefineDataProperty("getAttribute", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
         {
             var current = ((JsUserDataObject<HtmlDomElement>)info.ThisValue.AsObject()).UserData!;
@@ -401,6 +412,42 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             return JsValue.Undefined;
         }, name, 1);
 
+    private JsHostFunction CreateElementValueGetter(JsRealm realm)
+        => new(realm, (in CallInfo info) =>
+        {
+            if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                elementObject.UserData is not { } element)
+            {
+                return JsValue.Undefined;
+            }
+
+            var current = document.GetElementByNodeId(element.NodeId) ?? element;
+            elementObject.UserData = current;
+            return JsValue.FromString(ResolveElementValue(current));
+        }, "value", 0);
+
+    private JsHostFunction CreateElementValueSetter(JsRealm realm)
+        => new(realm, (in CallInfo info) =>
+        {
+            if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                elementObject.UserData is not { } element)
+            {
+                return JsValue.Undefined;
+            }
+
+            var value = info.GetArgumentStringOrDefault(0, string.Empty);
+            var nextElement = string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase)
+                ? document.SetTextContent(element.NodeId, value)
+                : document.SetAttribute(element.NodeId, "value", value);
+            if (nextElement is not null)
+            {
+                elementObject.UserData = nextElement;
+                NotifyDocumentMutated();
+            }
+
+            return JsValue.Undefined;
+        }, "value", 1);
+
     private JsHostFunction CreateElementAttributeSetter(JsRealm realm, string name, string attributeName)
         => new(realm, (in CallInfo info) =>
         {
@@ -425,6 +472,21 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     {
         CurrentDocument = new HtmlDocument(document.ToHtml(), styleSheet, basePath);
         DocumentMutated?.Invoke(CurrentDocument);
+    }
+
+    private string ResolveElementValue(HtmlDomElement element)
+    {
+        if (!string.IsNullOrWhiteSpace(element.Id) &&
+            TextInputValueResolver is { } resolver &&
+            resolver(element.Id, out var liveValue))
+        {
+            return liveValue;
+        }
+
+        if (string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase))
+            return element.TextContent;
+
+        return element.GetAttribute("value") ?? string.Empty;
     }
 
     private JsUserDataObject<HtmlDomElement> CreateEventObject(
