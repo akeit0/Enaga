@@ -13,6 +13,7 @@ public delegate bool HtmlBrowserTextInputValueResolver(string elementId, out str
 public sealed class HtmlBrowserScriptRuntime : IDisposable
 {
     private static readonly JsShapePropertyFlags OpenFlags = JsShapePropertyFlags.Open;
+    private static readonly HttpClient ScriptHttpClient = new();
     private static readonly HostTaskQueueKey[] SEventLoopQueueOrder =
     [
         WebTaskQueueKeys.Timers,
@@ -64,11 +65,12 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     public static HtmlBrowserScriptRuntime? CreateAndRun(HtmlDocument document, string documentSource)
     {
         var parsed = new HtmlDocumentParser().Parse(document.Html, document.BasePath);
-        var scripts = parsed.GetExecutableInlineScriptTexts();
+        var scripts = LoadExecutableScriptTexts(parsed.AuthorScripts, parsed.BasePath);
         if (scripts.Count == 0)
             return null;
 
-        var scriptRuntime = new HtmlBrowserScriptRuntime(parsed.ToDomDocument(), documentSource, document.StyleSheet, document.BasePath);
+        var styleSheet = MergeStyleSheets(parsed.AuthorStyleTexts, document.StyleSheet);
+        var scriptRuntime = new HtmlBrowserScriptRuntime(parsed.ToDomDocument(), documentSource, styleSheet, document.BasePath);
         for (var index = 0; index < scripts.Count; index++)
         {
             try
@@ -83,6 +85,90 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         }
 
         return scriptRuntime;
+    }
+
+    private static IReadOnlyList<string> LoadExecutableScriptTexts(IReadOnlyList<HtmlDomScript> scripts, string? basePath)
+    {
+        if (scripts.Count == 0)
+            return [];
+
+        var executableScripts = new List<string>(scripts.Count);
+        foreach (var script in scripts)
+        {
+            if (!script.IsClassicJavaScript)
+                continue;
+
+            if (!script.HasSource)
+            {
+                if (!string.IsNullOrWhiteSpace(script.TextContent))
+                    executableScripts.Add(script.TextContent);
+                continue;
+            }
+
+            try
+            {
+                executableScripts.Add(ReadExternalScriptText(script.Source!, basePath));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException or UriFormatException)
+            {
+                Console.Error.WriteLine($"[Browser script:src] Failed to load '{script.Source}': {ex.Message}");
+            }
+        }
+
+        return executableScripts;
+    }
+
+    private static string ReadExternalScriptText(string source, string? basePath)
+    {
+        var trimmed = StripUrlSuffix(source.Trim());
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absoluteUri))
+        {
+            if (absoluteUri.IsFile)
+                return File.ReadAllText(absoluteUri.LocalPath);
+
+            if (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps)
+                return ScriptHttpClient.GetStringAsync(absoluteUri).GetAwaiter().GetResult();
+
+            throw new UriFormatException($"Unsupported script URI scheme '{absoluteUri.Scheme}'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(basePath))
+            throw new FileNotFoundException("Cannot resolve a relative script without a document base path.", source);
+
+        if (Uri.TryCreate(basePath, UriKind.Absolute, out var baseUri))
+        {
+            if (baseUri.IsFile)
+            {
+                var filePath = Path.GetFullPath(Path.Combine(baseUri.LocalPath, Uri.UnescapeDataString(trimmed)));
+                return File.ReadAllText(filePath);
+            }
+
+            var resolvedUri = new Uri(baseUri, trimmed);
+            if (resolvedUri.Scheme == Uri.UriSchemeHttp || resolvedUri.Scheme == Uri.UriSchemeHttps)
+                return ScriptHttpClient.GetStringAsync(resolvedUri).GetAwaiter().GetResult();
+
+            throw new UriFormatException($"Unsupported script URI scheme '{resolvedUri.Scheme}'.");
+        }
+
+        var path = Path.GetFullPath(Path.Combine(basePath, Uri.UnescapeDataString(trimmed)));
+        return File.ReadAllText(path);
+    }
+
+    private static string? MergeStyleSheets(IReadOnlyList<string> authorStyleTexts, string? loadedStyleSheet)
+    {
+        if (authorStyleTexts.Count == 0)
+            return loadedStyleSheet;
+
+        if (string.IsNullOrWhiteSpace(loadedStyleSheet))
+            return string.Join(Environment.NewLine, authorStyleTexts);
+
+        return string.Join(Environment.NewLine, authorStyleTexts.Append(loadedStyleSheet));
+    }
+
+    private static string StripUrlSuffix(string value)
+    {
+        var suffixIndex = value.AsSpan().IndexOfAny('#', '?');
+        return suffixIndex >= 0 ? value[..suffixIndex] : value;
     }
 
     public void DispatchClick(HtmlDomElement sourceElement)

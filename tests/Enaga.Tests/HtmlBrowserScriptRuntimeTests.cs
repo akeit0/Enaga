@@ -3,6 +3,7 @@ using Enaga.Html;
 using Enaga.Html.Dom;
 using Enaga.React.OkojoRuntime;
 using Enaga.Rendering;
+using Enaga.Scene;
 using Okojo.Objects;
 using Xunit;
 
@@ -165,6 +166,66 @@ public sealed class HtmlBrowserScriptRuntimeTests
         Assert.NotNull(runtime);
         Assert.Contains("<textarea id=\"message\">old-new</textarea>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
         Assert.Contains("<div id=\"status\">old-new</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateAndRun_LoadsLocalExternalScriptInDocumentOrder()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+        var scriptPath = Path.Combine(tempDirectory, "api.js.ダウンロード");
+        File.WriteAllText(scriptPath, "window.externalValue = 'loaded';");
+
+        try
+        {
+            var document = new HtmlDocument("""
+                <body>
+                  <div id="status"></div>
+                  <script src="./api.js.ダウンロード" async="" defer=""></script>
+                  <script>
+                    document.getElementById("status").textContent = window.externalValue || "missing";
+                  </script>
+                </body>
+                """, BasePath: tempDirectory);
+
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+
+            Assert.NotNull(runtime);
+            Assert.Contains("<div id=\"status\">loaded</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CreateAndRun_PreservesHeadStylesAfterBodySerialization()
+    {
+        var document = new HtmlDocument("""
+            <html>
+              <head>
+                <style>
+                  #styled { background: #123456; }
+                </style>
+              </head>
+              <body>
+                <div id="styled">styled</div>
+                <script>
+                  document.getElementById("styled").textContent = "updated";
+                </script>
+              </body>
+            </html>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+        Assert.NotNull(runtime);
+
+        var source = new HtmlSceneFrameSource(runtime.CurrentDocument);
+        var commit = source.BuildCommit(320, 200);
+        var styled = Assert.Single(commit.Layout.Values.Where(box => box.BackgroundColor == "#123456"));
+
+        Assert.Equal(SceneNodeKind.View, styled.NodeKind);
     }
 
     [Fact]
