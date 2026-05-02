@@ -1,6 +1,7 @@
 using Enaga.Html.Dom;
 using Enaga.Html;
 using Okojo;
+using Okojo.Hosting;
 using Okojo.Objects;
 using Okojo.Runtime;
 using Okojo.WebPlatform;
@@ -10,7 +11,17 @@ namespace Enaga.Browser;
 public sealed class HtmlBrowserScriptRuntime : IDisposable
 {
     private static readonly JsShapePropertyFlags OpenFlags = JsShapePropertyFlags.Open;
+    private static readonly HostTaskQueueKey[] SEventLoopQueueOrder =
+    [
+        WebTaskQueueKeys.Timers,
+        WebTaskQueueKeys.Messages,
+        WebTaskQueueKeys.Network,
+        HostingTaskQueueKeys.Default,
+        WebTaskQueueKeys.Rendering
+    ];
     private readonly JsRuntime runtime;
+    private readonly BrowserHostTaskScheduler hostTaskScheduler;
+    private readonly HostPump hostPump;
     private readonly HtmlDomDocument document;
     private readonly string documentSource;
     private readonly string? styleSheet;
@@ -26,7 +37,16 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         this.styleSheet = styleSheet;
         this.basePath = basePath;
         CurrentDocument = new HtmlDocument(document.ToHtml(), styleSheet, basePath);
-        runtime = JsRuntime.Create(static builder => builder.UseWebRuntimeGlobals());
+        hostTaskScheduler = new BrowserHostTaskScheduler(static () => { });
+        runtime = JsRuntime.Create(builder => {
+            builder.UseLowLevelHost(host => host.UseTaskScheduler(hostTaskScheduler));
+            builder.UseWebDelayScheduler(hostTaskScheduler);
+            builder.UseWebTimerQueue(WebTaskQueueKeys.Timers);
+            builder.UseFetchCompletionQueue(WebTaskQueueKeys.Network);
+            builder.UseFetch();
+            builder.UseWebRuntimeGlobals();
+        });
+        hostPump = runtime.CreateHostPump();
         InstallConsole(runtime.MainRealm, documentSource);
         InstallWindow(runtime.MainRealm);
     }
@@ -48,6 +68,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             try
             {
                 scriptRuntime.runtime.MainRealm.Evaluate(scripts[index]);
+                scriptRuntime.PumpEventLoopUntilIdle();
             }
             catch (Exception ex)
             {
@@ -82,7 +103,17 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     public void Dispose()
     {
+        hostTaskScheduler.Dispose();
         runtime.Dispose();
+    }
+
+    public void PumpEventLoopUntilIdle(int maxTurns = 256)
+    {
+        for (var turn = 0; turn < maxTurns; turn++)
+        {
+            if (!HostTurnRunner.RunTurn(hostTaskScheduler, hostPump, SEventLoopQueueOrder))
+                return;
+        }
     }
 
     private void DispatchClick(HtmlDomElement element, HtmlDomElement targetElement, JsObject targetObject)
@@ -102,6 +133,8 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
         foreach (var listener in listeners.ToArray())
             InvokeEventHandler(listener, currentTargetObject, eventValue);
+
+        PumpEventLoopUntilIdle();
     }
 
     private void InvokeEventHandler(JsFunction callback, JsObject targetObject, JsValue eventValue)
@@ -109,6 +142,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         try
         {
             runtime.MainRealm.Call(callback, JsValue.FromObject(targetObject), [eventValue]);
+            PumpEventLoopUntilIdle();
         }
         catch (Exception ex)
         {

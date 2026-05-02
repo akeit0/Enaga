@@ -1,9 +1,9 @@
 using Okojo.Hosting;
 using Okojo.Runtime;
 
-namespace Enaga.React.OkojoRuntime;
+namespace Enaga.Browser;
 
-internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, TimeProvider? timeProvider = null)
+internal sealed class BrowserHostTaskScheduler(Action onTaskQueued, TimeProvider? timeProvider = null)
     : IHostTaskScheduler, IQueuedHostDelayScheduler, IHostTaskQueuePump, IDisposable
 {
     private readonly object gate = new();
@@ -19,7 +19,7 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
 
     public IHostDelayedOperation ScheduleDelayed(TimeSpan delay, Action<object?> callback, object? state)
     {
-        return ScheduleDelayed(delay, default, callback, state);
+        return ScheduleDelayed(delay, HostingTaskQueueKeys.Default, callback, state);
     }
 
     public IHostDelayedOperation ScheduleDelayed(
@@ -123,7 +123,7 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
         onTaskQueued();
     }
 
-    private sealed class AgentScheduler(RenderInvalidatingHostTaskScheduler owner, HostTaskTarget target) : IQueuedHostAgentScheduler
+    private sealed class AgentScheduler(BrowserHostTaskScheduler owner, HostTaskTarget target) : IQueuedHostAgentScheduler
     {
         private static readonly Action<object?> SEnqueueAgentTask = static state =>
         {
@@ -146,14 +146,14 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
     private sealed class DelayedOperation : IHostDelayedOperation
     {
         private readonly Action<object?> callback;
-        private readonly RenderInvalidatingHostTaskScheduler owner;
-        private readonly HostTaskQueueKey targetQueue;
+        private readonly BrowserHostTaskScheduler owner;
         private readonly object? state;
+        private readonly HostTaskQueueKey targetQueue;
         private int status;
         private ITimer? timer;
 
         private DelayedOperation(
-            RenderInvalidatingHostTaskScheduler owner,
+            BrowserHostTaskScheduler owner,
             HostTaskQueueKey targetQueue,
             Action<object?> callback,
             object? state)
@@ -179,7 +179,7 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
         }
 
         public static DelayedOperation Create(
-            RenderInvalidatingHostTaskScheduler owner,
+            BrowserHostTaskScheduler owner,
             TimeProvider timeProvider,
             TimeSpan delay,
             HostTaskQueueKey targetQueue,

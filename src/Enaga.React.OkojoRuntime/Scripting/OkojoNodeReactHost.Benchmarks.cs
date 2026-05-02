@@ -60,6 +60,7 @@ public sealed partial class OkojoNodeReactHost
             .UseHostTaskScheduler(hostTaskScheduler)
             .ConfigureRuntime(builder => builder.UseGlobals(InstallHostGlobals))
             .Build();
+        hostPump = new HostPump(runtime.Runtime.MainAgent);
 
         propertyAtoms = new ReactAppPropertyAtoms(runtime.MainRealm.Agent.Atoms);
         stackLayoutCalculator = new LayoutCalculator(backendServices.Text);
@@ -109,4 +110,9 @@ public sealed partial class OkojoNodeReactHost
     }
 
     internal SceneLayoutCommit BenchmarkSnapshot() => sceneStore.Snapshot();
+
+    internal void BenchmarkPumpRuntimeJobs()
+    {
+        PumpRuntimeJobs();
+    }
 }

@@ -2,8 +2,10 @@ using System.Collections.Concurrent;
 using Enaga.Rendering;
 using Okojo;
 using Okojo.Annotations;
+using Okojo.Hosting;
 using Okojo.Objects;
 using Okojo.Runtime;
+using Okojo.WebPlatform;
 using Enaga.Scene;
 using Enaga.Input;
 namespace Enaga.React.OkojoRuntime;
@@ -11,8 +13,18 @@ namespace Enaga.React.OkojoRuntime;
 [GenerateJsGlobals]
 public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink, IDisposable
 {
+    private static readonly HostTaskQueueKey[] SEventLoopQueueOrder =
+    [
+        WebTaskQueueKeys.Timers,
+        WebTaskQueueKeys.Messages,
+        WebTaskQueueKeys.Network,
+        HostingTaskQueueKeys.Default,
+        WebTaskQueueKeys.Rendering
+    ];
     private readonly FileSystemWatcher fileWatcher;
     private readonly RuntimeBackendServices backendServices;
+    private readonly RenderInvalidatingHostTaskScheduler hostTaskScheduler;
+    private readonly HostPump hostPump;
     private readonly JsRealm realm;
     private readonly JsRuntime runtime;
     private readonly SceneStore sceneStore = new("root", new SceneViewport(1280, 800));
@@ -37,9 +49,17 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
     {
         this.scriptFilePath = scriptFilePath;
         this.backendServices = backendServices ?? RuntimeBackendServices.Missing;
+        hostTaskScheduler = new RenderInvalidatingHostTaskScheduler(() => InvalidateRender(SceneDamageReason.FullFrameFallback));
         runtime = JsRuntime.CreateBuilder()
+            .UseLowLevelHost(host => host.UseTaskScheduler(hostTaskScheduler))
+            .UseWebDelayScheduler(hostTaskScheduler)
+            .UseWebTimerQueue(WebTaskQueueKeys.Timers)
+            .UseFetchCompletionQueue(WebTaskQueueKeys.Network)
+            .UseWebRuntimeGlobals()
+            .UseFetch()
             .UseGlobals(InstallGeneratedGlobals)
             .Build();
+        hostPump = new HostPump(runtime.MainAgent);
         realm = runtime.MainRealm;
 
         var directory = Path.GetDirectoryName(scriptFilePath);
@@ -101,6 +121,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
     public void Dispose()
     {
         fileWatcher.Dispose();
+        hostTaskScheduler.Dispose();
         runtime.Dispose();
         if (!ReferenceEquals(backendServices, RuntimeBackendServices.Missing))
             backendServices.Dispose();
@@ -133,12 +154,13 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
             {
                 setupRan = true;
                 Invoke(setupFunction);
+                PumpRuntimeJobs();
             }
 
             Invoke(renderFunction,
                 elapsed.TotalMilliseconds,
                 JsValue.FromInt32(FrameCount));
-            realm.PumpJobs();
+            PumpRuntimeJobs();
             LastError = null;
             renderInvalidated = false;
         }
@@ -300,7 +322,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
                         break;
                 }
 
-                realm.PumpJobs();
+                PumpRuntimeJobs();
             }
             catch (Exception ex)
             {
@@ -334,6 +356,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
 
         var source = File.ReadAllText(scriptFilePath);
         _ = realm.Eval(source);
+        PumpRuntimeJobs();
         setupFunction = TryGetGlobalFunction("setup");
         renderFunction = TryGetGlobalFunction("render");
         pointerMoveFunction = TryGetGlobalFunction("pointerMove");
@@ -361,6 +384,15 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
     }
 
     private SceneDamageReason ConsumeFrameDamageReasons() => SceneDamageReasonState.Consume(ref pendingDamageReasons, animationEnabled);
+
+    private void PumpRuntimeJobs()
+    {
+        for (var turn = 0; turn < 256; turn++)
+        {
+            if (!HostTurnRunner.RunTurn(hostTaskScheduler, hostPump, SEventLoopQueueOrder))
+                return;
+        }
+    }
 
     private static SceneTextAlign ParseTextAlign(string? value)
     {

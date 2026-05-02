@@ -17,6 +17,7 @@
     <Reference Include="Okojo" HintPath="..\..\okojo\src\Okojo\bin\Release\net10.0\Okojo.dll" />
     <Reference Include="Okojo.Hosting" HintPath="..\..\okojo\src\Okojo.Hosting\bin\Release\net10.0\Okojo.Hosting.dll" />
     <Reference Include="Okojo.Node" HintPath="..\..\okojo\src\Okojo.Node\bin\Release\net10.0\Okojo.Node.dll" />
+    <Reference Include="Okojo.WebPlatform" HintPath="..\..\okojo\src\Okojo.WebPlatform\bin\Release\net10.0\Okojo.WebPlatform.dll" />
     <Reference Include="Okojo.Annotations" HintPath="..\..\okojo\src\Okojo.Annotations\bin\Release\netstandard2.0\Okojo.Annotations.dll" />
     <Analyzer Include="..\..\okojo\src\Okojo.SourceGenerator\bin\Release\netstandard2.0\Okojo.SourceGenerator.dll"/>
   </ItemGroup>

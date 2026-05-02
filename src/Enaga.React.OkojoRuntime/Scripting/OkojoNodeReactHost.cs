@@ -7,6 +7,7 @@ using Okojo.Hosting;
 using Okojo.Node;
 using Okojo.Objects;
 using Okojo.Runtime;
+using Okojo.WebPlatform;
 using Enaga.Hosting;
 using Enaga.Layout;
 using Enaga.Scene;
@@ -18,6 +19,14 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 {
     private const string DiagnosticSourceName = nameof(OkojoNodeReactHost);
     private const double WheelTargetLatchTimeoutMs = 200;
+    private static readonly HostTaskQueueKey[] SEventLoopQueueOrder =
+    [
+        WebTaskQueueKeys.Timers,
+        WebTaskQueueKeys.Messages,
+        WebTaskQueueKeys.Network,
+        HostingTaskQueueKeys.Default,
+        WebTaskQueueKeys.Rendering
+    ];
     private readonly bool debugFeaturesEnabled;
     private readonly ShaderTraceLogger shaderTrace;
     private readonly IRuntimeDiagnosticsSink diagnostics;
@@ -71,6 +80,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private JsFunction? textInputFunction;
     private JsFunction? wheelFunction;
     private NodeRuntime? runtime;
+    private HostPump? hostPump;
     private RenderInvalidatingHostTaskScheduler? hostTaskScheduler;
     private string? focusedTextInputId;
     private readonly SceneScrollBarDragState activeScrollBarDrag = new();
@@ -329,7 +339,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             return false;
 
         Invoke(function, args);
-        runtime.MainRealm.PumpJobs();
+        PumpRuntimeJobs();
         RequestRender(reason);
         return true;
     }
@@ -579,7 +589,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             Invoke(renderFrameFunction,
                 elapsed.TotalMilliseconds,
                 JsValue.FromInt32(FrameCount));
-            runtime.MainRealm.PumpJobs();
+            PumpRuntimeJobs();
             PruneInactiveTextInputs();
             PruneInactiveScrollViews();
             PruneInactiveImages();
@@ -1581,7 +1591,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                         break;
                 }
 
-                runtime?.MainRealm.PumpJobs();
+                PumpRuntimeJobs();
             }
             catch (Exception ex)
             {
@@ -2784,6 +2794,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             builder = builder.ConfigureTerminal(configureTerminal);
         runtime = builder
             .Build();
+        hostPump = new HostPump(runtime.Runtime.MainAgent);
         runtime.MainRealm.Global["process"].AsObject()["env"].AsObject()["NODE_ENV"] =
             reloadCoordinator.Options.Mode == ReactRuntimeReloadMode.FastRefresh ? "development" : "production";
         propertyAtoms = new ReactAppPropertyAtoms(runtime.MainRealm.Agent.Atoms);
@@ -2795,6 +2806,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             var runtimeEntryPath = entrySource.PrepareEntryPath();
             _ = runtime.RunMainModule(runtimeEntryPath);
             ApplyLoadedModuleCallbacks();
+            PumpRuntimeJobs();
         }
         catch (Exception ex)
         {
@@ -2825,6 +2837,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             var runtimeEntryPath = entrySource.PrepareEntryPath();
             _ = runtime.RunMainModule(runtimeEntryPath);
             ApplyLoadedModuleCallbacks();
+            PumpRuntimeJobs();
         }
         catch (Exception ex)
         {
@@ -2886,6 +2899,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             Log(RuntimeDiagnosticArea.ModuleInvalidation, $"fast refresh invalidated {removedCount} cache entries across {invalidatedModuleIds.Count} module(s)");
             _ = runtime.RunMainModule(runtimeEntryPath);
             ApplyLoadedModuleCallbacks();
+            PumpRuntimeJobs();
             InvalidateRender(SceneDamageReason.RuntimeReload);
         }
         catch (Exception ex)
@@ -3006,8 +3020,17 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private void PumpRuntimeJobs()
     {
-        hostTaskScheduler?.PumpQueuedDelayedTasks();
-        runtime?.MainRealm.PumpJobs();
+        if (hostTaskScheduler is null || hostPump is null)
+        {
+            runtime?.MainRealm.PumpJobs();
+            return;
+        }
+
+        for (var turn = 0; turn < 256; turn++)
+        {
+            if (!HostTurnRunner.RunTurn(hostTaskScheduler, hostPump, SEventLoopQueueOrder))
+                return;
+        }
     }
 
     private void Log(RuntimeDiagnosticArea area, string message)
