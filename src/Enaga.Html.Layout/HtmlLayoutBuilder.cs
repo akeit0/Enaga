@@ -13,6 +13,7 @@ internal sealed partial class HtmlLayoutBuilder
     private readonly LayoutCalculator layoutCalculator;
     private readonly LayoutScratchArena scratch = new();
     private readonly HtmlLayoutMeasurementCache measurementCache;
+    private readonly HtmlSceneTextStyleCache textStyleCache = new();
     private readonly SceneNodeIdentityMap<string> sceneNodeIds;
     private readonly List<HtmlPlacedNode> placedNodes = new();
     private readonly List<HtmlChildRelation> childRelations = new();
@@ -48,7 +49,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         LayoutChildren(rootId, rootStyle, rootChildren, 0, 0, bodyLayoutWidth, height, resolvedViewportScale);
         LastSceneNodeDomIds = CreateSceneNodeDomIdMap(styledTree);
-        var commit = new HtmlSceneEmitter(rootId, sceneNodeIds, width, height, width, height, resolvedViewportScale, previousCommit).Emit(
+        var commit = new HtmlSceneEmitter(rootId, sceneNodeIds, textStyleCache, width, height, width, height, resolvedViewportScale, previousCommit).Emit(
             rootKind,
             rootStyle,
             placedNodes,

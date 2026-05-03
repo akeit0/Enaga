@@ -259,7 +259,7 @@ public sealed class HtmlBrowserScriptRuntimeTests
 
         var source = new HtmlSceneFrameSource(runtime.CurrentDocument);
         var commit = source.BuildCommit(320, 200);
-        var styled = Assert.Single(commit.Layout.Values.Where(box => box.BackgroundColor == "#123456"));
+        var styled = Assert.Single(commit.Layout.Values, box => box.BackgroundColor == "#123456");
 
         Assert.Equal(SceneNodeKind.View, styled.NodeKind);
     }

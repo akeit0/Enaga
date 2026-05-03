@@ -14,7 +14,8 @@
       Include="..\Enaga.SampleApp.SyntaxHighlighting\Enaga.SampleApp.SyntaxHighlighting.csproj" />
     <ProjectReference Include="..\..\..\src\Enaga.Core\Enaga.Core.csproj" />
     <ProjectReference Include="..\..\..\okojo\src\Okojo\Okojo.csproj" />
-    <ProjectReference Include="..\..\..\okojo\src\Okojo.Annotations\Okojo.Annotations.csproj" />
+     <Reference Include="Okojo.Annotations"
+      HintPath="..\..\..\okojo\src\Okojo.Annotations\bin\Release\netstandard2.0\Okojo.Annotations.dll" />
     <ProjectReference
       Include="..\..\..\okojo\src\Okojo.SourceGenerator\Okojo.SourceGenerator.csproj"
       OutputItemType="Analyzer"

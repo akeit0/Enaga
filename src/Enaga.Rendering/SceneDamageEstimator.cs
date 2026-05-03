@@ -117,7 +117,7 @@ internal static class SceneDamageEstimator
 
             if (previousBox is not null && nextBox is not null &&
                 previousNode is not null && nextNode is not null &&
-                CanSkipOpaqueContainerDamage(previousNode, nextNode, previousBox, nextBox))
+                CanSkipOpaqueContainerDamage(previousCommit, nextCommit, previousNode, nextNode, previousBox, nextBox))
             {
                 continue;
             }
@@ -156,6 +156,8 @@ internal static class SceneDamageEstimator
     }
 
     private static bool CanSkipOpaqueContainerDamage(
+        SceneLayoutCommit previousCommit,
+        SceneLayoutCommit nextCommit,
         SceneGraphNode previousNode,
         SceneGraphNode nextNode,
         SceneLayoutBox previousBox,
@@ -164,7 +166,48 @@ internal static class SceneDamageEstimator
         return previousBox == nextBox &&
                NodesEqualIgnoringChildren(previousNode, nextNode) &&
                IsOpaquePaintBlocker(previousBox) &&
+               !HasPositionedChildMutation(previousCommit, nextCommit, previousNode.Children, nextNode.Children) &&
                HasInsertionRemovalOnlyChildMutation(previousNode.Children, nextNode.Children);
+    }
+
+    private static bool HasPositionedChildMutation(
+        SceneLayoutCommit previousCommit,
+        SceneLayoutCommit nextCommit,
+        IReadOnlyList<SceneNodeId> previousChildren,
+        IReadOnlyList<SceneNodeId> nextChildren)
+    {
+        for (var index = 0; index < previousChildren.Count; index++)
+        {
+            var childId = previousChildren[index];
+            if (!Contains(nextChildren, childId) &&
+                previousCommit.Layout.TryGetValue(childId, out var previousBox) &&
+                previousBox.IsPositioned)
+            {
+                return true;
+            }
+        }
+
+        for (var index = 0; index < nextChildren.Count; index++)
+        {
+            var childId = nextChildren[index];
+            if (!Contains(previousChildren, childId) &&
+                nextCommit.Layout.TryGetValue(childId, out var nextBox) &&
+                nextBox.IsPositioned)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool Contains(IReadOnlyList<SceneNodeId> ids, SceneNodeId id)
+    {
+        for (var index = 0; index < ids.Count; index++)
+            if (ids[index] == id)
+                return true;
+
+        return false;
     }
 
     private static bool IsOpaquePaintBlocker(SceneLayoutBox box)

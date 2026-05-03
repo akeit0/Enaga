@@ -66,13 +66,7 @@ internal sealed partial class HtmlLayoutBuilder
             return false;
         }
 
-        var textStyle = new SceneTextStyle(
-            child.Style.FontSize > 0 ? child.Style.FontSize : 16,
-            child.Style.Color,
-            TextAlign: child.Style.TextAlign,
-            WrapText: false,
-            Underline: child.Style.Underline,
-            Font: CreateSceneFont(child.Style, 16, 400));
+        var textStyle = textStyleCache.GetInlineMeasureStyle(child.Style);
         var measured = MeasureInlineText(child.TextContent, textStyle, child.Style.LineHeight);
         if (child.Style.Underline && frame.Width >= measured.Width)
             return false;
@@ -202,13 +196,7 @@ internal sealed partial class HtmlLayoutBuilder
             return;
 
         var style = child.Style;
-        var textStyle = new SceneTextStyle(
-            style.FontSize > 0 ? style.FontSize : 16,
-            style.Color,
-            TextAlign: style.TextAlign,
-            WrapText: false,
-            Underline: style.Underline,
-            Font: CreateSceneFont(style, 16, 400));
+        var textStyle = textStyleCache.GetInlineMeasureStyle(style);
         var font = textStyle.Font;
         var lineHeight = ResolveNormalLineHeight(font, style.LineHeight);
         var ascent = Math.Min(lineHeight, font.Size);
@@ -274,7 +262,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         if (child.NodeKind == SceneNodeKind.Text)
         {
-            var font = CreateSceneFont(child.Style, 16, 400);
+            var font = textStyleCache.GetFont(child.Style, 16, 400);
             var lineHeight = ResolveNormalLineHeight(font, child.Style.LineHeight);
             height = Math.Max(height, lineHeight);
             var ascent = Math.Min(height, font.Size);

@@ -170,13 +170,7 @@ internal sealed partial class HtmlLayoutBuilder
             style.PreferIntrinsicWidth &&
             !string.IsNullOrEmpty(node.TextContent))
         {
-            var textStyle = new SceneTextStyle(
-                style.FontSize > 0 ? style.FontSize : 16,
-                style.Color,
-                TextAlign: style.TextAlign,
-                WrapText: false,
-                Underline: style.Underline,
-                Font: CreateSceneFont(style, 16, 400));
+            var textStyle = textStyleCache.GetInlineMeasureStyle(style);
             var measured = MeasureInlineText(node.TextContent, textStyle, style.LineHeight);
             width = measured.Width;
             height = measured.Height;
@@ -185,13 +179,7 @@ internal sealed partial class HtmlLayoutBuilder
                  style.PreferIntrinsicWidth &&
                  !string.IsNullOrEmpty(node.TextContent))
         {
-            var textStyle = new SceneTextStyle(
-                style.FontSize > 0 ? style.FontSize : 16,
-                style.Color,
-                TextAlign: style.TextAlign,
-                WrapText: false,
-                Underline: style.Underline,
-                Font: CreateSceneFont(style, 16, 400));
+            var textStyle = textStyleCache.GetInlineMeasureStyle(style);
             var measured = MeasureInlineText(node.TextContent, textStyle, style.LineHeight);
             width = measured.Width + style.PaddingLeft + style.PaddingRight + style.BorderWidth * 2;
             if (!LayoutValue.IsSet(height))
@@ -297,7 +285,7 @@ internal sealed partial class HtmlLayoutBuilder
             FontFamily: style.FontFamily,
             FontWeight: style.FontWeight,
             Italic: style.Italic,
-            Font: CreateSceneFont(style, 16, 400),
+            Font: textStyleCache.GetFont(style, 16, 400),
             Wrap: node.NodeKind == SceneNodeKind.TextInput ? style.Multiline : style.WrapText,
             AlignSelf: style.AlignSelf,
             FlexGrow: parentIsFlexContainer ? style.FlexGrow : 0,
@@ -331,13 +319,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         if (node.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(node.TextContent))
         {
-            var textStyle = new SceneTextStyle(
-                style.FontSize > 0 ? style.FontSize : 16,
-                style.Color,
-                TextAlign: style.TextAlign,
-                WrapText: false,
-                Underline: style.Underline,
-                Font: CreateSceneFont(style, 16, 400));
+            var textStyle = textStyleCache.GetInlineMeasureStyle(style);
             return MeasureInlineText(node.TextContent, textStyle, style.LineHeight).Width;
         }
 
@@ -443,13 +425,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         if (node.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(node.TextContent))
         {
-            var textStyle = new SceneTextStyle(
-                style.FontSize > 0 ? style.FontSize : 16,
-                style.Color,
-                TextAlign: style.TextAlign,
-                WrapText: false,
-                Underline: style.Underline,
-                Font: CreateSceneFont(style, 16, 400));
+            var textStyle = textStyleCache.GetInlineMeasureStyle(style);
             var measured = MeasureInlineText(node.TextContent, textStyle, style.LineHeight);
             return (measured.Width, measured.Height);
         }
@@ -531,13 +507,7 @@ internal sealed partial class HtmlLayoutBuilder
         var style = node.Style;
         if (node.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(node.TextContent))
         {
-            var textStyle = new SceneTextStyle(
-                style.FontSize > 0 ? style.FontSize : 16,
-                style.Color,
-                TextAlign: style.TextAlign,
-                WrapText: false,
-                Underline: style.Underline,
-                Font: CreateSceneFont(style, 16, 400));
+            var textStyle = textStyleCache.GetInlineMeasureStyle(style);
             return MeasureInlineText(node.TextContent, textStyle, style.LineHeight).Width;
         }
 
@@ -608,13 +578,7 @@ internal sealed partial class HtmlLayoutBuilder
     {
         if (node.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(node.TextContent))
         {
-            var textStyle = new SceneTextStyle(
-                node.Style.FontSize > 0 ? node.Style.FontSize : 16,
-                node.Style.Color,
-                TextAlign: node.Style.TextAlign,
-                WrapText: false,
-                Underline: node.Style.Underline,
-                Font: CreateSceneFont(node.Style, 16, 400));
+            var textStyle = textStyleCache.GetInlineMeasureStyle(node.Style);
             return MeasureInlineText(node.TextContent, textStyle, node.Style.LineHeight).Width;
         }
 
@@ -639,12 +603,7 @@ internal sealed partial class HtmlLayoutBuilder
         if (textNode.NodeKind != SceneNodeKind.Text || string.IsNullOrWhiteSpace(textNode.TextContent))
             return false;
 
-        var textStyle = new SceneTextStyle(
-            textNode.Style.FontSize > 0 ? textNode.Style.FontSize : 16,
-            textNode.Style.Color,
-            TextAlign: textNode.Style.TextAlign,
-            WrapText: false,
-            Font: CreateSceneFont(textNode.Style, 16, 400));
+        var textStyle = textStyleCache.GetInlineMeasureStyle(textNode.Style);
         var lineHeight = ResolveNormalLineHeight(textStyle.Font, textNode.Style.LineHeight);
         var measured = MeasureInlineText(textNode.TextContent, textStyle, textNode.Style.LineHeight);
         width =
@@ -699,15 +658,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         if (node.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(node.TextContent))
         {
-            var textStyle = new SceneTextStyle(
-                style.FontSize > 0 ? style.FontSize : 16,
-                style.Color,
-                style.FontFamily,
-                style.FontWeight > 0 ? style.FontWeight : 400,
-                style.TextAlign,
-                WrapText: false,
-                style.Underline,
-                style.Italic);
+            var textStyle = textStyleCache.GetInlineMeasureStyle(style);
             return MeasureInlineText(node.TextContent, textStyle, style.LineHeight).Width +
                    style.PaddingLeft +
                    style.PaddingRight +
@@ -769,15 +720,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         if (node.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(node.TextContent))
         {
-            var textStyle = new SceneTextStyle(
-                style.FontSize > 0 ? style.FontSize : 16,
-                style.Color,
-                style.FontFamily,
-                style.FontWeight > 0 ? style.FontWeight : 400,
-                style.TextAlign,
-                WrapText: false,
-                style.Underline,
-                style.Italic);
+            var textStyle = textStyleCache.GetInlineMeasureStyle(style);
             return MeasureLongestUnbreakableTextWidth(node.TextContent, textStyle) +
                    style.PaddingLeft +
                    style.PaddingRight +
@@ -1250,14 +1193,7 @@ internal sealed partial class HtmlLayoutBuilder
             return 0;
 
         var style = node.Style;
-        var textStyle = new SceneTextStyle(
-            style.FontSize > 0 ? style.FontSize : 16,
-            style.Color,
-            TextAlign: style.TextAlign,
-            WrapText: style.WrapText,
-            Underline: style.Underline,
-            TextOverflowEllipsis: style.TextOverflowEllipsis,
-            Font: CreateSceneFont(style, 16, 400));
+        var textStyle = textStyleCache.GetTextStyle(style);
         var contentWidth = Math.Max(0, resolvedWidth - style.PaddingLeft - style.PaddingRight - style.BorderWidth * 2);
         var textHeight = style.WrapText
             ? textServices.MeasureTextHeight(node.TextContent, contentWidth, textStyle)
@@ -1265,12 +1201,8 @@ internal sealed partial class HtmlLayoutBuilder
         return textHeight + style.PaddingTop + style.PaddingBottom + style.BorderWidth * 2;
     }
 
-    private static SceneFont CreateSceneFont(HtmlComputedStyle style, float defaultSize, int defaultWeight)
-        => new(
-            style.FontSize > 0 ? style.FontSize : defaultSize,
-            style.FontFamily,
-            style.FontWeight > 0 ? style.FontWeight : defaultWeight,
-            style.Italic);
+    private SceneFont CreateSceneFont(HtmlComputedStyle style, float defaultSize, int defaultWeight)
+        => textStyleCache.GetFont(style, defaultSize, defaultWeight);
 
     private static bool ShouldAllowChildFlexShrink(HtmlComputedStyle parentStyle)
     {

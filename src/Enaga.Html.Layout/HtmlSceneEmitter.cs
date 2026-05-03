@@ -6,6 +6,7 @@ namespace Enaga.Html;
 internal sealed class HtmlSceneEmitter(
     string rootId,
     SceneNodeIdentityMap<string> sceneNodeIds,
+    HtmlSceneTextStyleCache textStyleCache,
     int width,
     int height,
     float rootLayoutWidth,
@@ -25,7 +26,10 @@ internal sealed class HtmlSceneEmitter(
         for (var index = 0; index < childRelations.Count; index++)
         {
             var relation = childRelations[index];
-            childMap[ToSceneNodeId(relation.ParentId)] = [.. relation.ChildIds.Select(ToSceneNodeId)];
+            var childIds = new SceneNodeId[relation.ChildIds.Length];
+            for (var childIndex = 0; childIndex < relation.ChildIds.Length; childIndex++)
+                childIds[childIndex] = ToSceneNodeId(relation.ChildIds[childIndex]);
+            childMap[ToSceneNodeId(relation.ParentId)] = childIds;
         }
 
         var rootSceneNodeId = ToSceneNodeId(rootId);
@@ -85,19 +89,9 @@ internal sealed class HtmlSceneEmitter(
         if (TryReuseLayoutBox(id, nodeKind, style, absLeft, absTop, width, height, textContent, imageSource, placeholderText, linkHref, controlKind, viewportScale, out var reused))
             return reused;
 
-        var textStyle = new SceneTextStyle(
-            style.FontSize,
-            style.Color,
-            TextAlign: style.TextAlign,
-            WrapText: style.WrapText,
-            Underline: style.Underline,
-            TextOverflowEllipsis: style.TextOverflowEllipsis,
-            Font: new SceneFont(
-                style.FontSize,
-                style.FontFamily,
-                style.FontWeight,
-                style.Italic),
-            TextShadows: style.TextShadows);
+        var textStyle = nodeKind is SceneNodeKind.Text or SceneNodeKind.TextInput
+            ? textStyleCache.GetTextStyle(style)
+            : null;
 
         return new SceneLayoutBox(
             nodeKind,
@@ -111,7 +105,7 @@ internal sealed class HtmlSceneEmitter(
             style.BorderRadius,
             style.BoxSizing,
             textContent,
-            nodeKind is SceneNodeKind.Text or SceneNodeKind.TextInput ? textStyle : null,
+            textStyle,
             placeholderText,
             style.PlaceholderColor ?? style.Color,
             style.PaddingLeft,

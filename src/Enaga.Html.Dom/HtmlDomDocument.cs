@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Enaga.Html.Dom;
 
 public sealed class HtmlDomDocument
@@ -161,7 +163,11 @@ public sealed class HtmlDomDocument
     }
 
     public string ToHtml()
-        => SerializeElement(RootElement);
+    {
+        var builder = new StringBuilder();
+        AppendElement(builder, RootElement);
+        return builder.ToString();
+    }
 
     private void IndexElement(HtmlDomElement element, HtmlNodeId parentNodeId)
     {
@@ -232,21 +238,49 @@ public sealed class HtmlDomDocument
     private static HtmlDomElement RecalculateElement(HtmlDomElement element)
         => element with
         {
-            TextContent = string.Concat(element.Children.Select(static child => child switch
-            {
-                HtmlDomText text => text.Text,
-                HtmlDomElement childElement => childElement.TextContent,
-                _ => string.Empty
-            })),
+            TextContent = BuildTextContent(element.Children),
             InnerText = IsNonRenderedTextElement(element.LocalName)
                 ? string.Empty
-                : string.Concat(element.Children.Select(static child => child switch
-                {
-                    HtmlDomText text => text.Text,
-                    HtmlDomElement childElement when !IsNonRenderedTextElement(childElement.LocalName) => childElement.InnerText,
-                    _ => string.Empty
-                }))
+                : BuildInnerText(element.Children)
         };
+
+    private static string BuildTextContent(IReadOnlyList<HtmlDomNode> children)
+    {
+        var builder = new StringBuilder();
+        for (var index = 0; index < children.Count; index++)
+        {
+            switch (children[index])
+            {
+                case HtmlDomText text:
+                    builder.Append(text.Text);
+                    break;
+                case HtmlDomElement childElement:
+                    builder.Append(childElement.TextContent);
+                    break;
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildInnerText(IReadOnlyList<HtmlDomNode> children)
+    {
+        var builder = new StringBuilder();
+        for (var index = 0; index < children.Count; index++)
+        {
+            switch (children[index])
+            {
+                case HtmlDomText text:
+                    builder.Append(text.Text);
+                    break;
+                case HtmlDomElement childElement when !IsNonRenderedTextElement(childElement.LocalName):
+                    builder.Append(childElement.InnerText);
+                    break;
+            }
+        }
+
+        return builder.ToString();
+    }
 
     private static HtmlDomElement? FindFirst(HtmlDomElement element, Func<HtmlDomElement, bool> predicate)
     {
@@ -268,31 +302,69 @@ public sealed class HtmlDomDocument
                 CollectElements(childElement, add);
     }
 
-    private static string SerializeElement(HtmlDomElement element)
+    private static void AppendElement(StringBuilder builder, HtmlDomElement element)
     {
-        var attributes = string.Concat(element.Attributes.Select(static pair =>
-            string.IsNullOrEmpty(pair.Value)
-                ? $" {pair.Key}"
-                : $" {pair.Key}=\"{EscapeAttribute(pair.Value)}\""));
-        return $"<{element.LocalName}{attributes}>{SerializeChildren(element.Children)}</{element.LocalName}>";
+        builder.Append('<').Append(element.LocalName);
+        foreach (var pair in element.Attributes)
+        {
+            builder.Append(' ').Append(pair.Key);
+            if (!string.IsNullOrEmpty(pair.Value))
+            {
+                builder.Append("=\"");
+                AppendEscapedAttribute(builder, pair.Value);
+                builder.Append('"');
+            }
+        }
+
+        builder.Append('>');
+        AppendChildren(builder, element.Children);
+        builder.Append("</").Append(element.LocalName).Append('>');
     }
 
-    private static string SerializeChildren(IEnumerable<HtmlDomNode> children)
-        => string.Concat(children.Select(static child => child switch
+    private static void AppendChildren(StringBuilder builder, IReadOnlyList<HtmlDomNode> children)
+    {
+        for (var index = 0; index < children.Count; index++)
         {
-            HtmlDomText text => EscapeText(text.Text),
-            HtmlDomElement element => SerializeElement(element),
-            _ => string.Empty
-        }));
+            switch (children[index])
+            {
+                case HtmlDomText text:
+                    AppendEscapedText(builder, text.Text);
+                    break;
+                case HtmlDomElement element:
+                    AppendElement(builder, element);
+                    break;
+            }
+        }
+    }
 
-    private static string EscapeText(string value)
-        => value
-            .Replace("&", "&amp;", StringComparison.Ordinal)
-            .Replace("<", "&lt;", StringComparison.Ordinal)
-            .Replace(">", "&gt;", StringComparison.Ordinal);
+    private static void AppendEscapedText(StringBuilder builder, string value)
+    {
+        foreach (var ch in value)
+        {
+            _ = ch switch
+            {
+                '&' => builder.Append("&amp;"),
+                '<' => builder.Append("&lt;"),
+                '>' => builder.Append("&gt;"),
+                _ => builder.Append(ch)
+            };
+        }
+    }
 
-    private static string EscapeAttribute(string value)
-        => EscapeText(value).Replace("\"", "&quot;", StringComparison.Ordinal);
+    private static void AppendEscapedAttribute(StringBuilder builder, string value)
+    {
+        foreach (var ch in value)
+        {
+            _ = ch switch
+            {
+                '&' => builder.Append("&amp;"),
+                '<' => builder.Append("&lt;"),
+                '>' => builder.Append("&gt;"),
+                '"' => builder.Append("&quot;"),
+                _ => builder.Append(ch)
+            };
+        }
+    }
 
     private static bool IsNonRenderedTextElement(string localName)
         => string.Equals(localName, "script", StringComparison.OrdinalIgnoreCase) ||

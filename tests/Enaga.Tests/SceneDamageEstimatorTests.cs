@@ -43,6 +43,34 @@ public sealed class SceneDamageEstimatorTests
     }
 
     [Fact]
+    public void Resolve_DirtiesOpaqueParentWhenPositionedOverlayChildIsAdded()
+    {
+        var previousCommit = CreateCommit(includeTooltip: false);
+        var nextCommit = CreateCommit(includeTooltip: true, tooltipPositioned: true);
+        using var resultBuffer = new SceneDamageRectBufferWriter(16);
+        using var scratchBuffer = new SceneDamageRectBufferWriter(16);
+
+        var dirtyRects = SceneDamageEstimator.Resolve(
+            previousCommit,
+            nextCommit,
+            [],
+            SceneDamageReason.None,
+            800,
+            600,
+            false,
+            resultBuffer,
+            scratchBuffer);
+
+        Assert.True(
+            Contains(
+                dirtyRects,
+                rect => rect.X <= 0 &&
+                        rect.Y <= 0 &&
+                        rect.X + rect.Width >= 800 &&
+                        rect.Y + rect.Height >= 600));
+    }
+
+    [Fact]
     public void Resolve_AnimationAlsoKeepsHostAnimatedShaderDirtyDuringTooltipChange()
     {
         var previousCommit = CreateAnimatedCommit(includeTooltip: false);
@@ -104,7 +132,7 @@ public sealed class SceneDamageEstimatorTests
                         rect.Y + rect.Height >= 320));
     }
 
-    private static SceneLayoutCommit CreateCommit(bool includeTooltip)
+    private static SceneLayoutCommit CreateCommit(bool includeTooltip, bool tooltipPositioned = false)
     {
         var nodes = new Dictionary<SceneNodeId, SceneGraphNode>
         {
@@ -122,7 +150,7 @@ public sealed class SceneDamageEstimatorTests
         if (includeTooltip)
         {
             nodes[Tooltip] = new(SceneNodeKind.View, Root, []);
-            layout[Tooltip] = new(SceneNodeKind.View, 40, 80, 120, 28, "#020617");
+            layout[Tooltip] = new(SceneNodeKind.View, 40, 80, 120, 28, "#020617", IsPositioned: tooltipPositioned);
         }
 
         return new SceneLayoutCommit(

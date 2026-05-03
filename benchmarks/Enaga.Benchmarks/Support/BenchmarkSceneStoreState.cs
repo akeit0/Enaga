@@ -4,6 +4,6 @@ namespace Enaga.Benchmarks.Support;
 
 internal sealed record BenchmarkSceneStoreState(
     SceneStore Store,
-    string[] MutableNodeIds,
+    SceneNodeId[] MutableNodeIds,
     SceneLayoutBox[] LayoutVariantA,
     SceneLayoutBox[] LayoutVariantB);

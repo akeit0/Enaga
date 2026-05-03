@@ -182,6 +182,7 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
         if (cachedBaseFragmentTree is null ||
             reasons == SceneDamageReason.None ||
             reasons.HasFlag(SceneDamageReason.Resize) ||
+            reasons.HasFlag(SceneDamageReason.Scroll) ||
             reasons.HasFlag(SceneDamageReason.RuntimeReload))
         {
             return false;

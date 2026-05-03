@@ -13,6 +13,8 @@ internal sealed class SceneCommitPainter : IDisposable
     private const int scrollContentPictureCacheLimit = 128;
     private const float viewportScrollPictureThreshold = 2f;
     private const float smallDirtyRectCacheBypassAreaRatio = 0.25f;
+    private static readonly SceneTextStyle DefaultTextStyle = new(16, "#ffffff");
+    private static readonly SceneTextStyle DefaultTextInputStyle = new(16, "#f8fafc");
     private readonly Dictionary<string, SKColor> colorCache = new(StringComparer.Ordinal);
     private readonly Dictionary<string, RuntimeShaderTemplate?> runtimeShaderTemplateCache = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SKRuntimeEffect?> shaderEffectCache = new(StringComparer.Ordinal);
@@ -327,7 +329,7 @@ internal sealed class SceneCommitPainter : IDisposable
     {
         image = null!;
         destinationRect = default;
-        if (node.Children.Count == 0 || IsHostAnimatedRuntimeShader(box))
+        if (node.Children.Count == 0 || IsHostAnimatedRuntimeShader(box) || HasPositionedChild(commit, node))
             return false;
 
         var contentWidth = Math.Max(box.Width, box.ContentWidth);
@@ -398,7 +400,7 @@ internal sealed class SceneCommitPainter : IDisposable
 
     private SKPicture? GetOrCreateScrollContentPicture(SceneLayoutCommit commit, SceneNodeId id, SceneGraphNode node, SceneLayoutBox box)
     {
-        if (node.Children.Count == 0 || IsHostAnimatedRuntimeShader(box))
+        if (node.Children.Count == 0 || IsHostAnimatedRuntimeShader(box) || HasPositionedChild(commit, node))
             return null;
 
         var contentWidth = Math.Max(box.Width, box.ContentWidth);
@@ -556,6 +558,18 @@ internal sealed class SceneCommitPainter : IDisposable
         }
 
         return true;
+    }
+
+    private static bool HasPositionedChild(SceneLayoutCommit commit, SceneGraphNode node)
+    {
+        for (var index = 0; index < node.Children.Count; index++)
+        {
+            var childId = node.Children[index];
+            if (commit.Layout.TryGetValue(childId, out var childBox) && childBox.IsPositioned)
+                return true;
+        }
+
+        return false;
     }
 
     private void DrawBox(SKCanvas canvas, SceneLayoutBox box)
@@ -1020,15 +1034,19 @@ internal sealed class SceneCommitPainter : IDisposable
 
     private void DrawText(SKCanvas canvas, SceneLayoutBox box)
     {
-        var textStyle = box.TextStyle ?? new SceneTextStyle(16, "#ffffff");
+        if (box.Text is not { } text)
+            return;
+
+        var geometry = box.Geometry;
+        var textStyle = text.TextStyle ?? DefaultTextStyle;
         textPaint.Color = ResolveColor(textStyle.Color, SKColors.White);
         var textAlign = MapTextAlign(textStyle.TextAlign);
-        var lineHeight = box.LineHeight > 0 ? box.LineHeight : textResources.TextMeasurer.MeasureLineHeight(textStyle.Font);
-        var textWidth = Math.Max(0, box.Width - box.PaddingLeft - box.PaddingRight);
-        var layout = textResources.InputMetrics.CreateLayout(textStyle, textPaint, box.TextContent ?? string.Empty, lineHeight, textWidth);
-        var contentTop = box.AbsTop + box.PaddingTop;
-        var contentBottom = box.AbsTop + box.Height - box.PaddingBottom;
-        var textX = box.AbsLeft + box.PaddingLeft;
+        var lineHeight = text.LineHeight > 0 ? text.LineHeight : textResources.TextMeasurer.MeasureLineHeight(textStyle.Font);
+        var textWidth = Math.Max(0, geometry.Width - geometry.PaddingLeft - geometry.PaddingRight);
+        var layout = textResources.InputMetrics.CreateLayout(textStyle, textPaint, text.TextContent, lineHeight, textWidth);
+        var contentTop = geometry.AbsTop + geometry.PaddingTop;
+        var contentBottom = geometry.AbsTop + geometry.Height - geometry.PaddingBottom;
+        var textX = geometry.AbsLeft + geometry.PaddingLeft;
 
         for (var lineIndex = 0; lineIndex < layout.Lines.Count; lineIndex++)
         {
@@ -1043,7 +1061,7 @@ internal sealed class SceneCommitPainter : IDisposable
             var underlineWidth = textStyle.Underline && !textStyle.WrapText
                 ? Math.Max(lineToDraw.Width, textWidth)
                 : lineToDraw.Width;
-            DrawTextLine(canvas, lineToDraw, drawX, box.AbsTop + box.PaddingTop + ResolveTextBaselineOffset(lineToDraw, textStyle, lineHeight) + lineIndex * lineHeight, textStyle, underlineWidth);
+            DrawTextLine(canvas, lineToDraw, drawX, geometry.AbsTop + geometry.PaddingTop + ResolveTextBaselineOffset(lineToDraw, textStyle, lineHeight) + lineIndex * lineHeight, textStyle, underlineWidth);
             if (textStyle.TextOverflowEllipsis && !textStyle.WrapText)
                 break;
         }
@@ -1147,31 +1165,37 @@ internal sealed class SceneCommitPainter : IDisposable
 
     private void DrawTextInput(SKCanvas canvas, SceneLayoutBox box)
     {
-        var textStyle = box.TextStyle ?? new SceneTextStyle(16, "#f8fafc");
-        var isSelect = box.ControlKind == SceneControlKind.Select;
-        var value = box.TextContent ?? string.Empty;
-        var compositionText = box.CompositionText ?? string.Empty;
+        if (box.TextInput is not { } input)
+            return;
+
+        var geometry = box.Geometry;
+        var paint = box.Paint;
+        var interaction = box.Interaction;
+        var textStyle = input.TextStyle ?? DefaultTextInputStyle;
+        var isSelect = interaction.ControlKind == SceneControlKind.Select;
+        var value = input.TextContent;
+        var compositionText = input.CompositionText;
         var hasComposition = compositionText.Length > 0;
         var composedValue = hasComposition
-            ? value.Insert(Math.Clamp(box.CompositionStart, 0, value.Length), compositionText)
+            ? value.Insert(Math.Clamp(input.CompositionStart, 0, value.Length), compositionText)
             : value;
-        var showPlaceholder = value.Length == 0 && !hasComposition && !string.IsNullOrEmpty(box.PlaceholderText);
-        var displayText = showPlaceholder ? box.PlaceholderText! : composedValue;
-        var lineHeight = box.LineHeight > 0 ? box.LineHeight : textStyle.FontSize * 1.35f;
+        var showPlaceholder = value.Length == 0 && !hasComposition && !string.IsNullOrEmpty(input.PlaceholderText);
+        var displayText = showPlaceholder ? input.PlaceholderText : composedValue;
+        var lineHeight = input.LineHeight > 0 ? input.LineHeight : textStyle.FontSize * 1.35f;
 
-        var resolvedInputTextColor = ResolveTextInputTextColor(showPlaceholder, box.PlaceholderColor, textStyle.Color, box.BackgroundColor);
+        var resolvedInputTextColor = ResolveTextInputTextColor(showPlaceholder, input.PlaceholderColor, textStyle.Color, paint.BackgroundColor);
         textPaint.Color = resolvedInputTextColor;
-        var textWidth = Math.Max(0, box.Width - box.PaddingLeft - box.PaddingRight);
+        var textWidth = Math.Max(0, geometry.Width - geometry.PaddingLeft - geometry.PaddingRight);
         var displayLayout = textResources.InputMetrics.CreateLayout(textStyle, textPaint, displayText, lineHeight, textWidth);
         var valueLayout = showPlaceholder ? null : textResources.InputMetrics.CreateLayout(textStyle, textPaint, value, lineHeight, textWidth);
 
-        var textX = box.AbsLeft + box.PaddingLeft;
-        var contentTop = box.AbsTop + box.PaddingTop;
-        var contentBottom = box.AbsTop + box.Height - box.PaddingBottom;
+        var textX = geometry.AbsLeft + geometry.PaddingLeft;
+        var contentTop = geometry.AbsTop + geometry.PaddingTop;
+        var contentBottom = geometry.AbsTop + geometry.Height - geometry.PaddingBottom;
         canvas.Save();
         ClipBox(canvas, box);
-        var selectionStart = Math.Clamp(Math.Min(box.SelectionStart, box.SelectionEnd), 0, value.Length);
-        var selectionEnd = Math.Clamp(Math.Max(box.SelectionStart, box.SelectionEnd), 0, value.Length);
+        var selectionStart = Math.Clamp(Math.Min(input.SelectionStart, input.SelectionEnd), 0, value.Length);
+        var selectionEnd = Math.Clamp(Math.Max(input.SelectionStart, input.SelectionEnd), 0, value.Length);
         if (!showPlaceholder && selectionStart != selectionEnd && valueLayout is not null)
         {
             fillPaint.Color = new SKColor(96, 165, 250, 96);
@@ -1179,7 +1203,7 @@ internal sealed class SceneCommitPainter : IDisposable
             {
                 canvas.DrawRect(
                     textX + rect.Left,
-                    box.AbsTop + box.PaddingTop + rect.Top,
+                    geometry.AbsTop + geometry.PaddingTop + rect.Top,
                     Math.Max(1, rect.Right - rect.Left),
                     Math.Max(textStyle.FontSize + 4, lineHeight),
                      fillPaint);
@@ -1188,30 +1212,30 @@ internal sealed class SceneCommitPainter : IDisposable
 
         if (!showPlaceholder && hasComposition)
         {
-            fillPaint.Color = ResolveColor(box.CompositionUnderlineColor, resolvedInputTextColor.WithAlpha(190));
-            var compositionStart = Math.Clamp(box.CompositionStart, 0, composedValue.Length);
-            var compositionEnd = Math.Clamp(box.CompositionStart + compositionText.Length, 0, composedValue.Length);
+            fillPaint.Color = ResolveColor(input.CompositionUnderlineColor, resolvedInputTextColor.WithAlpha(190));
+            var compositionStart = Math.Clamp(input.CompositionStart, 0, composedValue.Length);
+            var compositionEnd = Math.Clamp(input.CompositionStart + compositionText.Length, 0, composedValue.Length);
             foreach (var rect in textResources.InputMetrics.GetSelectionRects(
                          displayLayout,
                          compositionStart,
                          compositionEnd))
             {
-                var underlineY = box.AbsTop + box.PaddingTop + rect.Top + Math.Max(textStyle.FontSize + 4, lineHeight) - 3;
+                var underlineY = geometry.AbsTop + geometry.PaddingTop + rect.Top + Math.Max(textStyle.FontSize + 4, lineHeight) - 3;
                 DrawUnderline(canvas, textX + rect.Left, textX + rect.Right, underlineY, 1, fillPaint);
             }
 
-            var selectedStart = compositionStart + Math.Clamp(box.CompositionSelectionStart, 0, compositionText.Length);
+            var selectedStart = compositionStart + Math.Clamp(input.CompositionSelectionStart, 0, compositionText.Length);
             var selectedLength = Math.Clamp(
-                box.CompositionSelectionLength,
+                input.CompositionSelectionLength,
                 0,
-                compositionText.Length - Math.Clamp(box.CompositionSelectionStart, 0, compositionText.Length));
+                compositionText.Length - Math.Clamp(input.CompositionSelectionStart, 0, compositionText.Length));
             if (selectedLength > 0)
             {
                 var selectedEnd = Math.Clamp(selectedStart + selectedLength, compositionStart, compositionEnd);
-                fillPaint.Color = ResolveColor(box.CompositionSelectionUnderlineColor, resolvedInputTextColor);
+                fillPaint.Color = ResolveColor(input.CompositionSelectionUnderlineColor, resolvedInputTextColor);
                 foreach (var rect in textResources.InputMetrics.GetSelectionRects(displayLayout, selectedStart, selectedEnd))
                 {
-                    var underlineY = box.AbsTop + box.PaddingTop + rect.Top + Math.Max(textStyle.FontSize + 4, lineHeight) - 2;
+                    var underlineY = geometry.AbsTop + geometry.PaddingTop + rect.Top + Math.Max(textStyle.FontSize + 4, lineHeight) - 2;
                     DrawUnderline(canvas, textX + rect.Left, textX + rect.Right, underlineY, 2f, fillPaint);
                 }
             }
@@ -1219,17 +1243,17 @@ internal sealed class SceneCommitPainter : IDisposable
 
         for (var lineIndex = 0; lineIndex < displayLayout.Lines.Count; lineIndex++)
         {
-            if (!ShouldDrawTextLine(box.Multiline, contentTop, contentBottom, lineIndex, lineHeight))
+            if (!ShouldDrawTextLine(input.Multiline, contentTop, contentBottom, lineIndex, lineHeight))
                 break;
 
             var line = displayLayout.Lines[lineIndex];
-            DrawTextLine(canvas, line, textX, box.AbsTop + box.PaddingTop + textStyle.FontSize + lineIndex * lineHeight, textStyle, line.Width);
+            DrawTextLine(canvas, line, textX, geometry.AbsTop + geometry.PaddingTop + textStyle.FontSize + lineIndex * lineHeight, textStyle, line.Width);
         }
 
         if (isSelect)
             DrawSelectArrow(canvas, box, resolvedInputTextColor, textStyle.FontSize);
 
-        if (!box.IsFocused || isSelect)
+        if (!input.IsFocused || isSelect)
         {
             canvas.Restore();
             return;
@@ -1239,13 +1263,13 @@ internal sealed class SceneCommitPainter : IDisposable
             ? textResources.InputMetrics.CreateLayout(textStyle, textPaint, value, lineHeight, textWidth)
             : displayLayout;
         var caretIndex = hasComposition
-            ? Math.Clamp(box.CompositionStart + Math.Clamp(box.CompositionCursorOffset, 0, compositionText.Length), 0, composedValue.Length)
-            : box.CaretIndex;
-        if (!hasComposition || box.CompositionSelectionLength == 0)
+            ? Math.Clamp(input.CompositionStart + Math.Clamp(input.CompositionCursorOffset, 0, compositionText.Length), 0, composedValue.Length)
+            : input.CaretIndex;
+        if (!hasComposition || input.CompositionSelectionLength == 0)
         {
             var caret = textResources.InputMetrics.GetCaretPosition(caretLayout, caretIndex);
             fillPaint.Color = resolvedInputTextColor;
-            var caretTop = box.AbsTop + box.PaddingTop + caret.Y;
+            var caretTop = geometry.AbsTop + geometry.PaddingTop + caret.Y;
             var caretHeight = Math.Max(textStyle.FontSize + 4, lineHeight);
             if (ShouldDrawTextCaret(contentTop, contentBottom, caretTop, caretHeight))
                 canvas.DrawRect(textX + caret.X, caretTop, 1.5f, caretHeight, fillPaint);
