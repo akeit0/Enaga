@@ -30,20 +30,21 @@ internal sealed class HtmlStyleSheet
         return new HtmlStyleSheet([.. rules]);
     }
 
-    public IEnumerable<HtmlCssRule> Match(
+    public void AddMatchingRules(
         HtmlDomElement element,
         IReadOnlyList<HtmlDomElement> ancestors,
         IReadOnlyList<bool> ancestorHoverStates,
         bool isHovered,
         int viewportWidth,
-        int viewportHeight)
+        int viewportHeight,
+        List<HtmlCssRule> matches)
     {
         var candidates = GetCandidateIndices(element);
         for (var index = 0; index < candidates.Length; index++)
         {
             var rule = rules[candidates[index]];
             if (rule.Matches(element, ancestors, ancestorHoverStates, isHovered, viewportWidth, viewportHeight))
-                yield return rule;
+                matches.Add(rule);
         }
     }
 

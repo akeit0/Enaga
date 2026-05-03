@@ -8,7 +8,8 @@ namespace Enaga.Rendering.Skia;
 
 internal sealed class SceneCommitPainter : IDisposable
 {
-    private const int textBlobCacheLimit = 2048;
+    private const int textBlobCacheLimit = 512;
+    private const int textBlobCacheMaxRunLength = 256;
     private const int ellipsizedLineCacheLimit = 1024;
     private const int fontMetricsCacheLimit = 1024;
     private const int scrollContentPictureCacheLimit = 128;
@@ -1899,9 +1900,17 @@ internal sealed class SceneCommitPainter : IDisposable
         var textColor = textPaint.Color;
         foreach (var run in line.Runs)
         {
-            var blob = GetOrCreateTextBlob(run, textStyle, textColor);
-            if (blob is not null)
-                canvas.DrawText(blob, cursorX, baselineY, textPaint);
+            var blob = GetOrCreateTextBlob(run, textStyle, textColor, out var disposeBlob);
+            try
+            {
+                if (blob is not null)
+                    canvas.DrawText(blob, cursorX, baselineY, textPaint);
+            }
+            finally
+            {
+                if (disposeBlob)
+                    blob?.Dispose();
+            }
 
             cursorX += run.Width;
         }
@@ -1976,9 +1985,17 @@ internal sealed class SceneCommitPainter : IDisposable
             var shadowBaselineY = baselineY + shadow.OffsetY;
             foreach (var run in line.Runs)
             {
-                var blob = GetOrCreateTextBlob(run, textStyle, textPaint.Color);
-                if (blob is not null)
-                    canvas.DrawText(blob, cursorX, shadowBaselineY, textPaint);
+                var blob = GetOrCreateTextBlob(run, textStyle, textPaint.Color, out var disposeBlob);
+                try
+                {
+                    if (blob is not null)
+                        canvas.DrawText(blob, cursorX, shadowBaselineY, textPaint);
+                }
+                finally
+                {
+                    if (disposeBlob)
+                        blob?.Dispose();
+                }
 
                 cursorX += run.Width;
             }
@@ -1999,10 +2016,18 @@ internal sealed class SceneCommitPainter : IDisposable
         return filter;
     }
 
-    private SKTextBlob? GetOrCreateTextBlob(TextInputMetrics.TextRunSpan run, SceneTextStyle textStyle, SKColor textColor)
+    private SKTextBlob? GetOrCreateTextBlob(TextInputMetrics.TextRunSpan run, SceneTextStyle textStyle, SKColor textColor, out bool disposeBlob)
     {
+        disposeBlob = false;
         if (string.IsNullOrEmpty(run.Text))
             return null;
+
+        if (run.Text.Length > textBlobCacheMaxRunLength)
+        {
+            using var uncachedFont = SkiaFontSynthesis.CreateFont(run.Typeface, textStyle.Font);
+            disposeBlob = true;
+            return SKTextBlob.Create(run.Text, uncachedFont, SKPoint.Empty);
+        }
 
         var key = CreateTextBlobCacheKey(run, textStyle, textColor);
         if (textBlobCache.TryGetValue(key, out var cached))

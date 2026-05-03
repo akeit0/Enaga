@@ -193,7 +193,6 @@ internal sealed class HtmlSceneTreeBuilder
         int viewportHeight,
         HtmlComputedStyleTree styleTree)
     {
-        var firstNodeId = idGenerator.Next(element.LocalName);
         var linkHref = ResolveLinkHref(element, inheritedLinkHref, basePath);
         var style = ResolveElementStyle(element, styleTree);
         if (style.Display == HtmlDisplay.None)
@@ -201,6 +200,7 @@ internal sealed class HtmlSceneTreeBuilder
         if (style.Display == HtmlDisplay.Contents)
             return BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
 
+        var firstNodeId = idGenerator.Next(element.LocalName);
         if (style.Display != HtmlDisplay.Inline &&
             style.Display != HtmlDisplay.InlineBlock &&
             !string.Equals(element.LocalName, "br", StringComparison.OrdinalIgnoreCase))
@@ -544,11 +544,11 @@ internal sealed class HtmlSceneTreeBuilder
             return null;
         }
 
-        var elementNodeId = idGenerator.Next(element.LocalName);
         var style = ResolveElementStyle(element, styleTree);
         if (style.Display == HtmlDisplay.None)
             return null;
 
+        var elementNodeId = idGenerator.Next(element.LocalName);
         var nodeKind = ResolveNodeKind(element, style);
         var linkHref = ResolveLinkHref(element, inheritedLinkHref, basePath);
         if (isListItem && style.SuppressListMarker)
@@ -825,18 +825,11 @@ internal sealed class HtmlSceneTreeBuilder
 
     private static string ResolveSelectDisplayText(HtmlDomElement element)
     {
-        HtmlDomElement? firstOption = null;
-        foreach (var option in EnumerateOptionElements(element))
-        {
-            firstOption ??= option;
-            if (option.Attributes.ContainsKey("selected"))
-                return option.InnerText;
-        }
-
-        return firstOption?.InnerText ?? string.Empty;
+        var firstOptionText = FindSelectOptionText(element, selectedOnly: false);
+        return FindSelectOptionText(element, selectedOnly: true) ?? firstOptionText ?? string.Empty;
     }
 
-    private static IEnumerable<HtmlDomElement> EnumerateOptionElements(HtmlDomElement element)
+    private static string? FindSelectOptionText(HtmlDomElement element, bool selectedOnly)
     {
         foreach (var child in element.Children)
         {
@@ -844,11 +837,17 @@ internal sealed class HtmlSceneTreeBuilder
                 continue;
 
             if (string.Equals(childElement.LocalName, "option", StringComparison.OrdinalIgnoreCase))
-                yield return childElement;
+            {
+                if (!selectedOnly || childElement.Attributes.ContainsKey("selected"))
+                    return childElement.InnerText;
+            }
 
-            foreach (var nested in EnumerateOptionElements(childElement))
-                yield return nested;
+            var nested = FindSelectOptionText(childElement, selectedOnly);
+            if (nested is not null)
+                return nested;
         }
+
+        return null;
     }
 
     private HtmlSceneNode? BuildTextNode(HtmlDomText text, HtmlComputedStyle inheritedStyle, HtmlNodeIdGenerator idGenerator, string? inheritedLinkHref, bool inlineText = false)
