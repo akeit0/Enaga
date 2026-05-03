@@ -1419,6 +1419,7 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("""
                 <body>
+                  <h1 id='title'>Keep me visible</h1>
                   <select id='region'>
                     <option value='apac'>APAC</option>
                     <option value='emea'>EMEA</option>
@@ -1434,6 +1435,7 @@ public sealed class HtmlSceneFrameSourceTests
 
         Assert.Equal("APAC", selectBox.TextContent);
         Assert.Empty(initial.Commit.Nodes[selectId].Children);
+        Assert.Contains(initial.Commit.Layout.Values, box => box.TextContent == "Keep");
         Assert.DoesNotContain(initial.Commit.Layout.Values, box => box.TextContent is "EMEA" or "AMER");
 
         source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + 8, 0, synthetic: false);
@@ -1445,7 +1447,7 @@ public sealed class HtmlSceneFrameSourceTests
             box.IsPositioned &&
             box.BorderWidth == 1 &&
             box.BorderStyle == SceneBorderStyle.Solid);
-        var firstOption = opened.Commit.Layout.Values.Single(box =>
+        var firstOption = opened.Commit.Layout.Values.First(box =>
             box.NodeKind == SceneNodeKind.View &&
             box.BackgroundColor == "#ffffff" &&
             box.AbsLeft > popup.AbsLeft &&
@@ -1456,6 +1458,7 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.True(firstOption.AbsLeft > popup.AbsLeft);
         Assert.True(firstOption.AbsTop > popup.AbsTop);
         Assert.Contains(opened.Commit.Layout.Values, box => box.TextContent == "EMEA");
+        Assert.Contains(opened.Commit.Layout.Values, box => box.TextContent == "Keep");
         Assert.False(opened.Commit.Layout[selectId].IsFocused);
         Assert.Equal(0, opened.Commit.Layout[selectId].CaretIndex);
         Assert.Equal(SceneControlKind.Select, opened.Commit.Layout[selectId].ControlKind);

@@ -14,14 +14,15 @@ internal sealed class HtmlDocumentSceneBuilder
     private readonly HtmlLayoutOutputStore layoutOutputStore = new();
     private readonly HtmlPipelineMetrics metrics = new();
 
-    public HtmlDocumentSceneBuilder(HtmlOptions options)
+    public HtmlDocumentSceneBuilder(HtmlOptions options, SceneNodeIdAllocator sceneNodeIdAllocator)
     {
+        ArgumentNullException.ThrowIfNull(sceneNodeIdAllocator);
         rootId = options.RootId;
         var layoutConfig = options.LayoutConfig ?? LayoutEngineConfig.WebDefaults;
         var textServices = (options.BackendServices ?? DummyRuntimeBackendServices.Create()).Text;
         sceneTreeBuilder = new HtmlSceneTreeBuilder(options, layoutConfig, metrics);
         styleTraversal = new HtmlStyleTraversal(options, layoutConfig);
-        layoutBuilder = new HtmlLayoutBuilder(options.RootId, textServices, metrics);
+        layoutBuilder = new HtmlLayoutBuilder(options.RootId, textServices, metrics, sceneNodeIdAllocator);
     }
 
     public HtmlPipelineMetricsSnapshot LastMetrics { get; private set; }

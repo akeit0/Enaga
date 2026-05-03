@@ -35,10 +35,16 @@ public sealed class SceneNodeIdentityMap<TKey>
     private readonly SceneNodeIdAllocator allocator;
 
     public SceneNodeIdentityMap(TKey rootKey, IEqualityComparer<TKey>? comparer = null)
+        : this(rootKey, new SceneNodeIdAllocator(), comparer)
     {
+    }
+
+    public SceneNodeIdentityMap(TKey rootKey, SceneNodeIdAllocator allocator, IEqualityComparer<TKey>? comparer = null)
+    {
+        ArgumentNullException.ThrowIfNull(allocator);
         ids = new Dictionary<TKey, SceneNodeId>(comparer);
-        allocator = new SceneNodeIdAllocator();
-        RootId = allocator.Allocate();
+        this.allocator = allocator;
+        RootId = this.allocator.Allocate();
         ids[rootKey] = RootId;
     }
 

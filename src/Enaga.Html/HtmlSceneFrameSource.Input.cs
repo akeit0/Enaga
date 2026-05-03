@@ -37,7 +37,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     private readonly Dictionary<SceneNodeId, HtmlScrollViewState> scrollStates = new();
     private readonly Dictionary<SceneNodeId, ScrollScaleAnchor> pendingScrollScaleAnchors = new();
     private readonly SceneWheelScrollTargetLatch<SceneNodeId> wheelScrollTargetLatch = new();
-    private readonly SceneNodeIdentityMap<string> overlaySceneNodeIds = new("__html-overlay-root", StringComparer.Ordinal);
+    private readonly SceneNodeIdentityMap<string> overlaySceneNodeIds;
     private readonly HtmlTextInputController textInputController;
     private readonly IRuntimeTextServices textServices;
     private SceneNodeId? focusedInputId;

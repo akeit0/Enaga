@@ -8,6 +8,7 @@ namespace Enaga.Html;
 public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWakeSource, IRenderViewportScaleController, IRuntimeBackendServicesSource, IDisposable
 {
     private readonly object sync = new();
+    private readonly SceneNodeIdAllocator sceneNodeIdAllocator = new();
     private readonly HtmlDocumentSceneBuilder builder;
     private readonly HtmlDocumentParser documentParser = new();
     private HtmlDocument document;
@@ -44,7 +45,8 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     {
         this.document = document;
         Options = options ?? new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create());
-        builder = new HtmlDocumentSceneBuilder(Options);
+        builder = new HtmlDocumentSceneBuilder(Options, sceneNodeIdAllocator);
+        overlaySceneNodeIds = new SceneNodeIdentityMap<string>("__html-overlay-root", sceneNodeIdAllocator, StringComparer.Ordinal);
         textServices = (Options.BackendServices ?? DummyRuntimeBackendServices.Create()).Text;
         textInputController = new HtmlTextInputController(textServices, RequestInteractiveUpdate, MoveFocus, SetFocusedTextInput);
     }

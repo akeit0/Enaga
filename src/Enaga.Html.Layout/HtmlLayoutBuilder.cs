@@ -18,12 +18,12 @@ internal sealed partial class HtmlLayoutBuilder
     private readonly List<HtmlChildRelation> childRelations = new();
     private SceneLayoutCommit? previousCommit;
 
-    public HtmlLayoutBuilder(string rootId, IRuntimeTextServices textServices, HtmlPipelineMetrics metrics)
+    public HtmlLayoutBuilder(string rootId, IRuntimeTextServices textServices, HtmlPipelineMetrics metrics, SceneNodeIdAllocator sceneNodeIdAllocator)
     {
         this.rootId = rootId;
         this.textServices = textServices;
         this.metrics = metrics;
-        sceneNodeIds = new SceneNodeIdentityMap<string>(rootId, StringComparer.Ordinal);
+        sceneNodeIds = new SceneNodeIdentityMap<string>(rootId, sceneNodeIdAllocator, StringComparer.Ordinal);
         measurementCache = new HtmlLayoutMeasurementCache(metrics);
         layoutCalculator = new LayoutCalculator(textServices);
     }

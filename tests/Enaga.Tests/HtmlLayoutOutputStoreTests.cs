@@ -117,7 +117,8 @@ public sealed class HtmlLayoutOutputStoreTests
             table.initial td a { display: block; padding: 18px 8px; background: #eee; }
             """));
         var builder = new HtmlDocumentSceneBuilder(
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
+            new SceneNodeIdAllocator());
 
         var first = builder.Build(parsed, 240, 200, viewportScale: 1);
         var second = builder.Build(parsed, 240, 200, viewportScale: 1);

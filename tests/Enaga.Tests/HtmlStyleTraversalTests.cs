@@ -2,6 +2,7 @@ using Enaga.Html;
 using Enaga.Html.Dom;
 using Enaga.Layout;
 using Enaga.Rendering;
+using Enaga.Scene;
 using Xunit;
 
 namespace Enaga.Tests;
@@ -64,7 +65,8 @@ public sealed class HtmlStyleTraversalTests
             "<body><main id='app'>Hello</main></body>",
             "main { width: 200px; }"));
         var builder = new HtmlDocumentSceneBuilder(
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
+            new SceneNodeIdAllocator());
 
         builder.Build(parsed, 320, 180, viewportScale: 1);
         var app = FindElement(parsed.RootElement, "app");
