@@ -49,9 +49,9 @@ internal sealed record HtmlSceneNode(
     SceneControlKind ControlKind = SceneControlKind.None,
     HtmlSceneNodeRole Role = HtmlSceneNodeRole.Normal)
 {
-    public uint StyleVersion { get; init; } = 1;
+    public uint StyleVersion { get; set; } = 1;
 
-    public uint LayoutVersion { get; init; } = 1;
+    public uint LayoutVersion { get; set; } = 1;
 }
 
 internal sealed record HtmlStyledSceneTree(

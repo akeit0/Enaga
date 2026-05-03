@@ -154,14 +154,13 @@ internal sealed class HtmlSceneVersionStore
             candidate.Style,
             HtmlComputedStyle.HasSameLayoutIdentity,
             layoutIdentityChanged);
-        domLayoutIdentities[candidate.DomNodeId] = candidate;
         LastInvalidationHints |= versions.InvalidationHints;
         LastDamage |= versions.Damage;
         Generation = Math.Max(Generation, versions.Generation);
         AddLayoutDirtyNode(candidate, previous, versions.Damage);
-        return candidate.StyleVersion == versions.StyleVersion && candidate.LayoutVersion == versions.LayoutVersion
-            ? candidate
-            : candidate with { StyleVersion = versions.StyleVersion, LayoutVersion = versions.LayoutVersion };
+        ApplyVersions(candidate, versions.StyleVersion, versions.LayoutVersion);
+        domLayoutIdentities[candidate.DomNodeId] = candidate;
+        return candidate;
     }
 
     private void AddLayoutDirtyNode(HtmlSceneNode node, HtmlSceneNode? previous, Enaga.Html.Style.RenderDamage damage)
@@ -229,7 +228,9 @@ internal sealed class HtmlSceneVersionStore
                      Enaga.Html.Style.RenderDamage.Refragment |
                      Enaga.Html.Style.RenderDamage.Repaint |
                      Enaga.Html.Style.RenderDamage.RebuildHitTest;
-            return candidate with { StyleVersion = entry.StyleVersion, LayoutVersion = entry.LayoutVersion };
+            ApplyVersions(candidate, entry.StyleVersion, entry.LayoutVersion);
+            entry.Node = candidate;
+            return candidate;
         }
 
         var styleChanged = !HtmlComputedStyle.HasSameLayoutIdentity(entry.Style, candidate.Style);
@@ -260,9 +261,15 @@ internal sealed class HtmlSceneVersionStore
         }
 
         generation = generatedGeneration;
-        return candidate.StyleVersion == entry.StyleVersion && candidate.LayoutVersion == entry.LayoutVersion
-            ? candidate
-            : candidate with { StyleVersion = entry.StyleVersion, LayoutVersion = entry.LayoutVersion };
+        ApplyVersions(candidate, entry.StyleVersion, entry.LayoutVersion);
+        entry.Node = candidate;
+        return candidate;
+    }
+
+    private static void ApplyVersions(HtmlSceneNode node, uint styleVersion, uint layoutVersion)
+    {
+        node.StyleVersion = styleVersion;
+        node.LayoutVersion = layoutVersion;
     }
 
     private static bool HasSameNodeLayoutIdentity(HtmlSceneNode previous, HtmlSceneNode next)

@@ -124,7 +124,7 @@ internal sealed class HtmlSceneTreeBuilder
                 case HtmlDomText text:
                     if (parentAllowsInlineContent)
                     {
-                        children.AddRange(BuildInlineTextNodes(text, inheritedStyle, idGenerator, inheritedLinkHref));
+                        AddInlineTextNodes(children, text, inheritedStyle, idGenerator, inheritedLinkHref);
                     }
                     else
                     {
@@ -307,7 +307,7 @@ internal sealed class HtmlSceneTreeBuilder
             switch (child)
             {
                 case HtmlDomText text:
-                    nodes.AddRange(BuildInlineTextNodes(text, style, idGenerator, linkHref));
+                    AddInlineTextNodes(nodes, text, style, idGenerator, linkHref);
                     break;
                 case HtmlDomElement childElement when IsInlineElement(childElement):
                     nodes.AddRange(BuildInlineElementNodes(childElement, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree));
@@ -900,7 +900,8 @@ internal sealed class HtmlSceneTreeBuilder
             Role: HtmlSceneNodeRole.Text);
     }
 
-    private HtmlSceneNode[] BuildInlineTextNodes(
+    private void AddInlineTextNodes(
+        List<HtmlSceneNode> nodes,
         HtmlDomText text,
         HtmlComputedStyle inheritedStyle,
         HtmlNodeIdGenerator idGenerator,
@@ -908,46 +909,41 @@ internal sealed class HtmlSceneTreeBuilder
     {
         var normalized = ApplyTextTransform(HtmlTextNormalizer.Normalize(text.Text, inheritedStyle.WhiteSpace), inheritedStyle.TextTransform);
         if (normalized.Length == 0)
-            return [];
+            return;
 
         if (ShouldWrapAsUnsegmentedInlineText(normalized))
         {
-            return
-            [
-                new HtmlSceneNode(
-                    idGenerator.Next(),
-                    SceneNodeKind.Text,
-                    formattingStyleCache.GetInlineWrappedTextStyle(inheritedStyle),
-                    [],
-                    normalized,
-                    null,
-                    null,
-                    inheritedLinkHref,
-                    null,
-                    Role: HtmlSceneNodeRole.Text)
-            ];
+            nodes.Add(new HtmlSceneNode(
+                idGenerator.Next(),
+                SceneNodeKind.Text,
+                formattingStyleCache.GetInlineWrappedTextStyle(inheritedStyle),
+                [],
+                normalized,
+                null,
+                null,
+                inheritedLinkHref,
+                null,
+                Role: HtmlSceneNodeRole.Text));
+            return;
         }
 
         if (inheritedStyle.WhiteSpace is HtmlWhiteSpace.Pre or HtmlWhiteSpace.PreWrap or HtmlWhiteSpace.PreLine or HtmlWhiteSpace.NoWrap)
         {
             var textStyle = formattingStyleCache.GetInlineTextStyle(inheritedStyle, preserveWhiteSpaceWrapping: true);
-            return
-            [
-                new HtmlSceneNode(
-                    idGenerator.Next(),
-                    SceneNodeKind.Text,
-                    textStyle,
-                    [],
-                    normalized,
-                    null,
-                    null,
-                    inheritedLinkHref,
-                    null,
-                    Role: HtmlSceneNodeRole.Text)
-            ];
+            nodes.Add(new HtmlSceneNode(
+                idGenerator.Next(),
+                SceneNodeKind.Text,
+                textStyle,
+                [],
+                normalized,
+                null,
+                null,
+                inheritedLinkHref,
+                null,
+                Role: HtmlSceneNodeRole.Text));
+            return;
         }
 
-        var nodes = new List<HtmlSceneNode>();
         var index = 0;
         while (index < normalized.Length)
         {
@@ -982,8 +978,6 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 Role: HtmlSceneNodeRole.Text));
         }
-
-        return nodes.ToArray();
     }
 
     private static bool ShouldWrapAsUnsegmentedInlineText(string text)
