@@ -151,7 +151,7 @@ public sealed class HtmlLayoutOutputStoreTests
         return store;
     }
 
-    private static HtmlSceneNode Node(string id, HtmlComputedStyle style, IReadOnlyList<HtmlSceneNode> children)
+    private static HtmlSceneNode Node(string id, HtmlComputedStyle style, HtmlSceneNode[] children)
         => new(
             Id(id),
             SceneNodeKind.View,

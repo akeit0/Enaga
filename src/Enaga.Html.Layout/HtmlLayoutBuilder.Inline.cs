@@ -8,7 +8,7 @@ internal sealed partial class HtmlLayoutBuilder
     private bool TryLayoutInlineFormattingContext(
         HtmlSceneNodeId parentId,
         HtmlComputedStyle parentStyle,
-        IReadOnlyList<HtmlSceneNode> children,
+        HtmlSceneNode[] children,
         float parentLeft,
         float parentTop,
         float parentWidth,
@@ -38,7 +38,7 @@ internal sealed partial class HtmlLayoutBuilder
                 AddPlacedNode(child, parentId, absLeft, absTop, frame.Width, frame.Height, fragmentIndex, item.TextFragment);
                 childIds[index] = fragmentIndex >= 0 ? HtmlSceneNodeId.Fragment(child.Id, fragmentIndex) : child.Id;
 
-                if (item.TextFragment is null && child.Children.Count > 0)
+                if (item.TextFragment is null && child.Children.Length > 0)
                     LayoutChildren(child.Id, child.Style, child.Children, absLeft, absTop, frame.Width, frame.Height, viewportScale);
                 else
                     AddChildRelation(childIds[index], []);
@@ -79,7 +79,7 @@ internal sealed partial class HtmlLayoutBuilder
 
     private InlineLineLayout CreateInlineLineLayout(
         HtmlComputedStyle parentStyle,
-        IReadOnlyList<HtmlSceneNode> children,
+        HtmlSceneNode[] children,
         float contentWidth,
         float contentHeight)
     {
@@ -153,13 +153,13 @@ internal sealed partial class HtmlLayoutBuilder
     }
 
     private void CreateInlineLayoutItems(
-        IReadOnlyList<HtmlSceneNode> children,
+        HtmlSceneNode[] children,
         float contentWidth,
         float contentHeight,
         Span<InlineLayoutItem> items)
     {
         var itemIndex = 0;
-        for (var index = 0; index < children.Count; index++)
+        for (var index = 0; index < children.Length; index++)
         {
             var child = children[index];
             if (ShouldFragmentInlineText(child))
@@ -175,10 +175,10 @@ internal sealed partial class HtmlLayoutBuilder
             throw new InvalidOperationException("Inline layout item count changed while building the line layout.");
     }
 
-    private static int CountInlineLayoutItems(IReadOnlyList<HtmlSceneNode> children)
+    private static int CountInlineLayoutItems(HtmlSceneNode[] children)
     {
         var count = 0;
-        for (var index = 0; index < children.Count; index++)
+        for (var index = 0; index < children.Length; index++)
         {
             var child = children[index];
             count += ShouldFragmentInlineText(child) && child.TextContent is { } text
@@ -257,7 +257,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         var width = LayoutValue.IsSet(request.Width) ? request.Width : 0;
         var height = LayoutValue.IsSet(request.Height) ? request.Height : 0;
-        if (child.Children.Count > 0 && height <= 0)
+        if (child.Children.Length > 0 && height <= 0)
             height = MeasureNodeLayoutHeight(child, Math.Max(width, contentWidth), contentHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row);
 
         if (child.NodeKind == SceneNodeKind.Text)
@@ -350,16 +350,16 @@ internal sealed partial class HtmlLayoutBuilder
            previous.TextFragment is null &&
            current.TextFragment is null;
 
-    private static bool IsInlineFormattingContext(HtmlComputedStyle parentStyle, IReadOnlyList<HtmlSceneNode> children)
+    private static bool IsInlineFormattingContext(HtmlComputedStyle parentStyle, HtmlSceneNode[] children)
     {
         if (parentStyle.Display != HtmlDisplay.Flex ||
             FlexLayout.ResolveAxis(parentStyle.FlexDirection) != LayoutAxis.Row ||
-            children.Count == 0)
+            children.Length == 0)
         {
             return false;
         }
 
-        for (var index = 0; index < children.Count; index++)
+        for (var index = 0; index < children.Length; index++)
         {
             var child = children[index];
             if (child.NodeKind is SceneNodeKind.Text or SceneNodeKind.Image)
@@ -384,7 +384,7 @@ internal sealed partial class HtmlLayoutBuilder
 
     private static bool IsInlineBreakNode(HtmlSceneNode node)
         => node.NodeKind == SceneNodeKind.View &&
-           node.Children.Count == 0 &&
+           node.Children.Length == 0 &&
            node.Style.Display == HtmlDisplay.Block &&
            node.Style.Height == 0 &&
            node.Style.IsWidthPercent &&

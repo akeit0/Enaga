@@ -37,7 +37,7 @@ internal sealed record HtmlSceneNode(
     HtmlSceneNodeId Id,
     SceneNodeKind NodeKind,
     HtmlComputedStyle Style,
-    IReadOnlyList<HtmlSceneNode> Children,
+    HtmlSceneNode[] Children,
     string? TextContent,
     string? PlaceholderText,
     string? ImageSource,
@@ -56,7 +56,7 @@ internal sealed record HtmlSceneNode(
 
 internal sealed record HtmlStyledSceneTree(
     HtmlComputedStyle RootStyle,
-    IReadOnlyList<HtmlSceneNode> RootChildren,
+    HtmlSceneNode[] RootChildren,
     uint StyleStoreGeneration,
     HtmlNodeId RootDomNodeId);
 

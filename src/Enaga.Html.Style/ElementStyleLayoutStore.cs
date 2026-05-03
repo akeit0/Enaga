@@ -39,6 +39,20 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
         return new StyleLayoutVersionResult<TNode>(versioned, invalidation, damage, Generation);
     }
 
+    public TNode AssignVersion(
+        TNode node,
+        IStyleLayoutVersionAdapter<TNode, TStyle, TKey> adapter,
+        out RestyleHint invalidation,
+        out RenderDamage damage,
+        out uint generation)
+    {
+        invalidation = RestyleHint.None;
+        damage = RenderDamage.None;
+        var versioned = AssignVersions(node, adapter, ref invalidation, ref damage);
+        generation = Generation;
+        return versioned;
+    }
+
     private IReadOnlyList<TNode> AssignVersions(
         IReadOnlyList<TNode> nodes,
         IStyleLayoutVersionAdapter<TNode, TStyle, TKey> adapter,
@@ -48,10 +62,23 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
         if (nodes.Count == 0)
             return nodes;
 
-        var versioned = new TNode[nodes.Count];
+        TNode[]? versioned = null;
         for (var index = 0; index < nodes.Count; index++)
-            versioned[index] = AssignVersions(nodes[index], adapter, ref invalidation, ref damage);
-        return versioned;
+        {
+            var node = nodes[index];
+            var next = AssignVersions(node, adapter, ref invalidation, ref damage);
+            if (versioned is null && !ReferenceEquals(next, node))
+            {
+                versioned = new TNode[nodes.Count];
+                for (var copyIndex = 0; copyIndex < index; copyIndex++)
+                    versioned[copyIndex] = nodes[copyIndex];
+            }
+
+            if (versioned is not null)
+                versioned[index] = next;
+        }
+
+        return versioned ?? nodes;
     }
 
     private TNode AssignVersions(

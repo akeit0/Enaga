@@ -257,6 +257,132 @@ internal sealed partial class HtmlComputedStyle
            string.Equals(left.ScrollbarThumbColor, right.ScrollbarThumbColor, StringComparison.Ordinal) &&
            left.UnitFlags == right.UnitFlags;
 
+    public static bool HasSameStyleSharingIdentity(HtmlComputedStyle left, HtmlComputedStyle right)
+        => HasSameLayoutIdentity(left, right) &&
+           left.HasExplicitDisplay == right.HasExplicitDisplay &&
+           left.HasExplicitColor == right.HasExplicitColor &&
+           left.HasExplicitTextDecoration == right.HasExplicitTextDecoration &&
+           left.HasAnyVisibleBorder == right.HasAnyVisibleBorder &&
+           left.viewportLengthFlags == right.viewportLengthFlags &&
+           left.containerPercentLengthFlags == right.containerPercentLengthFlags &&
+           left.explicitLengthFlags == right.explicitLengthFlags &&
+           Same(left.fontSizeReference, right.fontSizeReference) &&
+           Same(left.rootFontSize, right.rootFontSize) &&
+           string.Equals(left.inheritedColor, right.inheritedColor, StringComparison.Ordinal) &&
+           string.Equals(left.BackgroundColor, right.BackgroundColor, StringComparison.Ordinal) &&
+           string.Equals(left.BackgroundImageSource, right.BackgroundImageSource, StringComparison.Ordinal) &&
+           string.Equals(left.BackgroundImageFit, right.BackgroundImageFit, StringComparison.Ordinal) &&
+           SameShadows(left.BackgroundShadows, right.BackgroundShadows) &&
+           string.Equals(left.BorderColor, right.BorderColor, StringComparison.Ordinal) &&
+           string.Equals(left.BorderLeftColor, right.BorderLeftColor, StringComparison.Ordinal) &&
+           string.Equals(left.BorderTopColor, right.BorderTopColor, StringComparison.Ordinal) &&
+           string.Equals(left.BorderRightColor, right.BorderRightColor, StringComparison.Ordinal) &&
+           string.Equals(left.BorderBottomColor, right.BorderBottomColor, StringComparison.Ordinal) &&
+           string.Equals(left.Color, right.Color, StringComparison.Ordinal) &&
+           string.Equals(left.PlaceholderColor, right.PlaceholderColor, StringComparison.Ordinal) &&
+           SameShadows(left.TextShadows, right.TextShadows);
+
+    public int GetStyleSharingHash()
+    {
+        var hash = new HashCode();
+        hash.Add(Display);
+        hash.Add(FlexDirection);
+        hash.Add(FlexWrap);
+        hash.Add(Direction);
+        hash.Add(JustifyContent);
+        hash.Add(AlignItems);
+        hash.Add(AlignSelf);
+        hash.Add(Order);
+        hash.Add(Position);
+        hash.Add(BoxSizing);
+        hash.Add(Left);
+        hash.Add(Top);
+        hash.Add(Right);
+        hash.Add(Bottom);
+        hash.Add(Width);
+        hash.Add(Height);
+        hash.Add(MinWidth);
+        hash.Add(MaxWidth);
+        hash.Add(MinHeight);
+        hash.Add(MaxHeight);
+        hash.Add(MarginLeft);
+        hash.Add(MarginTop);
+        hash.Add(MarginRight);
+        hash.Add(MarginBottom);
+        hash.Add(PaddingLeft);
+        hash.Add(PaddingTop);
+        hash.Add(PaddingRight);
+        hash.Add(PaddingBottom);
+        hash.Add(Gap);
+        hash.Add(TableBorderSpacing);
+        hash.Add(TableBorderCollapse);
+        hash.Add(BorderWidth);
+        hash.Add(BorderLeftWidth);
+        hash.Add(BorderTopWidth);
+        hash.Add(BorderRightWidth);
+        hash.Add(BorderBottomWidth);
+        hash.Add(BorderStyle);
+        hash.Add(BorderLeftStyle);
+        hash.Add(BorderTopStyle);
+        hash.Add(BorderRightStyle);
+        hash.Add(BorderBottomStyle);
+        hash.Add(BorderRadius);
+        hash.Add(FontSize);
+        hash.Add(FontWeight);
+        hash.Add(FontFamily);
+        hash.Add(FlexGrow);
+        hash.Add(FlexShrink);
+        hash.Add(FlexBasis);
+        hash.Add(Float);
+        hash.Add(Clear);
+        hash.Add(LineHeight);
+        hash.Add(ImageFit);
+        hash.Add(IntrinsicImageWidth);
+        hash.Add(IntrinsicImageHeight);
+        hash.Add(ImageAspectRatio);
+        hash.Add(TextAlign);
+        hash.Add(HasExplicitTextAlign);
+        hash.Add(WhiteSpace);
+        hash.Add(TextTransform);
+        hash.Add(WrapText);
+        hash.Add(TextOverflowEllipsis);
+        hash.Add(Underline);
+        hash.Add(Italic);
+        hash.Add(SuppressListMarker);
+        hash.Add(UnorderedListMarkerText);
+        hash.Add(ClipContent);
+        hash.Add(IsScrollContainer);
+        hash.Add(Containment);
+        hash.Add(Multiline);
+        hash.Add(PreferIntrinsicWidth);
+        hash.Add(ScrollbarWidth);
+        hash.Add(ScrollbarTrackColor);
+        hash.Add(ScrollbarThumbColor);
+        hash.Add(UnitFlags);
+        hash.Add(HasExplicitDisplay);
+        hash.Add(HasExplicitColor);
+        hash.Add(HasExplicitTextDecoration);
+        hash.Add(viewportLengthFlags);
+        hash.Add(containerPercentLengthFlags);
+        hash.Add(explicitLengthFlags);
+        hash.Add(fontSizeReference);
+        hash.Add(rootFontSize);
+        hash.Add(inheritedColor);
+        hash.Add(BackgroundColor);
+        hash.Add(BackgroundImageSource);
+        hash.Add(BackgroundImageFit);
+        AddShadowsHash(ref hash, BackgroundShadows);
+        hash.Add(BorderColor);
+        hash.Add(BorderLeftColor);
+        hash.Add(BorderTopColor);
+        hash.Add(BorderRightColor);
+        hash.Add(BorderBottomColor);
+        hash.Add(Color);
+        hash.Add(PlaceholderColor);
+        AddShadowsHash(ref hash, TextShadows);
+        return hash.ToHashCode();
+    }
+
     public static bool HasSameOuterLayoutDependency(HtmlComputedStyle left, HtmlComputedStyle right)
         => left.Display == right.Display &&
            left.FlexDirection == right.FlexDirection &&
@@ -301,6 +427,35 @@ internal sealed partial class HtmlComputedStyle
 
     private static bool Same(float left, float right)
         => left.Equals(right) || float.IsNaN(left) && float.IsNaN(right);
+
+    private static bool SameShadows(SceneBoxShadow[]? left, SceneBoxShadow[]? right)
+    {
+        if (ReferenceEquals(left, right))
+            return true;
+        if (left is null || right is null || left.Length != right.Length)
+            return false;
+
+        for (var index = 0; index < left.Length; index++)
+        {
+            if (!left[index].Equals(right[index]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static void AddShadowsHash(ref HashCode hash, SceneBoxShadow[]? shadows)
+    {
+        if (shadows is null)
+        {
+            hash.Add(0);
+            return;
+        }
+
+        hash.Add(shadows.Length);
+        for (var index = 0; index < shadows.Length; index++)
+            hash.Add(shadows[index]);
+    }
 
     public HtmlComputedStyle CloneWithResolvedViewportUnits(float viewportWidth, float viewportHeight)
     {

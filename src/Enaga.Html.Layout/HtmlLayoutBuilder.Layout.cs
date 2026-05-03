@@ -44,7 +44,7 @@ internal sealed partial class HtmlLayoutBuilder
                 reservedScrollBarGutter));
 
     private bool TryResolveAutoHeightRequests(
-        IReadOnlyList<HtmlSceneNode> children,
+        HtmlSceneNode[] children,
         Span<LayoutChildRequest> childRequests,
         ReadOnlySpan<LayoutFrameData?> frames,
         float availableHeight,
@@ -55,13 +55,13 @@ internal sealed partial class HtmlLayoutBuilder
         resolvedRequests = childRequests;
         var adjustedRequests = Span<LayoutChildRequest>.Empty;
         var changed = false;
-        for (var index = 0; index < children.Count; index++)
+        for (var index = 0; index < children.Length; index++)
         {
             if (frames[index] is not { } frame)
                 continue;
 
             var child = children[index];
-            if (child.Children.Count == 0 || LayoutValue.IsSet(child.Style.Height))
+            if (child.Children.Length == 0 || LayoutValue.IsSet(child.Style.Height))
                 continue;
 
             var stretchesInRow =
@@ -195,7 +195,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         if (!style.HasExplicitWidth &&
             style.Float != HtmlFloat.None &&
-            node.Children.Count > 0)
+            node.Children.Length > 0)
         {
             var shrinkToFit = MeasureShrinkToFitSize(node, availableWidth, availableHeight);
             var floatAutoWidth = MeasureFloatAutoWidth(node, availableWidth, availableHeight);
@@ -207,7 +207,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         if (!LayoutValue.IsSet(width) &&
             style.Display == HtmlDisplay.InlineBlock &&
-            node.Children.Count > 0)
+            node.Children.Length > 0)
         {
             var maxContentWidth = MeasureMaxContentWidth(node, availableWidth, availableHeight);
             if (maxContentWidth > 0)
@@ -235,7 +235,7 @@ internal sealed partial class HtmlLayoutBuilder
                 minWidth = automaticMinWidth;
         }
 
-        if (node.Children.Count > 0)
+        if (node.Children.Length > 0)
         {
             var intrinsic = MeasureNodeIntrinsicSize(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection);
             if (parentIsRowFlexContainer && (!LayoutValue.IsSet(style.Width) || rowFlexGrowBasisZeroAutoWidth))
@@ -323,7 +323,7 @@ internal sealed partial class HtmlLayoutBuilder
             return MeasureInlineText(node.TextContent, textStyle, style.LineHeight).Width;
         }
 
-        return node.Children.Count > 0 ? MeasureMinContentWidth(node, availableWidth, availableHeight) : 0;
+        return node.Children.Length > 0 ? MeasureMinContentWidth(node, availableWidth, availableHeight) : 0;
     }
 
     private static bool ShouldTreatWidthAsAutoForRowFlexGrowBasisZero(HtmlComputedStyle style, float availableWidth)
@@ -430,7 +430,7 @@ internal sealed partial class HtmlLayoutBuilder
             return (measured.Width, measured.Height);
         }
 
-        if (node.Children.Count == 0)
+        if (node.Children.Length == 0)
             return (0, 0);
 
         if (style.Display == HtmlDisplay.Block && ContainsFloatChildren(node.Children))
@@ -454,13 +454,13 @@ internal sealed partial class HtmlLayoutBuilder
                     style.Display is HtmlDisplay.Inline or HtmlDisplay.InlineBlock;
         var contentWidth = 0f;
         var contentHeight = 0f;
-        for (var index = 0; index < node.Children.Count; index++)
+        for (var index = 0; index < node.Children.Length; index++)
         {
             var child = node.Children[index];
             var measured = MeasureShrinkToFitSize(child, availableWidth, availableHeight);
             var childWidth = measured.Width + child.Style.MarginLeft + child.Style.MarginRight;
             var childHeight = measured.Height + child.Style.MarginTop + child.Style.MarginBottom;
-            if (child.Children.Count > 0 && ContainsFloatChildren(child.Children))
+            if (child.Children.Length > 0 && ContainsFloatChildren(child.Children))
             {
                 var scratchMark = scratch.Mark();
                 try
@@ -524,13 +524,13 @@ internal sealed partial class HtmlLayoutBuilder
         if (LayoutValue.IsSet(style.Width) && style.HasExplicitWidth)
             return ResolveExplicitOuterSize(style, style.Width, style.IsWidthPercent, availableWidth, horizontal: true);
 
-        if (node.Children.Count == 0)
+        if (node.Children.Length == 0)
             return 0;
 
         var rowWidth = 0f;
         var maxWidth = 0f;
         var allInlineLike = true;
-        for (var index = 0; index < node.Children.Count; index++)
+        for (var index = 0; index < node.Children.Length; index++)
         {
             var child = node.Children[index];
             var childWidth = SanitizeShrinkMeasure(MeasureShrinkToFitPreferredWidth(child, availableWidth, availableHeight)) +
@@ -586,7 +586,7 @@ internal sealed partial class HtmlLayoutBuilder
             return MeasureShrinkToFitSize(node, availableWidth, availableHeight).Width;
 
         var width = 0f;
-        for (var index = 0; index < node.Children.Count; index++)
+        for (var index = 0; index < node.Children.Length; index++)
             width += MeasureDescendantInlinePreferredWidth(node.Children[index], availableWidth, availableHeight);
 
         return width + node.Style.PaddingLeft + node.Style.PaddingRight + node.Style.BorderWidth * 2;
@@ -596,7 +596,7 @@ internal sealed partial class HtmlLayoutBuilder
     {
         width = 0;
         height = 0;
-        if (node.Children.Count != 1)
+        if (node.Children.Length != 1)
             return false;
 
         var textNode = node.Children[0];
@@ -621,7 +621,7 @@ internal sealed partial class HtmlLayoutBuilder
 
     private float MeasureDescendantFloatPreferredWidth(HtmlSceneNode node, float availableWidth, float availableHeight)
     {
-        if (node.Children.Count == 0)
+        if (node.Children.Length == 0)
             return 0;
 
         if (ContainsFloatChildren(node.Children))
@@ -642,7 +642,7 @@ internal sealed partial class HtmlLayoutBuilder
         }
 
         var preferred = 0f;
-        for (var index = 0; index < node.Children.Count; index++)
+        for (var index = 0; index < node.Children.Length; index++)
             preferred = Math.Max(preferred, MeasureDescendantFloatPreferredWidth(node.Children[index], availableWidth, availableHeight));
         return preferred + node.Style.PaddingLeft + node.Style.PaddingRight + node.Style.BorderWidth * 2;
     }
@@ -653,7 +653,7 @@ internal sealed partial class HtmlLayoutBuilder
         if (LayoutValue.IsSet(style.Width) &&
             style.HasExplicitWidth &&
             !style.IsWidthPercent &&
-            !(style.FlexGrow > 0 && style.Width <= 0 && node.Children.Count > 0))
+            !(style.FlexGrow > 0 && style.Width <= 0 && node.Children.Length > 0))
             return style.Width + style.MarginLeft + style.MarginRight;
 
         if (node.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(node.TextContent))
@@ -680,7 +680,7 @@ internal sealed partial class HtmlLayoutBuilder
                    style.MarginRight;
         }
 
-        if (node.Children.Count == 0)
+        if (node.Children.Length == 0)
             return style.PaddingLeft + style.PaddingRight + style.BorderWidth * 2 + style.MarginLeft + style.MarginRight;
 
         var shouldSum =
@@ -691,7 +691,7 @@ internal sealed partial class HtmlLayoutBuilder
             FlexLayout.ResolveAxis(style.FlexDirection) == LayoutAxis.Row &&
             style.FlexWrap == FlexWrap.NoWrap;
         var contentWidth = 0f;
-        for (var index = 0; index < node.Children.Count; index++)
+        for (var index = 0; index < node.Children.Length; index++)
         {
             var childWidth = MeasureMaxContentWidth(node.Children[index], availableWidth, availableHeight);
             if (shouldSum)
@@ -715,7 +715,7 @@ internal sealed partial class HtmlLayoutBuilder
         if (LayoutValue.IsSet(style.Width) &&
             style.HasExplicitWidth &&
             !style.IsWidthPercent &&
-            !(style.FlexGrow > 0 && style.Width <= 0 && node.Children.Count > 0))
+            !(style.FlexGrow > 0 && style.Width <= 0 && node.Children.Length > 0))
             return style.Width + style.MarginLeft + style.MarginRight;
 
         if (node.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(node.TextContent))
@@ -732,7 +732,7 @@ internal sealed partial class HtmlLayoutBuilder
         if (node.NodeKind == SceneNodeKind.Image)
             return MeasureMaxContentWidth(node, availableWidth, availableHeight);
 
-        if (node.Children.Count == 0)
+        if (node.Children.Length == 0)
             return style.PaddingLeft + style.PaddingRight + style.BorderWidth * 2 + style.MarginLeft + style.MarginRight;
 
         var shouldSum =
@@ -742,7 +742,7 @@ internal sealed partial class HtmlLayoutBuilder
             FlexLayout.ResolveAxis(style.FlexDirection) == LayoutAxis.Row &&
             style.FlexWrap == FlexWrap.NoWrap;
         var contentWidth = 0f;
-        for (var index = 0; index < node.Children.Count; index++)
+        for (var index = 0; index < node.Children.Length; index++)
         {
             var childWidth = MeasureMinContentWidth(node.Children[index], availableWidth, availableHeight);
             if (shouldSum)
@@ -810,9 +810,9 @@ internal sealed partial class HtmlLayoutBuilder
            value is >= '\u3400' and <= '\u9fff' ||
            value is >= '\uff00' and <= '\uffef';
 
-    private static bool ContainsInlineChildren(IReadOnlyList<HtmlSceneNode> children)
+    private static bool ContainsInlineChildren(HtmlSceneNode[] children)
     {
-        for (var index = 0; index < children.Count; index++)
+        for (var index = 0; index < children.Length; index++)
         {
             if (children[index].Style.Display is HtmlDisplay.Inline or HtmlDisplay.InlineBlock)
                 return true;
@@ -823,7 +823,7 @@ internal sealed partial class HtmlLayoutBuilder
 
     private float MeasureNodeLayoutHeight(HtmlSceneNode node, float availableWidth, float availableHeight, bool parentIsFlexContainer = false, FlexDirection parentFlexDirection = FlexDirection.Column)
     {
-        if (node.Children.Count == 0)
+        if (node.Children.Length == 0)
             return MeasureAutoHeightForResolvedWidth(node, availableWidth, availableHeight);
 
         var cacheKey = CreateLayoutMeasureCacheKey(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection, LayoutRunMode.PerformHiddenLayout);
@@ -887,10 +887,10 @@ internal sealed partial class HtmlLayoutBuilder
         var layoutScratchMark = scratch.Mark();
         try
         {
-            var childRequests = scratch.AllocateRequests(resolvedChildren.Count);
+            var childRequests = scratch.AllocateRequests(resolvedChildren.Length);
             var nodeIsFlexContainer = IsFlexContainer(style);
             var allowChildFlexShrink = ShouldAllowChildFlexShrink(style);
-            for (var index = 0; index < resolvedChildren.Count; index++)
+            for (var index = 0; index < resolvedChildren.Length; index++)
                 childRequests[index] = CreateLayoutRequest(resolvedChildren[index], childAvailableWidth, childAvailableHeight, nodeIsFlexContainer, style.FlexDirection, allowChildFlexShrink);
 
             childRequests = ApplyBlockMarginCollapse(style, childRequests);
@@ -931,7 +931,7 @@ internal sealed partial class HtmlLayoutBuilder
 
     private (float Width, float Height) MeasureNodeIntrinsicSize(HtmlSceneNode node, float availableWidth, float availableHeight, bool parentIsFlexContainer = false, FlexDirection parentFlexDirection = FlexDirection.Column)
     {
-        if (node.Children.Count == 0)
+        if (node.Children.Length == 0)
             return (0, 0);
 
         var cacheKey = CreateLayoutMeasureCacheKey(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection, LayoutRunMode.ComputeSize);
@@ -1002,10 +1002,10 @@ internal sealed partial class HtmlLayoutBuilder
         var layoutScratchMark = scratch.Mark();
         try
         {
-            var childRequests = scratch.AllocateRequests(resolvedChildren.Count);
+            var childRequests = scratch.AllocateRequests(resolvedChildren.Length);
             var nodeIsFlexContainer = IsFlexContainer(style);
             var allowChildFlexShrink = ShouldAllowChildFlexShrink(style);
-            for (var index = 0; index < resolvedChildren.Count; index++)
+            for (var index = 0; index < resolvedChildren.Length; index++)
                 childRequests[index] = CreateLayoutRequest(resolvedChildren[index], childAvailableWidth, childAvailableHeight, nodeIsFlexContainer, style.FlexDirection, allowChildFlexShrink);
 
             childRequests = ApplyBlockMarginCollapse(style, childRequests);
@@ -1115,7 +1115,7 @@ internal sealed partial class HtmlLayoutBuilder
         => value * 0.5f;
 
     private void ResolveRowAutoHeights(
-        IReadOnlyList<HtmlSceneNode> children,
+        HtmlSceneNode[] children,
         Span<LayoutChildRequest> childRequests,
         float availableWidth,
         float availableHeight,
@@ -1189,7 +1189,7 @@ internal sealed partial class HtmlLayoutBuilder
 
     private float MeasureAutoHeightForResolvedWidth(HtmlSceneNode node, float resolvedWidth, float availableHeight)
     {
-        if (node.Children.Count > 0)
+        if (node.Children.Length > 0)
             return MeasureNodeIntrinsicSize(node, resolvedWidth, availableHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row).Height;
 
         if (node.NodeKind != SceneNodeKind.Text || string.IsNullOrEmpty(node.TextContent))

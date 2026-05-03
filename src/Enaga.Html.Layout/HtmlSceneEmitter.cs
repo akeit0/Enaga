@@ -7,6 +7,7 @@ internal sealed class HtmlSceneEmitter(
     HtmlSceneNodeId rootId,
     SceneNodeIdentityMap<HtmlSceneNodeId> sceneNodeIds,
     HtmlSceneTextStyleCache textStyleCache,
+    Dictionary<SceneNodeId, SceneNodeId[]> childMap,
     int width,
     int height,
     float rootLayoutWidth,
@@ -22,7 +23,8 @@ internal sealed class HtmlSceneEmitter(
         HtmlPipelineMetrics metrics)
     {
         metrics.AddDisplayListCommandsRebuilt(placedNodes.Count + 1);
-        var childMap = new Dictionary<SceneNodeId, SceneNodeId[]>(childRelations.Count);
+        childMap.Clear();
+        childMap.EnsureCapacity(childRelations.Count);
         for (var index = 0; index < childRelations.Count; index++)
         {
             var relation = childRelations[index];
