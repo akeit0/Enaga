@@ -47,12 +47,12 @@ public sealed class HtmlStyleTraversalTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
             LayoutEngineConfig.WebDefaults);
 
+        var button = FindElement(parsed.RootElement, "cta");
         var tree = traversal.Resolve(
             parsed,
             320,
             180,
-            isHovered: static element => string.Equals(element.Id, "cta", StringComparison.Ordinal));
-        var button = FindElement(parsed.RootElement, "cta");
+            new HashSet<HtmlNodeId> { button.NodeId });
 
         Assert.Equal("#445566", tree.Styles[button.NodeId].BackgroundColor);
     }
@@ -101,7 +101,7 @@ public sealed class HtmlStyleTraversalTests
             parsed,
             520,
             120,
-            isHovered: element => element.NodeId == row.NodeId);
+            new HashSet<HtmlNodeId> { row.NodeId });
 
         Assert.Equal("#f0f0f8", tree.Styles[file.NodeId].BackgroundColor);
         Assert.Equal("#f0f0f8", tree.Styles[description.NodeId].BackgroundColor);
@@ -132,7 +132,7 @@ public sealed class HtmlStyleTraversalTests
             parsed,
             520,
             120,
-            isHovered: element => element.NodeId == note.NodeId);
+            new HashSet<HtmlNodeId> { note.NodeId });
 
         Assert.Equal("#f0f0f8", tree.Styles[file.NodeId].BackgroundColor);
         Assert.Equal("#f0f0f8", tree.Styles[description.NodeId].BackgroundColor);

@@ -393,15 +393,17 @@ internal sealed class TextInputMetrics : IDisposable
             {
                 var runStartBoundary = boundaryIndex;
                 var runStart = caretIndices[runStartBoundary];
-                var firstElement = SliceText(text, runStart, caretIndices[runStartBoundary + 1] - runStart);
-                var typeface = fontCatalog.ResolveTypefaceForText(style.Font, firstElement);
+                var typeface = fontCatalog.ResolveTypefaceForText(
+                    style.Font,
+                    text.AsSpan(runStart, caretIndices[runStartBoundary + 1] - runStart));
                 boundaryIndex++;
 
                 while (boundaryIndex < caretIndices.Length - 1)
                 {
                     var nextStart = caretIndices[boundaryIndex];
-                    var nextElement = SliceText(text, nextStart, caretIndices[boundaryIndex + 1] - nextStart);
-                    var nextTypeface = fontCatalog.ResolveTypefaceForText(style.Font, nextElement);
+                    var nextTypeface = fontCatalog.ResolveTypefaceForText(
+                        style.Font,
+                        text.AsSpan(nextStart, caretIndices[boundaryIndex + 1] - nextStart));
                     if (!ReferenceEquals(typeface, nextTypeface))
                         break;
 
@@ -846,8 +848,7 @@ internal sealed class TextInputMetrics : IDisposable
         if (length <= 0)
             return 0;
 
-        var textElement = SliceText(text, start, length);
-        var typeface = fontCatalog.ResolveTypefaceForText(style.Font, textElement);
+        var typeface = fontCatalog.ResolveTypefaceForText(style.Font, text.AsSpan(start, length));
         using var font = SkiaFontSynthesis.CreateFont(typeface, style.Font);
         return font.MeasureText(text.AsSpan(start, length), paint);
     }

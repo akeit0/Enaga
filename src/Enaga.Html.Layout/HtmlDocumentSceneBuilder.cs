@@ -57,8 +57,8 @@ internal sealed class HtmlDocumentSceneBuilder
             document,
             width,
             height,
-            hoveredDomNodeIds is null ? null : element => hoveredDomNodeIds.Contains(element.NodeId),
-            activeDomNodeId is null ? null : element => element.NodeId == activeDomNodeId.Value);
+            hoveredDomNodeIds,
+            activeDomNodeId);
         var styleTree = LastComputedStyleTree;
         metrics.AddStyleMatchCascade(styleTree.Styles.Count);
         var styledTree = sceneTreeBuilder.GetOrCreate(document, width, height, styleTree);

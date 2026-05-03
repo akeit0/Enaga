@@ -30,6 +30,12 @@ internal sealed class HtmlLayoutOutputStore
 
     public void UpdateLayoutTree(string rootId, IReadOnlyList<HtmlSceneNode> rootChildren)
     {
+        var nodeCount = CountNodes(rootChildren) + 1;
+        childrenByNode.EnsureCapacity(nodeCount);
+        parentByNode.EnsureCapacity(Math.Max(0, nodeCount - 1));
+        propagationBoundaries.EnsureCapacity(nodeCount);
+        Outputs.EnsureCapacity(nodeCount, Math.Max(nodeCount, nodeCount * 4));
+
         ClearChildLists();
         parentByNode.Clear();
         propagationBoundaries.Clear();
@@ -58,6 +64,18 @@ internal sealed class HtmlLayoutOutputStore
             if ((bits & HtmlLayoutDirtyBits.Ancestors) != 0)
                 InvalidateAncestors(nodeId);
         }
+    }
+
+    private static int CountNodes(IReadOnlyList<HtmlSceneNode> nodes)
+    {
+        var count = 0;
+        for (var index = 0; index < nodes.Count; index++)
+        {
+            count++;
+            count += CountNodes(nodes[index].Children);
+        }
+
+        return count;
     }
 
     private void AddChildren(HtmlSceneNode node)

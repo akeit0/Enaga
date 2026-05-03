@@ -10,6 +10,7 @@ internal sealed class SceneCommitPainter : IDisposable
 {
     private const int textBlobCacheLimit = 2048;
     private const int ellipsizedLineCacheLimit = 1024;
+    private const int fontMetricsCacheLimit = 1024;
     private const int scrollContentPictureCacheLimit = 128;
     private const float viewportScrollPictureThreshold = 2f;
     private const float smallDirtyRectCacheBypassAreaRatio = 0.25f;
@@ -19,10 +20,12 @@ internal sealed class SceneCommitPainter : IDisposable
     private readonly Dictionary<string, RuntimeShaderTemplate?> runtimeShaderTemplateCache = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SKRuntimeEffect?> shaderEffectCache = new(StringComparer.Ordinal);
     private readonly Dictionary<float, SKMaskFilter> textShadowBlurFilterCache = new();
+    private readonly Dictionary<float, SKImageFilter> boxShadowBlurFilterCache = new();
     private readonly Dictionary<TextBlobCacheKey, SKTextBlob> textBlobCache = new();
     private readonly Queue<TextBlobCacheKey> textBlobCacheOrder = new();
     private readonly Dictionary<EllipsizedLineCacheKey, TextInputMetrics.TextLineSpan> ellipsizedLineCache = new();
     private readonly Queue<EllipsizedLineCacheKey> ellipsizedLineCacheOrder = new();
+    private readonly Dictionary<FontMetricsCacheKey, SKFontMetrics> fontMetricsCache = new();
     private readonly Dictionary<ScrollContentPictureCacheKey, SKPicture> scrollContentPictureCache = new();
     private readonly Queue<ScrollContentPictureCacheKey> scrollContentPictureCacheOrder = new();
     private readonly Dictionary<SceneNodeId, ScrollContentPictureCacheKey> scrollContentPictureKeyByNode = new();
@@ -46,6 +49,11 @@ internal sealed class SceneCommitPainter : IDisposable
     private readonly SKPaint textPaint = new()
     {
         IsAntialias = true
+    };
+    private readonly SKPaint shadowPaint = new()
+    {
+        IsAntialias = true,
+        Style = SKPaintStyle.Fill
     };
     private readonly TimeProvider timeProvider;
     private readonly SkiaTextResources textResources;
@@ -157,16 +165,20 @@ internal sealed class SceneCommitPainter : IDisposable
             effect?.Dispose();
         foreach (var filter in textShadowBlurFilterCache.Values)
             filter.Dispose();
+        foreach (var filter in boxShadowBlurFilterCache.Values)
+            filter.Dispose();
         fillPaint.Dispose();
         strokePaint.Dispose();
         clearPaint.Dispose();
         textPaint.Dispose();
+        shadowPaint.Dispose();
         if (ownsTextResources)
             textResources.Dispose();
         recordingContainsPendingImages = false;
         runtimeShaderTemplateCache.Clear();
         shaderEffectCache.Clear();
         textShadowBlurFilterCache.Clear();
+        boxShadowBlurFilterCache.Clear();
     }
 
     private void PaintDirtyRectsDirect(SKCanvas canvas, SceneLayoutCommit commit, TimeSpan elapsed, ReadOnlySpan<SceneDamageRect> dirtyRects)
@@ -998,13 +1010,8 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Save();
             ClipShadowInnerBox(canvas, geometry);
 
-            using var shadowPaint = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Fill,
-                Color = ResolveColor(shadow.Color, new SKColor(15, 23, 42, 110)),
-                ImageFilter = shadow.Blur > 0 ? SKImageFilter.CreateBlur(shadow.Blur * 0.5f, shadow.Blur * 0.5f) : null
-            };
+            shadowPaint.Color = ResolveColor(shadow.Color, new SKColor(15, 23, 42, 110));
+            shadowPaint.ImageFilter = shadow.Blur > 0 ? GetBoxShadowBlurFilter(shadow.Blur) : null;
 
             var rect = geometry.BorderRect;
             rect.Offset(shadow.OffsetX, shadow.OffsetY);
@@ -1016,7 +1023,19 @@ internal sealed class SceneCommitPainter : IDisposable
                 canvas.DrawRect(rect, shadowPaint);
 
             canvas.Restore();
+            shadowPaint.ImageFilter = null;
         }
+    }
+
+    private SKImageFilter GetBoxShadowBlurFilter(float blur)
+    {
+        var sigma = MathF.Max(0.001f, blur * 0.5f);
+        if (boxShadowBlurFilterCache.TryGetValue(sigma, out var cached))
+            return cached;
+
+        var filter = SKImageFilter.CreateBlur(sigma, sigma);
+        boxShadowBlurFilterCache[sigma] = filter;
+        return filter;
     }
 
     private static void ClipShadowInnerBox(SKCanvas canvas, BoxPaintGeometry geometry)
@@ -1106,7 +1125,7 @@ internal sealed class SceneCommitPainter : IDisposable
         return StoreEllipsizedLine(cacheKey, ellipsizedLine);
     }
 
-    private static float ResolveTextBaselineOffset(TextInputMetrics.TextLineSpan line, SceneTextStyle textStyle, float lineHeight)
+    private float ResolveTextBaselineOffset(TextInputMetrics.TextLineSpan line, SceneTextStyle textStyle, float lineHeight)
     {
         if (line.Runs.Count == 0)
             return textStyle.FontSize;
@@ -1115,8 +1134,7 @@ internal sealed class SceneCommitPainter : IDisposable
         var descent = 0f;
         for (var index = 0; index < line.Runs.Count; index++)
         {
-            using var font = SkiaFontSynthesis.CreateFont(line.Runs[index].Typeface, textStyle.Font);
-            var metrics = font.Metrics;
+            var metrics = GetFontMetrics(line.Runs[index].Typeface, textStyle.Font);
             if (!float.IsFinite(metrics.Ascent) || !float.IsFinite(metrics.Descent))
                 continue;
 
@@ -1900,7 +1918,7 @@ internal sealed class SceneCommitPainter : IDisposable
         }
     }
 
-    private static UnderlineStroke ResolveUnderlineStroke(TextInputMetrics.TextLineSpan line, SceneTextStyle textStyle)
+    private UnderlineStroke ResolveUnderlineStroke(TextInputMetrics.TextLineSpan line, SceneTextStyle textStyle)
     {
         var fallbackThickness = Math.Max(1, textStyle.FontSize / 16f);
         var fallbackOffset = Math.Max(2, textStyle.FontSize * 0.14f);
@@ -1909,8 +1927,7 @@ internal sealed class SceneCommitPainter : IDisposable
 
         foreach (var run in line.Runs)
         {
-            using var font = SkiaFontSynthesis.CreateFont(run.Typeface, textStyle.Font);
-            var metrics = font.Metrics;
+            var metrics = GetFontMetrics(run.Typeface, textStyle.Font);
             var runThickness = metrics.UnderlineThickness ?? 0f;
             var runOffset = metrics.UnderlinePosition ?? 0f;
             if (runThickness <= 0 || runOffset <= 0)
@@ -1923,6 +1940,26 @@ internal sealed class SceneCommitPainter : IDisposable
         return new UnderlineStroke(
             Math.Max(offset, fallbackOffset),
             Math.Max(thickness, fallbackThickness));
+    }
+
+    private SKFontMetrics GetFontMetrics(SKTypeface typeface, SceneFont font)
+    {
+        var key = new FontMetricsCacheKey(
+            textResources.FontCatalog.CurrentVersion,
+            typeface,
+            QuantizePixel(font.Size),
+            font.CacheIdentity,
+            font.Weight,
+            font.Italic);
+        if (fontMetricsCache.TryGetValue(key, out var cached))
+            return cached;
+
+        using var skFont = SkiaFontSynthesis.CreateFont(typeface, font);
+        var metrics = skFont.Metrics;
+        if (fontMetricsCache.Count >= fontMetricsCacheLimit)
+            fontMetricsCache.Clear();
+        fontMetricsCache[key] = metrics;
+        return metrics;
     }
 
     private void DrawTextLineShadows(SKCanvas canvas, TextInputMetrics.TextLineSpan line, float x, float baselineY, SceneTextStyle textStyle, SceneBoxShadow[] shadows)
@@ -2022,6 +2059,7 @@ internal sealed class SceneCommitPainter : IDisposable
     {
         ellipsizedLineCache.Clear();
         ellipsizedLineCacheOrder.Clear();
+        fontMetricsCache.Clear();
     }
 
     private void TrimScrollContentPictureCache()
@@ -2233,62 +2271,84 @@ internal sealed class SceneCommitPainter : IDisposable
     private static bool TryParseRgbFunction(string color, out SKColor parsed)
     {
         parsed = default;
-        if (!TryParseFunctionArguments(color, "rgb", 3, out var components))
+        Span<Range> components = stackalloc Range[3];
+        if (!TryParseFunctionArguments(color, "rgb", components, out var arguments))
             return false;
 
-        return TryParseColorByte(components[0], out var red) &&
-               TryParseColorByte(components[1], out var green) &&
-               TryParseColorByte(components[2], out var blue) &&
+        return TryParseColorByte(arguments[components[0]], out var red) &&
+               TryParseColorByte(arguments[components[1]], out var green) &&
+               TryParseColorByte(arguments[components[2]], out var blue) &&
                CreateColor(red, green, blue, 255, out parsed);
     }
 
     private static bool TryParseRgbaFunction(string color, out SKColor parsed)
     {
         parsed = default;
-        if (!TryParseFunctionArguments(color, "rgba", 4, out var components))
+        Span<Range> components = stackalloc Range[4];
+        if (!TryParseFunctionArguments(color, "rgba", components, out var arguments))
             return false;
 
-        return TryParseColorByte(components[0], out var red) &&
-               TryParseColorByte(components[1], out var green) &&
-               TryParseColorByte(components[2], out var blue) &&
-               TryParseAlphaByte(components[3], out var alpha) &&
+        return TryParseColorByte(arguments[components[0]], out var red) &&
+               TryParseColorByte(arguments[components[1]], out var green) &&
+               TryParseColorByte(arguments[components[2]], out var blue) &&
+               TryParseAlphaByte(arguments[components[3]], out var alpha) &&
                CreateColor(red, green, blue, alpha, out parsed);
     }
 
     private static bool TryParseArgbFunction(string color, out SKColor parsed)
     {
         parsed = default;
-        if (!TryParseFunctionArguments(color, "argb", 4, out var components))
+        Span<Range> components = stackalloc Range[4];
+        if (!TryParseFunctionArguments(color, "argb", components, out var arguments))
             return false;
 
-        return TryParseAlphaByte(components[0], out var alpha) &&
-               TryParseColorByte(components[1], out var red) &&
-               TryParseColorByte(components[2], out var green) &&
-               TryParseColorByte(components[3], out var blue) &&
+        return TryParseAlphaByte(arguments[components[0]], out var alpha) &&
+               TryParseColorByte(arguments[components[1]], out var red) &&
+               TryParseColorByte(arguments[components[2]], out var green) &&
+               TryParseColorByte(arguments[components[3]], out var blue) &&
                CreateColor(red, green, blue, alpha, out parsed);
     }
 
-    private static bool TryParseFunctionArguments(string color, string functionName, int expectedCount, out string[] components)
+    private static bool TryParseFunctionArguments(string color, string functionName, Span<Range> components, out ReadOnlySpan<char> arguments)
     {
-        components = [];
+        arguments = default;
         var prefixLength = functionName.Length + 1;
         if (!color.EndsWith(')') || color.Length <= prefixLength)
             return false;
 
-        var args = color.Substring(prefixLength, color.Length - prefixLength - 1)
-            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        if (args.Length != expectedCount)
-            return false;
+        arguments = color.AsSpan(prefixLength, color.Length - prefixLength - 1);
+        var componentCount = 0;
+        var componentStart = 0;
+        for (var index = 0; index <= arguments.Length; index++)
+        {
+            if (index < arguments.Length && arguments[index] != ',')
+                continue;
 
-        components = args;
-        return true;
+            if (componentCount >= components.Length)
+                return false;
+
+            var start = componentStart;
+            var end = index;
+            while (start < end && char.IsWhiteSpace(arguments[start]))
+                start++;
+            while (end > start && char.IsWhiteSpace(arguments[end - 1]))
+                end--;
+            if (start == end)
+                return false;
+
+            components[componentCount++] = start..end;
+            componentStart = index + 1;
+        }
+
+        return componentCount == components.Length;
     }
 
-    private static bool TryParseColorByte(string component, out byte value)
+    private static bool TryParseColorByte(ReadOnlySpan<char> component, out byte value)
     {
         value = 0;
-        if (component.EndsWith('%') &&
-            float.TryParse(component.AsSpan(0, component.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+        if (component.Length > 0 &&
+            component[^1] == '%' &&
+            float.TryParse(component[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
         {
             percent = Math.Clamp(percent, 0f, 100f);
             value = (byte)Math.Round(percent * 255f / 100f);
@@ -2303,11 +2363,12 @@ internal sealed class SceneCommitPainter : IDisposable
         return true;
     }
 
-    private static bool TryParseAlphaByte(string component, out byte value)
+    private static bool TryParseAlphaByte(ReadOnlySpan<char> component, out byte value)
     {
         value = 255;
-        if (component.EndsWith('%') &&
-            float.TryParse(component.AsSpan(0, component.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+        if (component.Length > 0 &&
+            component[^1] == '%' &&
+            float.TryParse(component[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
         {
             percent = Math.Clamp(percent, 0f, 100f);
             value = (byte)Math.Round(percent * 255f / 100f);
@@ -2568,6 +2629,14 @@ internal sealed class SceneCommitPainter : IDisposable
         string Text,
         int TextWidthQuarterPx,
         int LineHeightQuarterPx,
+        int FontSizeQuarterPx,
+        string FontIdentity,
+        int FontWeight,
+        bool Italic);
+
+    private readonly record struct FontMetricsCacheKey(
+        int FontCatalogVersion,
+        SKTypeface Typeface,
         int FontSizeQuarterPx,
         string FontIdentity,
         int FontWeight,

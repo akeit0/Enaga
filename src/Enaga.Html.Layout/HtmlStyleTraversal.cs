@@ -22,12 +22,19 @@ internal sealed class HtmlStyleTraversal
         HtmlParsedDocument document,
         int viewportWidth,
         int viewportHeight,
-        Func<HtmlDomElement, bool>? isHovered = null,
-        Func<HtmlDomElement, bool>? isActive = null)
+        IReadOnlySet<HtmlNodeId>? hoveredNodeIds = null,
+        HtmlNodeId? activeNodeId = null)
     {
         ArgumentNullException.ThrowIfNull(document);
 
         var styles = new Dictionary<HtmlNodeId, HtmlComputedStyle>(CountElements(document.RootElement));
+        HashSet<HtmlNodeId>? hoveredSubtreeNodeIds = null;
+        if (hoveredNodeIds is { Count: > 0 })
+        {
+            hoveredSubtreeNodeIds = new HashSet<HtmlNodeId>();
+            MarkHoveredSubtreeNodes(document.RootElement, hoveredNodeIds, hoveredSubtreeNodeIds);
+        }
+
         var ancestors = new List<HtmlDomElement>();
         var ancestorHoverStates = new List<bool>();
         var versionHash = new HashCode();
@@ -38,8 +45,8 @@ internal sealed class HtmlStyleTraversal
             document.BasePath,
             Math.Max(1, viewportWidth),
             Math.Max(1, viewportHeight),
-            isHovered,
-            isActive,
+            hoveredSubtreeNodeIds,
+            activeNodeId,
             ancestors,
             ancestorHoverStates,
             styles,
@@ -55,15 +62,14 @@ internal sealed class HtmlStyleTraversal
         string? basePath,
         int viewportWidth,
         int viewportHeight,
-        Func<HtmlDomElement, bool>? isHovered,
-        Func<HtmlDomElement, bool>? isActive,
+        HashSet<HtmlNodeId>? hoveredSubtreeNodeIds,
+        HtmlNodeId? activeNodeId,
         List<HtmlDomElement> ancestors,
         List<bool> ancestorHoverStates,
         Dictionary<HtmlNodeId, HtmlComputedStyle> styles,
         ref HashCode versionHash)
     {
-        var elementHovered = isHovered?.Invoke(element) == true ||
-            HasHoveredDescendant(element, isHovered);
+        var elementHovered = hoveredSubtreeNodeIds?.Contains(element.NodeId) == true;
         var style = resolver.Resolve(
             element,
             inherited,
@@ -71,7 +77,7 @@ internal sealed class HtmlStyleTraversal
             ancestorHoverStates,
             styleSheet,
             elementHovered,
-            isActive?.Invoke(element) == true,
+            activeNodeId == element.NodeId,
             viewportWidth,
             viewportHeight,
             basePath);
@@ -101,8 +107,8 @@ internal sealed class HtmlStyleTraversal
                         basePath,
                         viewportWidth,
                         viewportHeight,
-                        isHovered,
-                        isActive,
+                        hoveredSubtreeNodeIds,
+                        activeNodeId,
                         ancestors,
                         ancestorHoverStates,
                         styles,
@@ -167,20 +173,21 @@ internal sealed class HtmlStyleTraversal
     private static bool IsInlineStyleElement(HtmlDomElement element)
         => element.LocalName is "a" or "span" or "strong" or "b" or "em" or "i" or "u" or "small" or "font" or "br";
 
-    private static bool HasHoveredDescendant(HtmlDomElement element, Func<HtmlDomElement, bool>? isHovered)
+    private static bool MarkHoveredSubtreeNodes(HtmlDomElement element, IReadOnlySet<HtmlNodeId> hoveredNodeIds, HashSet<HtmlNodeId> hoveredSubtreeNodeIds)
     {
-        if (isHovered is null)
-            return false;
+        var containsHoveredNode = hoveredNodeIds.Contains(element.NodeId);
 
         foreach (var child in element.Children)
         {
             if (child is not HtmlDomElement childElement)
                 continue;
 
-            if (isHovered(childElement) || HasHoveredDescendant(childElement, isHovered))
-                return true;
+            containsHoveredNode |= MarkHoveredSubtreeNodes(childElement, hoveredNodeIds, hoveredSubtreeNodeIds);
         }
 
-        return false;
+        if (containsHoveredNode)
+            hoveredSubtreeNodeIds.Add(element.NodeId);
+
+        return containsHoveredNode;
     }
 }

@@ -354,33 +354,40 @@ public sealed class LayoutOutputCache : ILayoutCache
 {
     private const int MaxEntriesPerNode = 24;
     private readonly Dictionary<LayoutCacheKey, LayoutOutput> entries = [];
-    private readonly Dictionary<LayoutNodeId, List<LayoutCacheKey>> entriesByNode = [];
+    private readonly Dictionary<LayoutNodeId, NodeEntryList> entriesByNode = [];
 
     public bool TryGet(in LayoutCacheKey key, out LayoutOutput output)
         => entries.TryGetValue(key, out output);
 
+    public void EnsureCapacity(int nodeCount, int estimatedEntryCount)
+    {
+        if (nodeCount > entriesByNode.Count)
+            entriesByNode.EnsureCapacity(nodeCount);
+        if (estimatedEntryCount > entries.Count)
+            entries.EnsureCapacity(estimatedEntryCount);
+    }
+
     public void Store(in LayoutCacheKey key, in LayoutOutput output)
     {
-        if (entries.ContainsKey(key))
+        if (entries.TryGetValue(key, out _))
         {
             entries[key] = output;
             return;
         }
 
-        entries[key] = output;
         if (!entriesByNode.TryGetValue(key.NodeId, out var nodeEntries))
         {
-            nodeEntries = [];
+            nodeEntries = new NodeEntryList();
             entriesByNode[key.NodeId] = nodeEntries;
         }
 
         if (nodeEntries.Count >= MaxEntriesPerNode)
         {
-            var evicted = nodeEntries[0];
-            nodeEntries.RemoveAt(0);
+            var evicted = nodeEntries.RemoveOldest();
             entries.Remove(evicted);
         }
 
+        entries[key] = output;
         nodeEntries.Add(key);
     }
 
@@ -389,8 +396,7 @@ public sealed class LayoutOutputCache : ILayoutCache
         if (!entriesByNode.Remove(nodeId, out var nodeEntries))
             return;
 
-        foreach (var key in nodeEntries)
-            entries.Remove(key);
+        nodeEntries.RemoveEntriesFrom(entries);
     }
 
     public void InvalidateNodes(IReadOnlySet<LayoutNodeId> nodeIds)
@@ -403,6 +409,132 @@ public sealed class LayoutOutputCache : ILayoutCache
     {
         entries.Clear();
         entriesByNode.Clear();
+    }
+
+    private sealed class NodeEntryList
+    {
+        private LayoutCacheKey first;
+        private LayoutCacheKey second;
+        private List<LayoutCacheKey>? overflow;
+
+        public int Count { get; private set; }
+
+        public void Add(LayoutCacheKey key)
+        {
+            if (overflow is not null)
+            {
+                overflow.Add(key);
+                Count++;
+                return;
+            }
+
+            switch (Count)
+            {
+                case 0:
+                    first = key;
+                    Count = 1;
+                    break;
+                case 1:
+                    second = key;
+                    Count = 2;
+                    break;
+                default:
+                    overflow = new List<LayoutCacheKey>(MaxEntriesPerNode)
+                    {
+                        first,
+                        second,
+                        key
+                    };
+                    Count = 3;
+                    break;
+            }
+        }
+
+        public LayoutCacheKey RemoveOldest()
+        {
+            if (Count == 0)
+                throw new InvalidOperationException("The layout cache node entry list is empty.");
+
+            if (overflow is not null)
+            {
+                var evicted = overflow[0];
+                overflow.RemoveAt(0);
+                Count--;
+                CollapseOverflowIfSmall();
+                return evicted;
+            }
+
+            var result = first;
+            first = second;
+            second = default;
+            Count--;
+            return result;
+        }
+
+        public void Remove(LayoutCacheKey key)
+        {
+            if (Count == 0)
+                return;
+
+            if (overflow is not null)
+            {
+                if (overflow.Remove(key))
+                {
+                    Count--;
+                    CollapseOverflowIfSmall();
+                }
+
+                return;
+            }
+
+            if (Count == 1)
+            {
+                if (first.Equals(key))
+                {
+                    first = default;
+                    Count = 0;
+                }
+
+                return;
+            }
+
+            if (first.Equals(key))
+            {
+                first = second;
+                second = default;
+                Count = 1;
+            }
+            else if (second.Equals(key))
+            {
+                second = default;
+                Count = 1;
+            }
+        }
+
+        public void RemoveEntriesFrom(Dictionary<LayoutCacheKey, LayoutOutput> target)
+        {
+            if (overflow is not null)
+            {
+                for (var index = 0; index < overflow.Count; index++)
+                    target.Remove(overflow[index]);
+                return;
+            }
+
+            if (Count > 0)
+                target.Remove(first);
+            if (Count > 1)
+                target.Remove(second);
+        }
+
+        private void CollapseOverflowIfSmall()
+        {
+            if (overflow is null || Count > 2)
+                return;
+
+            first = Count > 0 ? overflow[0] : default;
+            second = Count > 1 ? overflow[1] : default;
+            overflow = null;
+        }
     }
 }
 
