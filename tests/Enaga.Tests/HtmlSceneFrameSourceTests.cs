@@ -3275,12 +3275,12 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.NotNull(SceneScrollBarLayout.ResolveHorizontalScrollBar(root));
         Assert.Contains(scrollBarFragments, fragment =>
             fragment.GeneratedRole == HtmlGeneratedFragmentRole.HorizontalScrollBarGutter &&
-            fragment.SourceSceneNodeId == "root" &&
+            fragment.SourceSceneNodeId == HtmlSceneNodeId.Root &&
             Math.Abs(fragment.BorderBox.Top - (root.Height - root.ScrollBarWidth)) < 0.001f &&
             Math.Abs(fragment.BorderBox.Bottom - root.Height) < 0.001f);
         Assert.Contains(scrollBarFragments, fragment =>
             fragment.GeneratedRole == HtmlGeneratedFragmentRole.HorizontalScrollBarThumb &&
-            fragment.SourceSceneNodeId == "root");
+            fragment.SourceSceneNodeId == HtmlSceneNodeId.Root);
     }
 
     [Fact]
@@ -3309,12 +3309,12 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.NotNull(SceneScrollBarLayout.ResolveVerticalScrollBar(root));
         Assert.Contains(scrollBarFragments, fragment =>
             fragment.GeneratedRole == HtmlGeneratedFragmentRole.VerticalScrollBarGutter &&
-            fragment.SourceSceneNodeId == "root" &&
+            fragment.SourceSceneNodeId == HtmlSceneNodeId.Root &&
             Math.Abs(fragment.BorderBox.Left - (root.Width - root.ScrollBarWidth)) < 0.001f &&
             Math.Abs(fragment.BorderBox.Right - root.Width) < 0.001f);
         Assert.Contains(scrollBarFragments, fragment =>
             fragment.GeneratedRole == HtmlGeneratedFragmentRole.VerticalScrollBarThumb &&
-            fragment.SourceSceneNodeId == "root");
+            fragment.SourceSceneNodeId == HtmlSceneNodeId.Root);
     }
 
     [Fact]

@@ -4,8 +4,8 @@ using Enaga.Scene;
 namespace Enaga.Html;
 
 internal sealed class HtmlSceneEmitter(
-    string rootId,
-    SceneNodeIdentityMap<string> sceneNodeIds,
+    HtmlSceneNodeId rootId,
+    SceneNodeIdentityMap<HtmlSceneNodeId> sceneNodeIds,
     HtmlSceneTextStyleCache textStyleCache,
     int width,
     int height,
@@ -39,7 +39,7 @@ internal sealed class HtmlSceneEmitter(
             rootKind,
             ParentId: null,
             childMap.TryGetValue(rootSceneNodeId, out var rootChildren) ? rootChildren : [],
-            rootId);
+            Label: null);
         layout[rootSceneNodeId] = CreateLayoutBox(rootSceneNodeId, rootKind, rootStyle, 0, 0, rootLayoutWidth, rootLayoutHeight, null, null, null, null, SceneControlKind.None, viewportScale);
 
         for (var index = 0; index < placedNodes.Count; index++)
@@ -49,7 +49,7 @@ internal sealed class HtmlSceneEmitter(
             var sceneNodeId = ToSceneNodeId(placed.Id);
             nodes[sceneNodeId] = new SceneGraphNode(
                 node.NodeKind,
-                placed.ParentId is null ? null : ToSceneNodeId(placed.ParentId),
+                placed.ParentId is null ? null : ToSceneNodeId(placed.ParentId.Value),
                 childMap.TryGetValue(sceneNodeId, out var childIds) ? childIds : [],
                 node.Label);
             layout[sceneNodeId] = CreateLayoutBox(
@@ -212,7 +212,7 @@ internal sealed class HtmlSceneEmitter(
     private static bool Same(float left, float right)
         => Math.Abs(left - right) <= 0.001f;
 
-    private SceneNodeId ToSceneNodeId(string id)
+    private SceneNodeId ToSceneNodeId(HtmlSceneNodeId id)
         => sceneNodeIds.GetOrCreate(id);
 
     private static bool SameTextStyle(SceneTextStyle? previous, HtmlComputedStyle style)

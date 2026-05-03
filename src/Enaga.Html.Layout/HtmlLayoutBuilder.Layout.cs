@@ -917,7 +917,8 @@ internal sealed partial class HtmlLayoutBuilder
                 if (frames[index] is not { } frame)
                     continue;
 
-                contentBottom = Math.Max(contentBottom, frame.Top + frame.Height + childRequests[index].MarginBottom);
+                ref readonly var request = ref childRequests[index];
+                contentBottom = Math.Max(contentBottom, frame.Top + frame.Height + request.MarginBottom);
             }
 
             return contentBottom + style.PaddingBottom;
@@ -1038,8 +1039,9 @@ internal sealed partial class HtmlLayoutBuilder
                 if (frames[index] is not { } frame)
                     continue;
 
-                contentRight = Math.Max(contentRight, frame.Left + frame.Width + intrinsicRequests[index].MarginRight);
-                contentBottom = Math.Max(contentBottom, frame.Top + frame.Height + intrinsicRequests[index].MarginBottom);
+                ref readonly var request = ref intrinsicRequests[index];
+                contentRight = Math.Max(contentRight, frame.Left + frame.Width + request.MarginRight);
+                contentBottom = Math.Max(contentBottom, frame.Top + frame.Height + request.MarginBottom);
             }
 
             var measurement = layoutCalculator.ComputeFlexLayout(
@@ -1131,8 +1133,8 @@ internal sealed partial class HtmlLayoutBuilder
             : scratch.AllocateFloats(childRequests.Length);
         for (var index = 0; index < childRequests.Length; index++)
         {
-            var request = childRequests[index];
-            var baseWidth = ResolveRowBaseWidth(request, availableWidth);
+            ref readonly var request = ref childRequests[index];
+            var baseWidth = ResolveRowBaseWidth(in request, availableWidth);
             baseWidths[index] = baseWidth;
             totalBaseWidth += request.MarginLeft + baseWidth + request.MarginRight;
             if (request.FlexGrow > 0)
@@ -1153,7 +1155,8 @@ internal sealed partial class HtmlLayoutBuilder
             if (LayoutValue.IsSet(child.Style.Height))
                 continue;
 
-            var resolvedWidth = ResolveFlexibleWidth(baseWidths[index], childRequests[index], remainingWidth, totalGrow, totalShrinkWeight);
+            ref readonly var request = ref childRequests[index];
+            var resolvedWidth = ResolveFlexibleWidth(baseWidths[index], in request, remainingWidth, totalGrow, totalShrinkWeight);
             if (resolvedWidth <= 0)
                 continue;
 
@@ -1170,7 +1173,7 @@ internal sealed partial class HtmlLayoutBuilder
             }
             else
             {
-                childRequests[index] = WithHeight(childRequests[index], height);
+                childRequests[index] = WithHeight(in request, height);
             }
         }
 
@@ -1180,7 +1183,7 @@ internal sealed partial class HtmlLayoutBuilder
         for (var index = 0; index < measuredHeights.Length; index++)
         {
             if (measuredHeights[index] > 0)
-                childRequests[index] = WithHeight(childRequests[index], maxStretchHeight);
+                childRequests[index] = WithHeight(in childRequests[index], maxStretchHeight);
         }
     }
 
@@ -1220,7 +1223,8 @@ internal sealed partial class HtmlLayoutBuilder
         var hasFlex = false;
         for (var index = 0; index < childRequests.Length; index++)
         {
-            if (childRequests[index].FlexGrow > 0 || childRequests[index].FlexShrink > 0)
+            ref readonly var request = ref childRequests[index];
+            if (request.FlexGrow > 0 || request.FlexShrink > 0)
             {
                 hasFlex = true;
                 break;
@@ -1232,7 +1236,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         var measurementRequests = scratch.AllocateRequests(childRequests.Length);
         for (var index = 0; index < childRequests.Length; index++)
-            measurementRequests[index] = WithFlex(childRequests[index], 0, 0);
+            measurementRequests[index] = WithFlex(in childRequests[index], 0, 0);
         return measurementRequests;
     }
 
@@ -1246,8 +1250,8 @@ internal sealed partial class HtmlLayoutBuilder
         var changed = false;
         for (var index = 1; index < collapsedRequests.Length; index++)
         {
-            var previous = collapsedRequests[index - 1];
-            var current = collapsedRequests[index];
+            ref readonly var previous = ref collapsedRequests[index - 1];
+            ref readonly var current = ref collapsedRequests[index];
             var collapsedMargin = Math.Max(previous.MarginBottom, current.MarginTop);
             if (MathF.Abs(previous.MarginBottom) < 0.01f &&
                 MathF.Abs(current.MarginTop - collapsedMargin) < 0.01f)
@@ -1255,8 +1259,8 @@ internal sealed partial class HtmlLayoutBuilder
                 continue;
             }
 
-            collapsedRequests[index - 1] = WithMargins(previous, previous.MarginTop, 0);
-            collapsedRequests[index] = WithMargins(current, collapsedMargin, current.MarginBottom);
+            collapsedRequests[index - 1] = WithMargins(in previous, previous.MarginTop, 0);
+            collapsedRequests[index] = WithMargins(in current, collapsedMargin, current.MarginBottom);
             changed = true;
         }
 

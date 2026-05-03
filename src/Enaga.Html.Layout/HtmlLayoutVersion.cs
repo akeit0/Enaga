@@ -9,7 +9,7 @@ internal sealed class HtmlSceneVersionStore
     private static readonly HtmlSceneVersionAdapter Adapter = new();
     private readonly DomElementStyleStore<HtmlComputedStyle> domStore = new();
     private readonly Dictionary<HtmlNodeId, HtmlSceneNode> domLayoutIdentities = new();
-    private readonly ElementStyleLayoutStore<string, HtmlComputedStyle, HtmlSceneNode> generatedStore = new(StringComparer.Ordinal);
+    private readonly ElementStyleLayoutStore<HtmlSceneNodeId, HtmlComputedStyle, HtmlSceneNode> generatedStore = new();
     private readonly HtmlLayoutDirtySet layoutDirtyNodes = new();
 
     public RestyleHint LastInvalidationHints { get; private set; }
@@ -189,11 +189,11 @@ internal sealed class HtmlSceneVersionStore
         PendingInvalidations.Clear();
     }
 
-    private sealed class HtmlSceneVersionAdapter : IStyleLayoutVersionAdapter<HtmlSceneNode, HtmlComputedStyle, string>
+    private sealed class HtmlSceneVersionAdapter : IStyleLayoutVersionAdapter<HtmlSceneNode, HtmlComputedStyle, HtmlSceneNodeId>
     {
         public HtmlNodeId GetNodeId(HtmlSceneNode node) => node.DomNodeId;
 
-        public string GetKey(HtmlSceneNode node) => node.Id;
+        public HtmlSceneNodeId GetKey(HtmlSceneNode node) => node.Id;
 
         public HtmlComputedStyle GetStyle(HtmlSceneNode node) => node.Style;
 
@@ -227,7 +227,7 @@ internal sealed class HtmlSceneVersionStore
             {
                 var previousChild = previous.Children[index];
                 var nextChild = next.Children[index];
-                if (!string.Equals(previousChild.Id, nextChild.Id, StringComparison.Ordinal) ||
+                if (previousChild.Id != nextChild.Id ||
                     previousChild.StyleVersion != nextChild.StyleVersion ||
                     previousChild.LayoutVersion != nextChild.LayoutVersion)
                 {
@@ -242,19 +242,8 @@ internal sealed class HtmlSceneVersionStore
 
 internal static class HtmlLayoutVersion
 {
-    public static LayoutNodeId ToLayoutNodeId(string nodeId)
-    {
-        const uint offset = 2166136261;
-        const uint prime = 16777619;
-        var hash = offset;
-        foreach (var ch in nodeId.AsSpan())
-        {
-            hash ^= ch;
-            hash *= prime;
-        }
-
-        return new LayoutNodeId(unchecked((int)hash));
-    }
+    public static LayoutNodeId ToLayoutNodeId(HtmlSceneNodeId nodeId)
+        => new(HashCode.Combine(nodeId.Value, nodeId.FragmentIndex));
 }
 
 [Flags]

@@ -169,17 +169,13 @@ internal sealed class HtmlSceneTreeBuilder
     }
 
     private static bool IsTableRowNode(HtmlSceneNode node)
-        => node.Id.StartsWith("tr-", StringComparison.Ordinal);
+        => node.Role == HtmlSceneNodeRole.TableRow;
 
     private static bool IsTableCellNode(HtmlSceneNode node)
-        => node.Id.StartsWith("td-", StringComparison.Ordinal) ||
-           node.Id.StartsWith("th-", StringComparison.Ordinal);
+        => node.Role == HtmlSceneNodeRole.TableCell;
 
     private static bool IsTableFormattingNode(HtmlSceneNode node)
-        => node.Id.StartsWith("table-", StringComparison.Ordinal) ||
-           node.Id.StartsWith("tbody-", StringComparison.Ordinal) ||
-           node.Id.StartsWith("thead-", StringComparison.Ordinal) ||
-           node.Id.StartsWith("tfoot-", StringComparison.Ordinal) ||
+        => node.Role is HtmlSceneNodeRole.Table or HtmlSceneNodeRole.TableSection ||
            IsTableRowNode(node) ||
            IsTableCellNode(node);
 
@@ -200,7 +196,8 @@ internal sealed class HtmlSceneTreeBuilder
         if (style.Display == HtmlDisplay.Contents)
             return BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
 
-        var firstNodeId = idGenerator.Next(element.LocalName);
+        var firstNodeId = idGenerator.Next();
+        var role = ResolveSceneNodeRole(element);
         if (style.Display != HtmlDisplay.Inline &&
             style.Display != HtmlDisplay.InlineBlock &&
             !string.Equals(element.LocalName, "br", StringComparison.OrdinalIgnoreCase))
@@ -222,12 +219,14 @@ internal sealed class HtmlSceneTreeBuilder
                     linkHref,
                     element.Id,
                     element.NodeId,
-                    ControlKind: ResolveControlKind(element))
+                    ControlKind: ResolveControlKind(element),
+                    Role: role)
             ];
         }
 
         if (style.Display == HtmlDisplay.InlineBlock)
         {
+            style = style.CloneForFormatting();
             style.ApplyInlineBlockDefaults();
             var nodeKind = ResolveNodeKind(element, style);
             var children = nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
@@ -246,7 +245,8 @@ internal sealed class HtmlSceneTreeBuilder
                     linkHref,
                     element.Id,
                     element.NodeId,
-                    ControlKind: ResolveControlKind(element))
+                    ControlKind: ResolveControlKind(element),
+                    Role: role)
             ];
         }
 
@@ -267,12 +267,14 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 element.Id,
                 element.NodeId,
-                ControlKind: ResolveControlKind(element))
+                ControlKind: ResolveControlKind(element),
+                Role: role)
             ];
         }
 
         if (style.HasInlineBoxMetrics)
         {
+            style = style.CloneForFormatting();
             style.ApplyInlineBoxDefaults();
             var nodeKind = ResolveNodeKind(element, style);
             var children = nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
@@ -291,7 +293,8 @@ internal sealed class HtmlSceneTreeBuilder
                     linkHref,
                     element.Id,
                     element.NodeId,
-                    ControlKind: ResolveControlKind(element))
+                    ControlKind: ResolveControlKind(element),
+                    Role: role)
             ];
         }
 
@@ -390,7 +393,7 @@ internal sealed class HtmlSceneTreeBuilder
                 {
                     grouped ??= CopyPrefix(children, start);
                     grouped.Add(new HtmlSceneNode(
-                        idGenerator.Next("inline-run"),
+                        idGenerator.Next(),
                         SceneNodeKind.View,
                         CreateInlineRunContainerStyle(parent, parentStyle, children, start, 1),
                         [children[start]],
@@ -398,7 +401,8 @@ internal sealed class HtmlSceneTreeBuilder
                         null,
                         null,
                         null,
-                        null));
+                        null,
+                        Role: HtmlSceneNodeRole.InlineRun));
                 }
                 else
                 {
@@ -410,7 +414,7 @@ internal sealed class HtmlSceneTreeBuilder
 
             grouped ??= CopyPrefix(children, start);
             grouped.Add(new HtmlSceneNode(
-                idGenerator.Next("inline-run"),
+                idGenerator.Next(),
                 SceneNodeKind.View,
                 CreateInlineRunContainerStyle(parent, parentStyle, children, start, index - start),
                 CopyInlineRunRange(children, start, index - start),
@@ -418,7 +422,8 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 null,
                 null,
-                null));
+                null,
+                Role: HtmlSceneNodeRole.InlineRun));
         }
 
         return grouped ?? children;
@@ -548,7 +553,8 @@ internal sealed class HtmlSceneTreeBuilder
         if (style.Display == HtmlDisplay.None)
             return null;
 
-        var elementNodeId = idGenerator.Next(element.LocalName);
+        var elementNodeId = idGenerator.Next();
+        var role = ResolveSceneNodeRole(element);
         var nodeKind = ResolveNodeKind(element, style);
         var linkHref = ResolveLinkHref(element, inheritedLinkHref, basePath);
         if (isListItem && style.SuppressListMarker)
@@ -559,6 +565,7 @@ internal sealed class HtmlSceneTreeBuilder
         if (isListItem && markerText is not null)
         {
             listItemContentStyle = style.CreateListItemContentStyle();
+            style = style.CloneForFormatting();
             style.ApplyListItemContainerDefaults(markerText);
         }
         if (markerText is null &&
@@ -581,7 +588,8 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 linkHref,
                 element.Id,
-                element.NodeId);
+                element.NodeId,
+                Role: role);
         }
 
         var childInheritedStyle = listItemContentStyle ?? style;
@@ -596,7 +604,7 @@ internal sealed class HtmlSceneTreeBuilder
             markerStyle.ApplyInlineTextDefaults();
             markerStyle.ApplyListMarkerDefaults(markerText);
             var markerNode = new HtmlSceneNode(
-                idGenerator.Next("marker"),
+                idGenerator.Next(),
                 SceneNodeKind.Text,
                 markerStyle,
                 [],
@@ -604,9 +612,10 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 null,
                 null,
-                null);
+                null,
+                Role: HtmlSceneNodeRole.ListMarker);
             var contentNode = new HtmlSceneNode(
-                idGenerator.Next("list-content"),
+                idGenerator.Next(),
                 SceneNodeKind.View,
                 listItemContentStyle ?? style.CreateListItemContentStyle(),
                 children,
@@ -614,7 +623,8 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 null,
                 null,
-                null);
+                null,
+                Role: HtmlSceneNodeRole.ListContent);
             children = [markerNode, contentNode];
         }
 
@@ -631,6 +641,7 @@ internal sealed class HtmlSceneTreeBuilder
             imageSource is not null &&
             TryReadImageIntrinsicSize(imageSource, out var intrinsicWidth, out var intrinsicHeight))
         {
+            style = style.CloneForFormatting();
             style.ApplyIntrinsicImageSize(intrinsicWidth, intrinsicHeight);
         }
         var rowSpan = IsTableCellElement(element) ? ParsePositiveInt(element.GetAttribute("rowspan"), 1) : 1;
@@ -649,13 +660,25 @@ internal sealed class HtmlSceneTreeBuilder
             element.NodeId,
             RowSpan: rowSpan,
             ColSpan: colSpan,
-            ControlKind: ResolveControlKind(element));
+            ControlKind: ResolveControlKind(element),
+            Role: role);
     }
+
+    private static HtmlSceneNodeRole ResolveSceneNodeRole(HtmlDomElement element)
+        => element.LocalName switch
+        {
+            "table" => HtmlSceneNodeRole.Table,
+            "thead" or "tbody" or "tfoot" => HtmlSceneNodeRole.TableSection,
+            "tr" => HtmlSceneNodeRole.TableRow,
+            "td" or "th" => HtmlSceneNodeRole.TableCell,
+            "li" => HtmlSceneNodeRole.ListItem,
+            _ => HtmlSceneNodeRole.Normal
+        };
 
     private HtmlComputedStyle ResolveElementStyle(HtmlDomElement element, HtmlComputedStyleTree styleTree)
     {
         if (styleTree.Styles.TryGetValue(element.NodeId, out var precomputedStyle))
-            return precomputedStyle.CloneForFormatting();
+            return precomputedStyle;
 
         throw new InvalidOperationException($"Computed style not found for DOM node {element.NodeId.Value} ({element.LocalName}).");
     }
@@ -810,7 +833,7 @@ internal sealed class HtmlSceneTreeBuilder
         return
         [
             new HtmlSceneNode(
-                idGenerator.Next("input-text"),
+                idGenerator.Next(),
                 SceneNodeKind.Text,
                 textStyle,
                 [],
@@ -819,7 +842,8 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 linkHref,
                 null,
-                element.NodeId)
+                element.NodeId,
+                Role: HtmlSceneNodeRole.InputText)
         ];
     }
 
@@ -861,7 +885,7 @@ internal sealed class HtmlSceneTreeBuilder
             textStyle.ApplyInlineTextDefaults();
 
         return new HtmlSceneNode(
-            idGenerator.Next("text"),
+            idGenerator.Next(),
             SceneNodeKind.Text,
             textStyle,
             [],
@@ -869,7 +893,8 @@ internal sealed class HtmlSceneTreeBuilder
             null,
             null,
             inheritedLinkHref,
-            null);
+            null,
+            Role: HtmlSceneNodeRole.Text);
     }
 
     private static IReadOnlyList<HtmlSceneNode> BuildInlineTextNodes(
@@ -887,7 +912,7 @@ internal sealed class HtmlSceneTreeBuilder
             return
             [
                 new HtmlSceneNode(
-                    idGenerator.Next("text"),
+                    idGenerator.Next(),
                     SceneNodeKind.Text,
                     HtmlComputedStyle.CreateInlineWrappedTextDefault(inheritedStyle.CreateTextStyle()),
                     [],
@@ -895,7 +920,8 @@ internal sealed class HtmlSceneTreeBuilder
                     null,
                     null,
                     inheritedLinkHref,
-                    null)
+                    null,
+                    Role: HtmlSceneNodeRole.Text)
             ];
         }
 
@@ -906,7 +932,7 @@ internal sealed class HtmlSceneTreeBuilder
             return
             [
                 new HtmlSceneNode(
-                    idGenerator.Next("text"),
+                    idGenerator.Next(),
                     SceneNodeKind.Text,
                     textStyle,
                     [],
@@ -914,7 +940,8 @@ internal sealed class HtmlSceneTreeBuilder
                     null,
                     null,
                     inheritedLinkHref,
-                    null)
+                    null,
+                    Role: HtmlSceneNodeRole.Text)
             ];
         }
 
@@ -943,7 +970,7 @@ internal sealed class HtmlSceneTreeBuilder
             var wordStyle = inheritedStyle.CreateTextStyle();
             wordStyle.ApplyInlineTextDefaults();
             nodes.Add(new HtmlSceneNode(
-                idGenerator.Next("text"),
+                idGenerator.Next(),
                 SceneNodeKind.Text,
                 wordStyle,
                 [],
@@ -951,7 +978,8 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 null,
                 inheritedLinkHref,
-                null));
+                null,
+                Role: HtmlSceneNodeRole.Text));
         }
 
         return nodes;

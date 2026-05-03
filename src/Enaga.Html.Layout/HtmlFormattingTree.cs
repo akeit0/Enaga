@@ -147,7 +147,7 @@ internal sealed record HtmlFragment(
     HtmlLayoutRect VisualOverflow,
     uint PaintVersion,
     Enaga.Scene.SceneNodeId SceneNodeId = default,
-    string SourceSceneNodeId = "",
+    HtmlSceneNodeId SourceSceneNodeId = default,
     HtmlGeneratedFragmentRole GeneratedRole = HtmlGeneratedFragmentRole.None);
 
 internal sealed class HtmlFragmentTree

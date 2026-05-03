@@ -6,7 +6,7 @@ namespace Enaga.Html;
 internal sealed partial class HtmlLayoutBuilder
 {
     private bool TryLayoutInlineFormattingContext(
-        string parentId,
+        HtmlSceneNodeId parentId,
         HtmlComputedStyle parentStyle,
         IReadOnlyList<HtmlSceneNode> children,
         float parentLeft,
@@ -24,24 +24,24 @@ internal sealed partial class HtmlLayoutBuilder
         try
         {
             var lineLayout = CreateInlineLineLayout(parentStyle, children, contentWidth, contentHeight);
-            var childIds = new string[lineLayout.Items.Length];
+            var childIds = new HtmlSceneNodeId[lineLayout.Items.Length];
             for (var index = 0; index < lineLayout.Items.Length; index++)
             {
-                var item = lineLayout.Items[index];
+                ref readonly var item = ref lineLayout.Items[index];
                 var child = item.Node;
                 var frame = lineLayout.Frames[index] ?? new LayoutFrameData(parentStyle.PaddingLeft, parentStyle.PaddingTop, 0, 0);
                 if (item.TextFragment is null && TryResolveInlineTextFragmentFrame(child, frame, out var textFrame))
                     frame = textFrame;
                 var absLeft = parentLeft + frame.Left;
                 var absTop = parentTop + frame.Top;
-                var fragmentId = item.TextFragment is null ? null : $"{child.Id}:frag:{item.FragmentIndex}";
-                AddPlacedNode(child, parentId, absLeft, absTop, frame.Width, frame.Height, fragmentId, item.TextFragment);
-                childIds[index] = fragmentId ?? child.Id;
+                var fragmentIndex = item.TextFragment is null ? -1 : item.FragmentIndex;
+                AddPlacedNode(child, parentId, absLeft, absTop, frame.Width, frame.Height, fragmentIndex, item.TextFragment);
+                childIds[index] = fragmentIndex >= 0 ? HtmlSceneNodeId.Fragment(child.Id, fragmentIndex) : child.Id;
 
                 if (item.TextFragment is null && child.Children.Count > 0)
                     LayoutChildren(child.Id, child.Style, child.Children, absLeft, absTop, frame.Width, frame.Height, viewportScale);
                 else
-                    AddChildRelation(fragmentId ?? child.Id, []);
+                    AddChildRelation(childIds[index], []);
             }
 
             AddChildRelation(parentId, childIds);
@@ -97,7 +97,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         for (var index = 0; index < itemCount; index++)
         {
-            var item = items[index];
+            ref readonly var item = ref items[index];
             if (item.ForcedLineBreak)
             {
                 if (index > lineStart)
@@ -303,7 +303,7 @@ internal sealed partial class HtmlLayoutBuilder
         for (var index = start; index < end; index++)
         {
             if (index > start)
-                lineWidth += ResolveInlineGap(parentStyle, items[index - 1], items[index]);
+                lineWidth += ResolveInlineGap(parentStyle, in items[index - 1], in items[index]);
             lineWidth += items[index].MarginLeft + items[index].Width + items[index].MarginRight;
         }
 
@@ -317,12 +317,12 @@ internal sealed partial class HtmlLayoutBuilder
         var baseline = lineTop + lineAscent;
         for (var index = start; index < end; index++)
         {
-            var item = items[index];
+            ref readonly var item = ref items[index];
             if (index > start)
             {
-                var gap = ResolveInlineGap(parentStyle, items[index - 1], item);
+                var gap = ResolveInlineGap(parentStyle, in items[index - 1], in item);
                 if (gap > 0 &&
-                    ShouldBridgeUnderlineGap(items[index - 1], item) &&
+                    ShouldBridgeUnderlineGap(in items[index - 1], in item) &&
                     frames[index - 1] is { } previousFrame)
                 {
                     frames[index - 1] = new LayoutFrameData(
@@ -342,7 +342,7 @@ internal sealed partial class HtmlLayoutBuilder
         }
     }
 
-    private static bool ShouldBridgeUnderlineGap(InlineLayoutItem previous, InlineLayoutItem current)
+    private static bool ShouldBridgeUnderlineGap(in InlineLayoutItem previous, in InlineLayoutItem current)
         => previous.Node.NodeKind == SceneNodeKind.Text &&
            current.Node.NodeKind == SceneNodeKind.Text &&
            previous.Node.Style.Underline &&
@@ -374,7 +374,7 @@ internal sealed partial class HtmlLayoutBuilder
         return true;
     }
 
-    private static float ResolveInlineGap(HtmlComputedStyle parentStyle, InlineLayoutItem previous, InlineLayoutItem current)
+    private static float ResolveInlineGap(HtmlComputedStyle parentStyle, in InlineLayoutItem previous, in InlineLayoutItem current)
         => previous.SuppressTrailingInlineGap || current.SuppressLeadingInlineGap ? 0 : parentStyle.Gap;
 
     private static bool ShouldFragmentInlineText(HtmlSceneNode node)

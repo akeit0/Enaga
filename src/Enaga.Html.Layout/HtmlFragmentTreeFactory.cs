@@ -6,8 +6,8 @@ namespace Enaga.Html;
 internal static class HtmlFragmentTreeFactory
 {
     public static HtmlFragmentTree Create(
-        string rootId,
-        SceneNodeIdentityMap<string> sceneNodeIds,
+        HtmlSceneNodeId rootId,
+        SceneNodeIdentityMap<HtmlSceneNodeId> sceneNodeIds,
         float rootWidth,
         float rootHeight,
         IReadOnlyList<HtmlPlacedNode> placedNodes,
@@ -42,7 +42,7 @@ internal static class HtmlFragmentTreeFactory
             fragments.Add(new HtmlFragment(
                 CreateFragmentId(id),
                 CreateFormattingNodeId(placed.Node.Id),
-                ParentId: string.IsNullOrWhiteSpace(placed.ParentId) ? rootFragmentId : CreateFragmentId(placed.ParentId),
+                ParentId: placed.ParentId is null ? rootFragmentId : CreateFragmentId(placed.ParentId.Value),
                 Children: [],
                 kind,
                 BorderBox: rect,
@@ -62,10 +62,9 @@ internal static class HtmlFragmentTreeFactory
 
     private static HtmlFragmentKind ResolveFragmentKind(HtmlSceneNode node)
     {
-        if (node.Id.StartsWith("marker-", StringComparison.Ordinal))
+        if (node.Role == HtmlSceneNodeRole.ListMarker)
             return HtmlFragmentKind.ListMarker;
-        if (node.Id.StartsWith("td-", StringComparison.Ordinal) ||
-            node.Id.StartsWith("th-", StringComparison.Ordinal))
+        if (node.Role == HtmlSceneNodeRole.TableCell)
             return HtmlFragmentKind.TableCell;
 
         return node.NodeKind switch
@@ -79,8 +78,8 @@ internal static class HtmlFragmentTreeFactory
 
     private static void AddScrollBarFragments(
         List<HtmlFragment> fragments,
-        string sceneNodeId,
-        string sourceSceneNodeId,
+        HtmlSceneNodeId sceneNodeId,
+        HtmlSceneNodeId sourceSceneNodeId,
         HtmlFragmentId parentId,
         SceneLayoutBox box)
     {
@@ -133,8 +132,8 @@ internal static class HtmlFragmentTreeFactory
 
     private static void AddGeneratedFragment(
         List<HtmlFragment> fragments,
-        string sceneNodeId,
-        string sourceSceneNodeId,
+        HtmlSceneNodeId sceneNodeId,
+        HtmlSceneNodeId sourceSceneNodeId,
         HtmlFragmentId parentId,
         HtmlGeneratedFragmentRole role,
         HtmlLayoutRect rect,
@@ -230,32 +229,24 @@ internal static class HtmlFragmentTreeFactory
         return unchecked((uint)hash.ToHashCode());
     }
 
-    private static HtmlFragmentId CreateFragmentId(string id)
+    private static HtmlFragmentId CreateFragmentId(HtmlSceneNodeId id)
         => new(StableHash(id));
 
-    private static HtmlFragmentId CreateGeneratedFragmentId(string id, HtmlGeneratedFragmentRole role)
+    private static HtmlFragmentId CreateGeneratedFragmentId(HtmlSceneNodeId id, HtmlGeneratedFragmentRole role)
         => new(StableHash(id, (int)role));
 
-    private static HtmlFormattingNodeId CreateFormattingNodeId(string id)
+    private static HtmlFormattingNodeId CreateFormattingNodeId(HtmlSceneNodeId id)
         => new(StableHash(id));
 
-    private static int StableHash(string value)
-        => StableHash(value, 0);
+    private static int StableHash(HtmlSceneNodeId id)
+        => StableHash(id, 0);
 
-    private static int StableHash(string value, int discriminator)
+    private static int StableHash(HtmlSceneNodeId id, int discriminator)
     {
-        unchecked
-        {
-            var hash = 2166136261u;
-            for (var index = 0; index < value.Length; index++)
-            {
-                hash ^= value[index];
-                hash *= 16777619u;
-            }
-
-            hash ^= (uint)discriminator;
-            hash *= 16777619u;
-            return (int)(hash & 0x7fffffffu);
-        }
+        var hash = new HashCode();
+        hash.Add(id.Value);
+        hash.Add(id.FragmentIndex);
+        hash.Add(discriminator);
+        return hash.ToHashCode() & 0x7fffffff;
     }
 }

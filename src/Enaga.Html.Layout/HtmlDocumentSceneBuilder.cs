@@ -7,7 +7,6 @@ namespace Enaga.Html;
 
 internal sealed class HtmlDocumentSceneBuilder
 {
-    private readonly string rootId;
     private readonly HtmlSceneTreeBuilder sceneTreeBuilder;
     private readonly HtmlStyleTraversal styleTraversal;
     private readonly HtmlLayoutBuilder layoutBuilder;
@@ -17,7 +16,6 @@ internal sealed class HtmlDocumentSceneBuilder
     public HtmlDocumentSceneBuilder(HtmlOptions options, SceneNodeIdAllocator sceneNodeIdAllocator)
     {
         ArgumentNullException.ThrowIfNull(sceneNodeIdAllocator);
-        rootId = options.RootId;
         var layoutConfig = options.LayoutConfig ?? LayoutEngineConfig.WebDefaults;
         var textServices = (options.BackendServices ?? DummyRuntimeBackendServices.Create()).Text;
         sceneTreeBuilder = new HtmlSceneTreeBuilder(options, layoutConfig, metrics);
@@ -65,7 +63,7 @@ internal sealed class HtmlDocumentSceneBuilder
         LastInvalidationHints = sceneTreeBuilder.LastInvalidationHints;
         LastDamage = sceneTreeBuilder.LastDamage;
         layoutOutputStore.BeginDocument(document, styledTree.StyleStoreGeneration);
-        layoutOutputStore.UpdateLayoutTree(rootId, styledTree.RootChildren);
+        layoutOutputStore.UpdateLayoutTree(HtmlSceneNodeId.Root, styledTree.RootChildren);
         layoutOutputStore.InvalidateNodes(sceneTreeBuilder.LastLayoutDirtyNodes);
         var commit = layoutBuilder.Build(styledTree, layoutOutputStore, width, height, viewportScale);
         LastFragmentTree = layoutBuilder.LastFragmentTree;

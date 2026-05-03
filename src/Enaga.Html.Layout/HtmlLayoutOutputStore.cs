@@ -28,7 +28,7 @@ internal sealed class HtmlLayoutOutputStore
         propagationBoundaries.Clear();
     }
 
-    public void UpdateLayoutTree(string rootId, IReadOnlyList<HtmlSceneNode> rootChildren)
+    public void UpdateLayoutTree(HtmlSceneNodeId rootId, IReadOnlyList<HtmlSceneNode> rootChildren)
     {
         var nodeCount = CountNodes(rootChildren) + 1;
         childrenByNode.EnsureCapacity(nodeCount);

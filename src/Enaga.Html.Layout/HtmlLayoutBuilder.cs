@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using Enaga.Layout;
 using Enaga.Rendering;
 using Enaga.Scene;
@@ -7,24 +8,23 @@ namespace Enaga.Html;
 
 internal sealed partial class HtmlLayoutBuilder
 {
-    private readonly string rootId;
+    private readonly HtmlSceneNodeId rootId = HtmlSceneNodeId.Root;
     private readonly IRuntimeTextServices textServices;
     private readonly HtmlPipelineMetrics metrics;
     private readonly LayoutCalculator layoutCalculator;
     private readonly LayoutScratchArena scratch = new();
     private readonly HtmlLayoutMeasurementCache measurementCache;
     private readonly HtmlSceneTextStyleCache textStyleCache = new();
-    private readonly SceneNodeIdentityMap<string> sceneNodeIds;
+    private readonly SceneNodeIdentityMap<HtmlSceneNodeId> sceneNodeIds;
     private readonly List<HtmlPlacedNode> placedNodes = new();
     private readonly List<HtmlChildRelation> childRelations = new();
     private SceneLayoutCommit? previousCommit;
 
     public HtmlLayoutBuilder(string rootId, IRuntimeTextServices textServices, HtmlPipelineMetrics metrics, SceneNodeIdAllocator sceneNodeIdAllocator)
     {
-        this.rootId = rootId;
         this.textServices = textServices;
         this.metrics = metrics;
-        sceneNodeIds = new SceneNodeIdentityMap<string>(rootId, sceneNodeIdAllocator, StringComparer.Ordinal);
+        sceneNodeIds = new SceneNodeIdentityMap<HtmlSceneNodeId>(this.rootId, sceneNodeIdAllocator);
         measurementCache = new HtmlLayoutMeasurementCache(metrics);
         layoutCalculator = new LayoutCalculator(textServices);
     }
@@ -90,21 +90,20 @@ internal sealed partial class HtmlLayoutBuilder
     }
 
     private static bool IsTableRowNode(HtmlSceneNode node)
-        => node.Id.StartsWith("tr-", StringComparison.Ordinal);
+        => node.Role == HtmlSceneNodeRole.TableRow;
 
     private static bool IsTableCellNode(HtmlSceneNode node)
-        => node.Id.StartsWith("td-", StringComparison.Ordinal) ||
-           node.Id.StartsWith("th-", StringComparison.Ordinal);
+        => node.Role == HtmlSceneNodeRole.TableCell;
 
     private static bool IsCssBlockifiedTableCell(HtmlSceneNode node)
         => IsTableCellNode(node) &&
            node.Style is { HasExplicitDisplay: true, Display: HtmlDisplay.Block };
 
     private static bool IsListItemNode(HtmlSceneNode node)
-        => node.Id.StartsWith("li-", StringComparison.Ordinal);
+        => node.Role == HtmlSceneNodeRole.ListItem;
 
     private void LayoutChildren(
-        string parentId,
+        HtmlSceneNodeId parentId,
         HtmlComputedStyle parentStyle,
         IReadOnlyList<HtmlSceneNode> children,
         float parentLeft,
@@ -173,7 +172,7 @@ internal sealed partial class HtmlLayoutBuilder
                     out parentContentHeight);
             }
 
-            var childIds = new string[resolvedChildren.Count];
+            var childIds = new HtmlSceneNodeId[resolvedChildren.Count];
             for (var index = 0; index < resolvedChildren.Count; index++)
             {
                 var child = resolvedChildren[index];
@@ -201,7 +200,7 @@ internal sealed partial class HtmlLayoutBuilder
         => style.Display == HtmlDisplay.Flex;
 
     private bool TryLayoutFloatChildren(
-        string parentId,
+        HtmlSceneNodeId parentId,
         HtmlComputedStyle parentStyle,
         IReadOnlyList<HtmlSceneNode> children,
         float parentLeft,
@@ -225,13 +224,13 @@ internal sealed partial class HtmlLayoutBuilder
         try
         {
             var requests = CreateFloatMeasureRequests(children, contentWidth, contentHeight);
-            var childIds = new string[children.Count];
+            var childIds = new HtmlSceneNodeId[children.Count];
             var placements = MeasureFloatContent(parentStyle, children, requests, parentWidth, wrapLines: true).Placements;
             for (var index = 0; index < children.Count; index++)
             {
                 var child = children[index];
-                var request = requests[index];
-                var placement = placements[index];
+                ref readonly var request = ref requests[index];
+                ref readonly var placement = ref placements[index];
                 var width = LayoutValue.IsSet(request.Width) ? request.Width : 0;
                 var height = LayoutValue.IsSet(request.Height) ? request.Height : 0;
                 var absLeft = parentLeft + placement.Left;
@@ -299,14 +298,14 @@ internal sealed partial class HtmlLayoutBuilder
         return false;
     }
 
-    private static FloatContentMeasure MeasureFloatContent(
+    private FloatContentMeasure MeasureFloatContent(
         HtmlComputedStyle parentStyle,
         IReadOnlyList<HtmlSceneNode> children,
         ReadOnlySpan<LayoutChildRequest> requests,
         float parentWidth,
         bool wrapLines)
     {
-        var placements = new FloatPlacement[children.Count];
+        var placements = scratch.AllocateFloatPlacements(children.Count);
         var leftCursor = parentStyle.PaddingLeft;
         var rightCursor = parentWidth - parentStyle.PaddingRight;
         var currentY = parentStyle.PaddingTop;
@@ -316,7 +315,7 @@ internal sealed partial class HtmlLayoutBuilder
         for (var index = 0; index < children.Count; index++)
         {
             var child = children[index];
-            var request = requests[index];
+            ref readonly var request = ref requests[index];
             var width = LayoutValue.IsSet(request.Width) ? request.Width : 0;
             var height = LayoutValue.IsSet(request.Height) ? request.Height : 0;
             var outerWidth = request.MarginLeft + width + request.MarginRight;
@@ -390,10 +389,15 @@ internal sealed partial class HtmlLayoutBuilder
 
     private readonly record struct FloatPlacement(float Left, float Top);
 
-    private readonly record struct FloatContentMeasure(float Width, float Height, FloatPlacement[] Placements);
+    private readonly ref struct FloatContentMeasure(float Width, float Height, ReadOnlySpan<FloatPlacement> Placements)
+    {
+        public float Width { get; } = Width;
+        public float Height { get; } = Height;
+        public ReadOnlySpan<FloatPlacement> Placements { get; } = Placements;
+    }
 
     private void LayoutTableRows(
-        string parentId,
+        HtmlSceneNodeId parentId,
         HtmlComputedStyle parentStyle,
         IReadOnlyList<HtmlSceneNode> rows,
         float parentLeft,
@@ -417,8 +421,10 @@ internal sealed partial class HtmlLayoutBuilder
         try
         {
             var rowChildren = scratch.AllocateRowChildBuffers(rows.Count);
-            foreach (var placement in grid.Cells)
+            var cells = grid.CellSpan;
+            for (var placementIndex = 0; placementIndex < cells.Length; placementIndex++)
             {
+                ref readonly var placement = ref cells[placementIndex];
                 var cell = placement.Cell;
                 var cellLeft = parentLeft + parentStyle.PaddingLeft + columnLefts[placement.ColumnIndex];
                 var cellTop = parentTop + parentStyle.PaddingTop + rowTops[placement.RowIndex];
@@ -433,7 +439,7 @@ internal sealed partial class HtmlLayoutBuilder
                     AddChildRelation(cell.Id, []);
             }
 
-            var rowIds = new string[rows.Count];
+            var rowIds = new HtmlSceneNodeId[rows.Count];
             for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
             {
                 var row = rows[rowIndex];
@@ -454,16 +460,16 @@ internal sealed partial class HtmlLayoutBuilder
 
     private void AddPlacedNode(
         HtmlSceneNode node,
-        string? parentId,
+        HtmlSceneNodeId? parentId,
         float absLeft,
         float absTop,
         float width,
         float height,
-        string? fragmentId = null,
+        int fragmentIndex = -1,
         string? textContentOverride = null)
-        => placedNodes.Add(new HtmlPlacedNode(node, parentId, absLeft, absTop, width, height, fragmentId, textContentOverride));
+        => placedNodes.Add(new HtmlPlacedNode(node, parentId, absLeft, absTop, width, height, fragmentIndex, textContentOverride));
 
-    private void AddChildRelation(string parentId, string[] childIds)
+    private void AddChildRelation(HtmlSceneNodeId parentId, HtmlSceneNodeId[] childIds)
         => childRelations.Add(new HtmlChildRelation(parentId, childIds));
 
     private static float ResolveTableSpacing(HtmlComputedStyle parentStyle, IReadOnlyList<HtmlSceneNode> rows)
@@ -538,8 +544,10 @@ internal sealed partial class HtmlLayoutBuilder
         var columnWidths = new float[Math.Max(1, columnCount)];
         var minimumColumnWidths = new float[Math.Max(1, columnCount)];
         var rowHeights = new float[Math.Max(1, physicalRowIndex)];
-        foreach (var placement in placements)
+        var placementSpan = CollectionsMarshal.AsSpan(placements);
+        for (var placementIndex = 0; placementIndex < placementSpan.Length; placementIndex++)
         {
+            ref readonly var placement = ref placementSpan[placementIndex];
             DistributeMinimum(minimumColumnWidths, placement.ColumnIndex, placement.ColSpan, placement.MinimumWidth);
             DistributeMinimum(columnWidths, placement.ColumnIndex, placement.ColSpan, placement.PreferredWidth);
         }
@@ -547,8 +555,9 @@ internal sealed partial class HtmlLayoutBuilder
         ShrinkColumnsToAvailableWidth(columnWidths, minimumColumnWidths, availableWidth);
         ExpandColumnsToAvailableWidth(columnWidths, minimumColumnWidths, availableWidth);
 
-        foreach (var placement in placements)
+        for (var placementIndex = 0; placementIndex < placementSpan.Length; placementIndex++)
         {
+            ref readonly var placement = ref placementSpan[placementIndex];
             if (placement.RowSpan != 1)
                 continue;
 
@@ -557,8 +566,9 @@ internal sealed partial class HtmlLayoutBuilder
             rowHeights[placement.RowIndex] = Math.Max(rowHeights[placement.RowIndex], height);
         }
 
-        foreach (var placement in placements)
+        for (var placementIndex = 0; placementIndex < placementSpan.Length; placementIndex++)
         {
+            ref readonly var placement = ref placementSpan[placementIndex];
             if (placement.RowSpan <= 1)
                 continue;
 
@@ -585,8 +595,10 @@ internal sealed partial class HtmlLayoutBuilder
     {
         var top = 0f;
         var hasPlacement = false;
-        foreach (var placement in grid.Cells)
+        var cells = grid.CellSpan;
+        for (var index = 0; index < cells.Length; index++)
         {
+            ref readonly var placement = ref cells[index];
             if (placement.ParentRowIndex != parentRowIndex)
                 continue;
 
@@ -603,8 +615,10 @@ internal sealed partial class HtmlLayoutBuilder
         var top = 0f;
         var bottom = 0f;
         var hasPlacement = false;
-        foreach (var placement in grid.Cells)
+        var cells = grid.CellSpan;
+        for (var index = 0; index < cells.Length; index++)
         {
+            ref readonly var placement = ref cells[index];
             if (placement.ParentRowIndex != parentRowIndex)
                 continue;
 
