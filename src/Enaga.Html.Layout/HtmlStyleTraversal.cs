@@ -11,9 +11,12 @@ internal sealed record HtmlComputedStyleTree(
 
 internal sealed class HtmlStyleTraversal
 {
+    private const int MaxResolvedStyleCacheEntries = 262_144;
     private readonly HtmlStyleResolver resolver;
     private readonly HtmlComputedStyleInterner styleInterner = new();
     private readonly Dictionary<ResolvedStyleCacheKey, HtmlComputedStyle> resolvedStyleCache = new();
+    private HtmlParsedDocument? cachedDocument;
+    private bool cachedResolveHadPseudoState;
 
     public HtmlStyleTraversal(HtmlOptions options, LayoutEngineConfig layoutConfig)
     {
@@ -30,7 +33,17 @@ internal sealed class HtmlStyleTraversal
         ArgumentNullException.ThrowIfNull(document);
 
         styleInterner.Clear();
-        resolvedStyleCache.Clear();
+        var hasPseudoState = hoveredNodeIds is { Count: > 0 } || activeNodeId is not null;
+        if (!ReferenceEquals(cachedDocument, document) ||
+            hasPseudoState ||
+            cachedResolveHadPseudoState ||
+            resolvedStyleCache.Count > MaxResolvedStyleCacheEntries)
+        {
+            resolvedStyleCache.Clear();
+            cachedDocument = document;
+        }
+        cachedResolveHadPseudoState = hasPseudoState;
+
         var styles = new Dictionary<HtmlNodeId, HtmlComputedStyle>(CountElements(document.RootElement));
         HashSet<HtmlNodeId>? hoveredSubtreeNodeIds = null;
         if (hoveredNodeIds is { Count: > 0 })
@@ -216,7 +229,9 @@ internal sealed class HtmlStyleTraversal
             viewportWidth,
             viewportHeight);
 
-    private static int HashAncestors(IReadOnlyList<HtmlDomElement> ancestors, IReadOnlyList<bool> ancestorHoverStates)
+    private static int HashAncestors(
+        IReadOnlyList<HtmlDomElement> ancestors,
+        IReadOnlyList<bool> ancestorHoverStates)
     {
         var hash = new HashCode();
         hash.Add(ancestors.Count);

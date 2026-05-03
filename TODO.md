@@ -30,6 +30,12 @@
 ## Rendering Optimizations
 
 - Follow `docs/html-engine-rearchitecture-plan.md` as the owner for the renderer rewrite. Local compatibility patches should either be removed or turned into fixtures during that rewrite.
+- Large HTML first target: keep complete structural DOM, formatting, and layout geometry cheap and available for the whole document, but stop materializing full paint/computed-style/display-list data for everything at once. The staged shape should be:
+  1. Resolve a compact layout-style snapshot for all layout-participating nodes so scroll size, table row/column geometry, hit-test bounds, and intrinsic measurements remain correct.
+  2. Materialize complete computed/paint style only for the viewport plus a small prefetch margin, with DOM-node-keyed cache entries reused as rows/cells enter and leave view.
+  3. Track root and nested scroll deltas as explicit diff state, then repaint newly exposed strips/tiles and changed hover/focus fragments instead of treating large scroll containers as full dirty regions.
+  4. Treat large tables as a primary fixture: row-group, row, and cell layout must remain deterministic for total scroll height and column sizing, while paint/style/display-list work is limited to visible rows and near-visible rows.
+  5. Keep fallback correctness for selectors that can affect descendants (`:hover`, child/descendant selectors, future sibling selectors) by widening the visible materialization/invalidation scope only when selector dependency maps require it.
 - Extend the new pipeline counters beyond frame snapshots into benchmark output and trace events.
 - Split `HtmlComputedStyle` into explicit stages: parsed declaration blocks, cascaded/computed style, used style, and compact layout/paint style snapshots. `HtmlComputedStyle` should stop owning CSS parsing, UA defaults, used-value resolution, and layout adaptation at the same time.
 - Continue moving style traversal before formatting-tree construction. `HtmlSceneTreeBuilder` now consumes DOM-keyed styles for normal and pseudo frames; next step is adding generated fragment metadata for carets, focus rings, cursor regions, and selection ranges instead of deriving them from compatibility layout boxes.

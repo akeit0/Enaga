@@ -138,6 +138,52 @@ public sealed class HtmlStyleTraversalTests
         Assert.Equal("#f0f0f8", tree.Styles[description.NodeId].BackgroundColor);
     }
 
+    [Fact]
+    public void Resolve_reuses_computed_styles_for_same_document_state()
+    {
+        var parsed = Parse(
+            """
+            <body>
+              <aside id="summary">Protocol summary</aside>
+              <table class="iana-table">
+                <tbody>
+                  <tr id="row-a"><td id="a-file">root-anchors.xml</td></tr>
+                  <tr id="row-b"><td id="b-file">service-names-port-numbers.xml</td></tr>
+                </tbody>
+              </table>
+            </body>
+            """,
+            "#summary { background: #101820; } .iana-table td { background: #fafafc; } .iana-table tr:hover td { background: #f0f0f8; }");
+        var traversal = new HtmlStyleTraversal(
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
+            LayoutEngineConfig.WebDefaults);
+        var summary = FindElement(parsed.RootElement, "summary");
+
+        var first = traversal.Resolve(parsed, 520, 120);
+        var second = traversal.Resolve(parsed, 520, 120);
+
+        Assert.Same(first.Styles[summary.NodeId], second.Styles[summary.NodeId]);
+        Assert.Equal("#101820", second.Styles[summary.NodeId].BackgroundColor);
+    }
+
+    [Fact]
+    public void Resolve_clears_cached_styles_when_document_changes()
+    {
+        var first = Parse("<body><div id='target'>One</div></body>", "#target { background: #112233; }");
+        var second = Parse("<body><div id='target'>Two</div></body>", "#target { background: #445566; }");
+        var traversal = new HtmlStyleTraversal(
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
+            LayoutEngineConfig.WebDefaults);
+
+        var firstTarget = FindElement(first.RootElement, "target");
+        var secondTarget = FindElement(second.RootElement, "target");
+        var firstTree = traversal.Resolve(first, 320, 180);
+        var secondTree = traversal.Resolve(second, 320, 180);
+
+        Assert.Equal("#112233", firstTree.Styles[firstTarget.NodeId].BackgroundColor);
+        Assert.Equal("#445566", secondTree.Styles[secondTarget.NodeId].BackgroundColor);
+    }
+
     private static HtmlParsedDocument Parse(string html, string css)
     {
         var parser = new Enaga.Html.HtmlDocumentParser();
