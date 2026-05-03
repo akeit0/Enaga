@@ -7,12 +7,14 @@ internal static class HtmlFragmentTreeFactory
 {
     public static HtmlFragmentTree Create(
         string rootId,
+        SceneNodeIdentityMap<string> sceneNodeIds,
         float rootWidth,
         float rootHeight,
         IReadOnlyList<HtmlPlacedNode> placedNodes,
-        IReadOnlyDictionary<string, SceneLayoutBox>? layout = null)
+        IReadOnlyDictionary<SceneNodeId, SceneLayoutBox>? layout = null)
     {
         var rootFragmentId = CreateFragmentId(rootId);
+        var rootSceneNodeId = sceneNodeIds.GetOrCreate(rootId);
         var fragments = new List<HtmlFragment>(placedNodes.Count + 5)
         {
             new(
@@ -24,16 +26,17 @@ internal static class HtmlFragmentTreeFactory
                 new HtmlLayoutRect(0, 0, rootWidth, rootHeight),
                 new HtmlLayoutRect(0, 0, rootWidth, rootHeight),
                 PaintVersion: 1,
-                SceneNodeId: rootId,
+                SceneNodeId: rootSceneNodeId,
                 SourceSceneNodeId: rootId)
         };
-        if (layout is not null && layout.TryGetValue(rootId, out var rootBox))
+        if (layout is not null && layout.TryGetValue(rootSceneNodeId, out var rootBox))
             AddScrollBarFragments(fragments, rootId, rootId, rootFragmentId, rootBox);
 
         for (var index = 0; index < placedNodes.Count; index++)
         {
             var placed = placedNodes[index];
             var id = placed.Id;
+            var sceneNodeId = sceneNodeIds.GetOrCreate(id);
             var kind = ResolveFragmentKind(placed.Node);
             var rect = new HtmlLayoutRect(placed.AbsLeft, placed.AbsTop, placed.Width, placed.Height);
             fragments.Add(new HtmlFragment(
@@ -45,9 +48,9 @@ internal static class HtmlFragmentTreeFactory
                 BorderBox: rect,
                 VisualOverflow: ResolveVisualOverflow(placed, rect),
                 PaintVersion: ResolvePaintVersion(placed),
-                SceneNodeId: id,
+                SceneNodeId: sceneNodeId,
                 SourceSceneNodeId: placed.Node.Id));
-            if (layout is not null && layout.TryGetValue(id, out var box))
+            if (layout is not null && layout.TryGetValue(sceneNodeId, out var box))
                 AddScrollBarFragments(fragments, id, placed.Node.Id, CreateFragmentId(id), box);
         }
 
@@ -149,7 +152,7 @@ internal static class HtmlFragmentTreeFactory
             rect,
             rect,
             paintVersion,
-            SceneNodeId: "",
+            SceneNodeId: default,
             SourceSceneNodeId: sourceSceneNodeId,
             GeneratedRole: role));
     }

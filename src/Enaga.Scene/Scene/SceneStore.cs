@@ -4,25 +4,28 @@ public sealed class SceneStore
 {
     private sealed class MutableSceneNode
     {
-        public List<string> Children { get; } = [];
+        public List<SceneNodeId> Children { get; } = [];
         public SceneNodeKind Kind { get; set; }
         public string? Label { get; set; }
-        public string? ParentId { get; set; }
+        public SceneNodeId? ParentId { get; set; }
     }
 
-    private readonly Dictionary<string, SceneLayoutBox> layout = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, MutableSceneNode> nodes = new(StringComparer.Ordinal);
+    private readonly Dictionary<SceneNodeId, SceneLayoutBox> layout = new();
+    private readonly Dictionary<SceneNodeId, MutableSceneNode> nodes = new();
+    private readonly SceneNodeMap<SceneLayoutBox>[] snapshotLayoutBuffers = [new(), new()];
+    private readonly SceneNodeMap<SceneGraphNode>[] snapshotNodeBuffers = [new(), new()];
     private readonly object sync = new();
     private SceneLayoutCommit? cachedSnapshot;
-    private string rootId;
+    private SceneNodeId rootId;
+    private int snapshotBufferIndex;
     private bool snapshotDirty = true;
     private SceneViewport viewport;
 
-    public SceneStore(string rootId, SceneViewport viewport)
+    public SceneStore(SceneNodeId rootId, SceneViewport viewport)
     {
         this.rootId = rootId;
         this.viewport = viewport;
-        nodes[rootId] = new MutableSceneNode { Kind = SceneNodeKind.View, Label = rootId };
+        nodes[rootId] = new MutableSceneNode { Kind = SceneNodeKind.View, Label = rootId.ToString() };
     }
 
     public void Apply(SceneMutation mutation)
@@ -48,7 +51,7 @@ public sealed class SceneStore
         }
     }
 
-    public void Reset(string nextRootId, SceneViewport nextViewport)
+    public void Reset(SceneNodeId nextRootId, SceneViewport nextViewport)
     {
         lock (sync)
         {
@@ -66,7 +69,7 @@ public sealed class SceneStore
         }
     }
 
-    public void UpsertNode(string id, SceneNodeKind kind, string? parentId = null, string? label = null, SceneLayoutBox? nodeLayout = null)
+    public void UpsertNode(SceneNodeId id, SceneNodeKind kind, SceneNodeId? parentId = null, string? label = null, SceneLayoutBox? nodeLayout = null)
     {
         lock (sync)
         {
@@ -77,7 +80,7 @@ public sealed class SceneStore
         }
     }
 
-    public void SetChildren(string parentId, IReadOnlyList<string> children)
+    public void SetChildren(SceneNodeId parentId, IReadOnlyList<SceneNodeId> children)
     {
         lock (sync)
         {
@@ -86,7 +89,7 @@ public sealed class SceneStore
         }
     }
 
-    public void SetLayout(string id, SceneLayoutBox nodeLayout)
+    public void SetLayout(SceneNodeId id, SceneLayoutBox nodeLayout)
     {
         lock (sync)
         {
@@ -95,7 +98,7 @@ public sealed class SceneStore
         }
     }
 
-    public void RemoveNode(string id)
+    public void RemoveNode(SceneNodeId id)
     {
         lock (sync)
         {
@@ -111,16 +114,20 @@ public sealed class SceneStore
             if (!snapshotDirty && cachedSnapshot is not null)
                 return cachedSnapshot;
 
-            var nodeSnapshot = new Dictionary<string, SceneGraphNode>(nodes.Count, StringComparer.Ordinal);
+            snapshotBufferIndex ^= 1;
+            var snapshotNodes = snapshotNodeBuffers[snapshotBufferIndex];
+            var snapshotLayout = snapshotLayoutBuffers[snapshotBufferIndex];
+            snapshotNodes.Clear();
+            snapshotNodes.EnsureCapacity(nodes.Count);
             foreach (var (id, node) in nodes)
-                nodeSnapshot[id] = new SceneGraphNode(node.Kind, node.ParentId, [.. node.Children], node.Label);
+                snapshotNodes[id] = new SceneGraphNode(node.Kind, node.ParentId, [.. node.Children], node.Label);
 
-            var layoutSnapshot = new Dictionary<string, SceneLayoutBox>(layout, StringComparer.Ordinal);
+            snapshotLayout.CopyFrom(layout);
             cachedSnapshot = SceneLayoutCommitFactory.Create(
                 rootId,
                 viewport,
-                nodeSnapshot,
-                layoutSnapshot);
+                snapshotNodes,
+                snapshotLayout);
             snapshotDirty = false;
             return cachedSnapshot;
         }
@@ -151,16 +158,16 @@ public sealed class SceneStore
         }
     }
 
-    private void ApplyReset(string nextRootId, SceneViewport nextViewport)
+    private void ApplyReset(SceneNodeId nextRootId, SceneViewport nextViewport)
     {
         rootId = nextRootId;
         viewport = nextViewport;
         nodes.Clear();
         layout.Clear();
-        nodes[rootId] = new MutableSceneNode { Kind = SceneNodeKind.View, Label = rootId };
+        nodes[rootId] = new MutableSceneNode { Kind = SceneNodeKind.View, Label = rootId.ToString() };
     }
 
-    private void ApplyUpsert(string id, SceneNodeKind kind, string? parentId, string? label)
+    private void ApplyUpsert(SceneNodeId id, SceneNodeKind kind, SceneNodeId? parentId, string? label)
     {
         if (!nodes.TryGetValue(id, out var node))
         {
@@ -179,15 +186,15 @@ public sealed class SceneStore
         node.ParentId = parentId;
         node.Label = label;
 
-        if (parentId is not null)
+        if (parentId is { } resolvedParentId)
         {
-            var parent = EnsureNode(parentId);
+            var parent = EnsureNode(resolvedParentId);
             if (!parent.Children.Contains(id))
                 parent.Children.Add(id);
         }
     }
 
-    private void ApplySetChildren(string parentId, IReadOnlyList<string> children)
+    private void ApplySetChildren(SceneNodeId parentId, IReadOnlyList<SceneNodeId> children)
     {
         var parent = EnsureNode(parentId);
         parent.Children.Clear();
@@ -199,7 +206,7 @@ public sealed class SceneStore
         }
     }
 
-    private MutableSceneNode EnsureNode(string id)
+    private MutableSceneNode EnsureNode(SceneNodeId id)
     {
         if (nodes.TryGetValue(id, out var node))
             return node;
@@ -209,7 +216,7 @@ public sealed class SceneStore
         return node;
     }
 
-    private void RemoveNodeCore(string id)
+    private void RemoveNodeCore(SceneNodeId id)
     {
         if (id == rootId || !nodes.TryGetValue(id, out var node))
             return;

@@ -23,10 +23,10 @@ internal sealed class SceneCommitPainter : IDisposable
     private readonly Queue<EllipsizedLineCacheKey> ellipsizedLineCacheOrder = new();
     private readonly Dictionary<ScrollContentPictureCacheKey, SKPicture> scrollContentPictureCache = new();
     private readonly Queue<ScrollContentPictureCacheKey> scrollContentPictureCacheOrder = new();
-    private readonly Dictionary<string, ScrollContentPictureCacheKey> scrollContentPictureKeyByNode = new(StringComparer.Ordinal);
+    private readonly Dictionary<SceneNodeId, ScrollContentPictureCacheKey> scrollContentPictureKeyByNode = new();
     private readonly Dictionary<ScrollContentPictureCacheKey, SKImage> scrollContentRasterCache = new();
     private readonly Queue<ScrollContentPictureCacheKey> scrollContentRasterCacheOrder = new();
-    private readonly Dictionary<string, ScrollContentPictureCacheKey> scrollContentRasterKeyByNode = new(StringComparer.Ordinal);
+    private readonly Dictionary<SceneNodeId, ScrollContentPictureCacheKey> scrollContentRasterKeyByNode = new();
     private readonly SKPaint fillPaint = new()
     {
         IsAntialias = true,
@@ -220,7 +220,7 @@ internal sealed class SceneCommitPainter : IDisposable
         LastCulledNodePaintCount = recordingCulledNodePaints;
     }
 
-    private void PaintNode(SKCanvas canvas, SceneLayoutCommit commit, string id)
+    private void PaintNode(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id)
     {
         if (!commit.Layout.TryGetValue(id, out var box) || !commit.Nodes.TryGetValue(id, out var node))
             return;
@@ -249,15 +249,15 @@ internal sealed class SceneCommitPainter : IDisposable
 
         if (!selfPaintRejected)
         {
-            if (box.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(box.TextContent))
+            if (box.Text is not null)
                 DrawText(canvas, box);
-            else if (box.NodeKind == SceneNodeKind.TextInput)
+            else if (box.TextInput is not null)
                 DrawTextInput(canvas, box);
-            else if (box.NodeKind == SceneNodeKind.Image)
+            else if (box.Image is not null)
                 DrawImage(canvas, box);
         }
 
-        if (box.NodeKind == SceneNodeKind.ScrollView)
+        if (box.Scroll is { IsScrollContainer: true })
         {
             PaintScrollViewChildren(canvas, commit, id, node, box);
             if (clipPushed)
@@ -276,7 +276,7 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Restore();
     }
 
-    private void PaintScrollViewChildren(SKCanvas canvas, SceneLayoutCommit commit, string id, SceneGraphNode node, SceneLayoutBox box)
+    private void PaintScrollViewChildren(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, SceneGraphNode node, SceneLayoutBox box)
     {
         canvas.Save();
         canvas.Translate(-box.ScrollX, -box.ScrollY);
@@ -319,7 +319,7 @@ internal sealed class SceneCommitPainter : IDisposable
 
     private bool TryGetOrCreateScrollContentRasterTile(
         SceneLayoutCommit commit,
-        string id,
+        SceneNodeId id,
         SceneGraphNode node,
         SceneLayoutBox box,
         out SKImage image,
@@ -396,7 +396,7 @@ internal sealed class SceneCommitPainter : IDisposable
             : SKSurface.Create(imageInfo);
     }
 
-    private SKPicture? GetOrCreateScrollContentPicture(SceneLayoutCommit commit, string id, SceneGraphNode node, SceneLayoutBox box)
+    private SKPicture? GetOrCreateScrollContentPicture(SceneLayoutCommit commit, SceneNodeId id, SceneGraphNode node, SceneLayoutBox box)
     {
         if (node.Children.Count == 0 || IsHostAnimatedRuntimeShader(box))
             return null;
@@ -484,16 +484,16 @@ internal sealed class SceneCommitPainter : IDisposable
         return SKRect.Create(box.AbsLeft + contentLeft, box.AbsTop + contentTop, tileWidth, tileHeight);
     }
 
-    private static void AddNodeListToSignature(SceneLayoutCommit commit, IReadOnlyList<string> ids, ref HashCode hash)
+    private static void AddNodeListToSignature(SceneLayoutCommit commit, IReadOnlyList<SceneNodeId> ids, ref HashCode hash)
     {
         hash.Add(ids.Count);
         for (var index = 0; index < ids.Count; index++)
             AddNodeToSignature(commit, ids[index], ref hash);
     }
 
-    private static void AddNodeToSignature(SceneLayoutCommit commit, string id, ref HashCode hash)
+    private static void AddNodeToSignature(SceneLayoutCommit commit, SceneNodeId id, ref HashCode hash)
     {
-        hash.Add(id, StringComparer.Ordinal);
+        hash.Add(id);
         if (!commit.Nodes.TryGetValue(id, out var node) || !commit.Layout.TryGetValue(id, out var box))
             return;
 
@@ -502,10 +502,10 @@ internal sealed class SceneCommitPainter : IDisposable
         AddNodeListToSignature(commit, node.Children, ref hash);
     }
 
-    private void PaintChildren(SKCanvas canvas, SceneLayoutCommit commit, IReadOnlyList<string> childIds)
+    private void PaintChildren(SKCanvas canvas, SceneLayoutCommit commit, IReadOnlyList<SceneNodeId> childIds)
         => PaintChildren(canvas, commit, childIds, null);
 
-    private void PaintChildren(SKCanvas canvas, SceneLayoutCommit commit, IReadOnlyList<string> childIds, SKRect? subtreeCullRect)
+    private void PaintChildren(SKCanvas canvas, SceneLayoutCommit commit, IReadOnlyList<SceneNodeId> childIds, SKRect? subtreeCullRect)
     {
         for (var index = 0; index < childIds.Count; index++)
         {
@@ -532,7 +532,7 @@ internal sealed class SceneCommitPainter : IDisposable
         }
     }
 
-    private static bool ShouldCullChildSubtree(SceneLayoutCommit commit, string childId, SceneLayoutBox? childBox, SKRect? subtreeCullRect)
+    private static bool ShouldCullChildSubtree(SceneLayoutCommit commit, SceneNodeId childId, SceneLayoutBox? childBox, SKRect? subtreeCullRect)
     {
         if (childBox is null || subtreeCullRect is null || subtreeCullRect.Value.IsEmpty)
             return false;
@@ -604,17 +604,17 @@ internal sealed class SceneCommitPainter : IDisposable
             PaintAnimatedShaderRoot(canvas, commit, id, elapsedSeconds);
     }
 
-    private void PaintAnimatedShaderRoot(SKCanvas canvas, SceneLayoutCommit commit, string id, float elapsedSeconds)
+    private void PaintAnimatedShaderRoot(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, float elapsedSeconds)
     {
         if (!commit.Nodes.TryGetValue(id, out var node))
             return;
 
-        var ancestorIds = new List<string>();
+        var ancestorIds = new List<SceneNodeId>();
         var parentId = node.ParentId;
-        while (parentId is not null)
+        while (parentId is { } resolvedParentId)
         {
-            ancestorIds.Add(parentId);
-            if (!commit.Nodes.TryGetValue(parentId, out var parentNode))
+            ancestorIds.Add(resolvedParentId);
+            if (!commit.Nodes.TryGetValue(resolvedParentId, out var parentNode))
                 break;
 
             parentId = parentNode.ParentId;
@@ -648,7 +648,7 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Restore();
     }
 
-    private void PaintAnimatedShaderSubtree(SKCanvas canvas, SceneLayoutCommit commit, string id, float elapsedSeconds)
+    private void PaintAnimatedShaderSubtree(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, float elapsedSeconds)
     {
         if (!commit.Layout.TryGetValue(id, out var box) || !commit.Nodes.TryGetValue(id, out var node))
             return;
@@ -696,7 +696,7 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Restore();
     }
 
-    private void PaintAnimatedShaderChildren(SKCanvas canvas, SceneLayoutCommit commit, IReadOnlyList<string> childIds, float elapsedSeconds)
+    private void PaintAnimatedShaderChildren(SKCanvas canvas, SceneLayoutCommit commit, IReadOnlyList<SceneNodeId> childIds, float elapsedSeconds)
     {
         for (var index = 0; index < childIds.Count; index++)
         {
@@ -1516,7 +1516,7 @@ internal sealed class SceneCommitPainter : IDisposable
         PaintTopLevelScrollBars(canvas, commit, commit.RootId, scale, presentationWidth, presentationHeight, hasScrollAncestor: false);
     }
 
-    private void PaintNestedScrollBars(SKCanvas canvas, SceneLayoutCommit commit, string id, bool hasScrollAncestor)
+    private void PaintNestedScrollBars(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, bool hasScrollAncestor)
     {
         if (!commit.Layout.TryGetValue(id, out var box) || !commit.Nodes.TryGetValue(id, out var node))
             return;
@@ -1543,7 +1543,7 @@ internal sealed class SceneCommitPainter : IDisposable
             PaintNestedScrollBars(canvas, commit, childId, hasScrollAncestor);
     }
 
-    private void PaintTopLevelScrollBars(SKCanvas canvas, SceneLayoutCommit commit, string id, float viewportScale, int presentationWidth, int presentationHeight, bool hasScrollAncestor)
+    private void PaintTopLevelScrollBars(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, float viewportScale, int presentationWidth, int presentationHeight, bool hasScrollAncestor)
     {
         if (!commit.Layout.TryGetValue(id, out var box) || !commit.Nodes.TryGetValue(id, out var node))
             return;
@@ -2054,7 +2054,7 @@ internal sealed class SceneCommitPainter : IDisposable
             scrollContentRasterCacheOrder.Enqueue(key);
     }
 
-    private void RemoveScrollContentPictureForNode(string nodeId)
+    private void RemoveScrollContentPictureForNode(SceneNodeId nodeId)
     {
         if (!scrollContentPictureKeyByNode.Remove(nodeId, out var oldKey))
             return;
@@ -2063,7 +2063,7 @@ internal sealed class SceneCommitPainter : IDisposable
             oldPicture.Dispose();
     }
 
-    private void RemoveScrollContentRasterForNode(string nodeId)
+    private void RemoveScrollContentRasterForNode(SceneNodeId nodeId)
     {
         if (!scrollContentRasterKeyByNode.Remove(nodeId, out var oldKey))
             return;
@@ -2550,7 +2550,7 @@ internal sealed class SceneCommitPainter : IDisposable
         bool Italic);
 
     private readonly record struct ScrollContentPictureCacheKey(
-        string NodeId,
+        SceneNodeId NodeId,
         int ContentSignature,
         int ViewportLeftQuarterPx,
         int ViewportTopQuarterPx,

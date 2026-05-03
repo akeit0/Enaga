@@ -35,9 +35,15 @@ public sealed class SceneWheelScrollTargetLatch<T>
         return false;
     }
 
-    public T? SetActive(T? id)
+    public T SetActive(T id)
     {
         activeId = id;
+        return activeId;
+    }
+
+    public T? ClearActiveTarget()
+    {
+        activeId = default;
         return activeId;
     }
 }

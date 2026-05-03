@@ -64,7 +64,7 @@ public sealed partial class OkojoNodeReactHost
 
         propertyAtoms = new ReactAppPropertyAtoms(runtime.MainRealm.Agent.Atoms);
         stackLayoutCalculator = new LayoutCalculator(backendServices.Text);
-        sceneStore.Reset("root", new SceneViewport(Width, Height));
+        sceneStore.Reset(sceneNodeIds.RootId, new SceneViewport(Width, Height));
     }
 
     internal JsRealm BenchmarkRealm
@@ -109,10 +109,31 @@ public sealed partial class OkojoNodeReactHost
         ResetAfterCommit(rootChildren, backgroundColor);
     }
 
-    internal SceneLayoutCommit BenchmarkSnapshot() => sceneStore.Snapshot();
+    internal BenchmarkSceneSnapshot BenchmarkSnapshot() => new(sceneStore.Snapshot(), sceneNodeIds);
 
     internal void BenchmarkPumpRuntimeJobs()
     {
         PumpRuntimeJobs();
+    }
+}
+
+internal sealed class BenchmarkSceneSnapshot(SceneLayoutCommit commit, SceneNodeIdentityMap<string> sceneNodeIds)
+{
+    public BenchmarkSceneLayout Layout { get; } = new(commit, sceneNodeIds);
+}
+
+internal sealed class BenchmarkSceneLayout(SceneLayoutCommit commit, SceneNodeIdentityMap<string> sceneNodeIds)
+{
+    public int Count => commit.Layout.Count;
+
+    public SceneLayoutBox this[string runtimeId]
+    {
+        get
+        {
+            if (!sceneNodeIds.TryGet(runtimeId, out var sceneNodeId))
+                throw new KeyNotFoundException($"No scene node id has been allocated for runtime id '{runtimeId}'.");
+
+            return commit.Layout[sceneNodeId];
+        }
     }
 }

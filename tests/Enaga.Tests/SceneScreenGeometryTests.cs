@@ -10,24 +10,27 @@ public sealed class SceneScreenGeometryTests
     [Fact]
     public void TryGetNodeScreenBounds_SubtractsAncestorScrollOffsets()
     {
+        var root = new SceneNodeId(1);
+        var scroll = new SceneNodeId(2);
+        var child = new SceneNodeId(3);
         var commit = new SceneLayoutCommit(
-            "root",
+            root,
             new SceneViewport(320, 200),
-            new Dictionary<string, SceneGraphNode>(StringComparer.Ordinal)
+            new Dictionary<SceneNodeId, SceneGraphNode>
             {
-                ["root"] = new(SceneNodeKind.View, null, ["scroll"]),
-                ["scroll"] = new(SceneNodeKind.ScrollView, "root", ["child"]),
-                ["child"] = new(SceneNodeKind.View, "scroll", [])
+                [root] = new(SceneNodeKind.View, null, [scroll]),
+                [scroll] = new(SceneNodeKind.ScrollView, root, [child]),
+                [child] = new(SceneNodeKind.View, scroll, [])
             },
-            new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal)
+            new Dictionary<SceneNodeId, SceneLayoutBox>
             {
-                ["root"] = new(SceneNodeKind.View, 0, 0, 320, 200),
-                ["scroll"] = new(SceneNodeKind.ScrollView, 10, 20, 100, 80, ScrollX: 4, ScrollY: 12, IsScrollContainer: true, ContentWidth: 200, ContentHeight: 200),
-                ["child"] = new(SceneNodeKind.View, 30, 50, 40, 20)
+                [root] = new(SceneNodeKind.View, 0, 0, 320, 200),
+                [scroll] = new(SceneNodeKind.ScrollView, 10, 20, 100, 80, ScrollX: 4, ScrollY: 12, IsScrollContainer: true, ContentWidth: 200, ContentHeight: 200),
+                [child] = new(SceneNodeKind.View, 30, 50, 40, 20)
             },
             []);
 
-        var found = SceneScreenGeometry.TryGetNodeScreenBounds(commit, "child", out var bounds);
+        var found = SceneScreenGeometry.TryGetNodeScreenBounds(commit, child, out var bounds);
 
         Assert.True(found);
         Assert.Equal(26, bounds.Left);

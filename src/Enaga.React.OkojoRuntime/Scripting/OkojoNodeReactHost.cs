@@ -42,7 +42,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private readonly DefaultPositionMode defaultPositionMode;
     private readonly RuntimeReloadCoordinator reloadCoordinator;
     private readonly RuntimeFileWatchService? fileWatchService;
-    private readonly SceneStore sceneStore = new("root", new SceneViewport(1280, 800));
+    private readonly SceneNodeIdentityMap<string> sceneNodeIds = new("root", StringComparer.Ordinal);
+    private readonly SceneStore sceneStore;
     private readonly object renderInvalidationGate = new();
     private readonly Dictionary<string, NativeHoverTargetState> hoverTargets = new(StringComparer.Ordinal);
     private readonly Dictionary<string, NativeImageState> images = new(StringComparer.Ordinal);
@@ -83,7 +84,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private HostPump? hostPump;
     private RenderInvalidatingHostTaskScheduler? hostTaskScheduler;
     private string? focusedTextInputId;
-    private readonly SceneScrollBarDragState activeScrollBarDrag = new();
+    private readonly SceneScrollBarDragState<string> activeScrollBarDrag = new();
     private readonly SceneWheelScrollTargetLatch<string> wheelScrollTargetLatch = new(WheelTargetLatchTimeoutMs);
     private double? previousScrollAnimationElapsedMs;
     private int currentFrameViewCallCount;
@@ -132,6 +133,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     public OkojoNodeReactHost(OkojoReactHostOptions options)
     {
+        sceneStore = new SceneStore(sceneNodeIds.RootId, new SceneViewport(1280, 800));
         ArgumentNullException.ThrowIfNull(options);
         entrySource = options.EntrySource ?? throw new ArgumentNullException(nameof(options.EntrySource));
         debugFeaturesEnabled = options.EnableDebugFeatures;
@@ -618,8 +620,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     {
         if (loggedResets < 5)
             Log(RuntimeDiagnosticArea.SceneCommit, $"resetScene background={backgroundColor}");
-        sceneStore.Reset("root", new SceneViewport(Width, Height));
-        sceneStore.SetLayout("root", new SceneLayoutBox(SceneNodeKind.View, 0, 0, Width, Height, backgroundColor));
+        sceneStore.Reset(sceneNodeIds.RootId, new SceneViewport(Width, Height));
+        sceneStore.SetLayout(sceneNodeIds.RootId, new SceneLayoutBox(SceneNodeKind.View, 0, 0, Width, Height, backgroundColor));
         hoverTargetGeneration++;
         imageGeneration++;
         scrollViewGeneration++;
@@ -659,9 +661,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (loggedViews < 8)
             Log(RuntimeDiagnosticArea.SceneCommit, $"view id={id} parent={parentId} x={left} y={top} w={width} h={height}");
         sceneStore.UpsertNode(
-            id,
+            ToSceneNodeId(id),
             SceneNodeKind.View,
-            parentId,
+            ToSceneNodeId(parentId),
             id,
             new SceneLayoutBox(
                 SceneNodeKind.View,
@@ -757,9 +759,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             ? height
             : backendServices.Text.MeasureTextHeight(content, width, textStyle);
         sceneStore.UpsertNode(
-            id,
+            ToSceneNodeId(id),
             SceneNodeKind.Text,
-            parentId,
+            ToSceneNodeId(parentId),
             id,
             new SceneLayoutBox(
                 SceneNodeKind.Text,
@@ -804,9 +806,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         var resolvedSource = ResolveAssetPath(source);
         var resolvedPlaceholderSource = string.IsNullOrWhiteSpace(placeholderSource) ? null : ResolveAssetPath(placeholderSource);
         sceneStore.UpsertNode(
-            id,
+            ToSceneNodeId(id),
             SceneNodeKind.Image,
-            parentId,
+            ToSceneNodeId(parentId),
             id,
             new SceneLayoutBox(
                 SceneNodeKind.Image,
@@ -1903,7 +1905,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         foreach (var state in scrollViews.Values)
         {
             if (!TryGetScrollViewScreenBox(commit, state, out var screenBox, out var bounds) ||
-                !TryGetNodeVisibleScreenBounds(commit, state.Id, out var visibleBounds) ||
+                !TryGetNodeVisibleScreenBounds(commit, ToSceneNodeId(state.Id), out var visibleBounds) ||
                 x < visibleBounds.Left ||
                 y < visibleBounds.Top ||
                 x > visibleBounds.Right ||
@@ -1933,8 +1935,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private bool UpdateActiveScrollBarDrag(float pointerX, float pointerY)
     {
-        if (activeScrollBarDrag.ScrollViewId is not { } scrollViewId ||
-            !scrollViews.TryGetValue(scrollViewId, out var state))
+        if (!activeScrollBarDrag.HasScrollViewId ||
+            !scrollViews.TryGetValue(activeScrollBarDrag.ScrollViewId, out var state))
         {
             return false;
         }
@@ -2040,7 +2042,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         targetBounds = default;
         foreach (var state in hoverTargets.Values)
         {
-            if (!TryGetNodeVisibleScreenBounds(commit, state.Id, out var bounds) ||
+            if (!TryGetNodeVisibleScreenBounds(commit, ToSceneNodeId(state.Id), out var bounds) ||
                 x < bounds.Left ||
                 y < bounds.Top ||
                 x > bounds.Right ||
@@ -2118,9 +2120,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             ? state.ActiveBorderColor ?? state.BorderColor ?? "#60a5fa"
             : state.BorderColor ?? "#334155";
         sceneStore.UpsertNode(
-            state.Id,
+            ToSceneNodeId(state.Id),
             SceneNodeKind.TextInput,
-            state.ParentId,
+            ToSceneNodeId(state.ParentId),
             state.Id,
             new SceneLayoutBox(
                 SceneNodeKind.TextInput,
@@ -2166,9 +2168,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (invalidateRender)
             InvalidateRender(SceneDamageReason.Scroll);
         sceneStore.UpsertNode(
-            state.Id,
+            ToSceneNodeId(state.Id),
             SceneNodeKind.ScrollView,
-            state.ParentId,
+            ToSceneNodeId(state.ParentId),
             state.Id,
             CreateScrollViewLayoutBox(state));
     }
@@ -2205,7 +2207,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         var layoutChanged = false;
         foreach (var state in scrollViews.Values)
         {
-            if (!commit.Layout.TryGetValue(state.Id, out var box) || box.NodeKind != SceneNodeKind.ScrollView)
+            if (!commit.Layout.TryGetValue(ToSceneNodeId(state.Id), out var box) || box.NodeKind != SceneNodeKind.ScrollView)
                 continue;
 
             var nextContentWidth = state.HorizontalScrollEnabled
@@ -2443,11 +2445,12 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private NativeScrollViewState? ResolveWheelScrollView(float x, float y, float deltaX, float deltaY, double elapsedMs)
     {
-        var id =
-            wheelScrollTargetLatch.TryUseActive(elapsedMs, out var activeId) &&
-            scrollViews.ContainsKey(activeId)
-                ? activeId
-                : wheelScrollTargetLatch.SetActive(FindScrollViewAt(x, y, deltaX, deltaY)?.Id);
+        var id = wheelScrollTargetLatch.TryUseActive(elapsedMs, out var activeId) &&
+                 scrollViews.ContainsKey(activeId)
+            ? activeId
+            : FindScrollViewAt(x, y, deltaX, deltaY)?.Id is { } foundId
+                ? wheelScrollTargetLatch.SetActive(foundId)
+                : wheelScrollTargetLatch.ClearActiveTarget();
         return id is not null && scrollViews.TryGetValue(id, out var state) ? state : null;
     }
 
@@ -2527,16 +2530,19 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private IEnumerable<string> GetAncestorScrollViewIds(string nodeId)
     {
         var commit = sceneStore.Snapshot();
-        if (!commit.Nodes.TryGetValue(nodeId, out var node))
+        if (!commit.Nodes.TryGetValue(ToSceneNodeId(nodeId), out var node))
             yield break;
 
         var parentId = node.ParentId;
-        while (parentId is not null)
+        while (parentId is { } resolvedParentId)
         {
-            if (scrollViews.ContainsKey(parentId))
-                yield return parentId;
+            var parentLabel = commit.Nodes.TryGetValue(resolvedParentId, out var graphNode)
+                ? graphNode.Label
+                : null;
+            if (parentLabel is not null && scrollViews.ContainsKey(parentLabel))
+                yield return parentLabel;
 
-            if (!commit.Nodes.TryGetValue(parentId, out var parentNode))
+            if (!commit.Nodes.TryGetValue(resolvedParentId, out var parentNode))
                 yield break;
 
             parentId = parentNode.ParentId;
@@ -2546,16 +2552,17 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private bool TryGetNodeScreenBounds(string nodeId, out SceneScreenBounds bounds)
     {
         var commit = sceneStore.Snapshot();
-        return SceneScreenGeometry.TryGetNodeScreenBounds(commit, nodeId, out bounds);
+        return SceneScreenGeometry.TryGetNodeScreenBounds(commit, ToSceneNodeId(nodeId), out bounds);
     }
 
-    private static bool TryGetScrollViewScreenBox(SceneLayoutCommit commit, NativeScrollViewState state, out SceneLayoutBox box, out SceneScreenBounds bounds)
+    private bool TryGetScrollViewScreenBox(SceneLayoutCommit commit, NativeScrollViewState state, out SceneLayoutBox box, out SceneScreenBounds bounds)
     {
         box = default!;
         bounds = default;
-        if (!commit.Layout.TryGetValue(state.Id, out var layoutBox) ||
+        var sceneNodeId = ToSceneNodeId(state.Id);
+        if (!commit.Layout.TryGetValue(sceneNodeId, out var layoutBox) ||
             layoutBox.NodeKind != SceneNodeKind.ScrollView ||
-            !SceneScreenGeometry.TryGetNodeScreenBounds(commit, state.Id, out bounds))
+            !SceneScreenGeometry.TryGetNodeScreenBounds(commit, sceneNodeId, out bounds))
         {
             return false;
         }
@@ -2587,16 +2594,16 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     public bool TryGetNodeVisibleScreenRect(string nodeId, out SceneDamageRect bounds)
     {
         var commit = sceneStore.Snapshot();
-        return TryGetNodeVisibleScreenRect(commit, nodeId, out bounds);
+        return TryGetNodeVisibleScreenRect(commit, ToSceneNodeId(nodeId), out bounds);
     }
 
     private bool TryGetNodeVisibleScreenBounds(string nodeId, out SceneScreenBounds bounds)
     {
         var commit = sceneStore.Snapshot();
-        return TryGetNodeVisibleScreenBounds(commit, nodeId, out bounds);
+        return TryGetNodeVisibleScreenBounds(commit, ToSceneNodeId(nodeId), out bounds);
     }
 
-    private static bool TryGetNodeVisibleScreenBounds(SceneLayoutCommit commit, string nodeId, out SceneScreenBounds bounds)
+    private static bool TryGetNodeVisibleScreenBounds(SceneLayoutCommit commit, SceneNodeId nodeId, out SceneScreenBounds bounds)
     {
         bounds = default;
         if (!SceneScreenGeometry.TryGetNodeScreenBounds(commit, nodeId, out var screenBounds))
@@ -2610,7 +2617,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         return bounds.Right > bounds.Left && bounds.Bottom > bounds.Top;
     }
 
-    private static bool TryGetNodeVisibleScreenRect(SceneLayoutCommit commit, string nodeId, out SceneDamageRect bounds)
+    private static bool TryGetNodeVisibleScreenRect(SceneLayoutCommit commit, SceneNodeId nodeId, out SceneDamageRect bounds)
     {
         bounds = default;
         if (!SceneScreenGeometry.TryGetNodeScreenBounds(commit, nodeId, out var screenBounds))
@@ -2628,7 +2635,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         return bounds.Width > 0 && bounds.Height > 0;
     }
 
-    private static float GetAncestorScrollOffsetY(SceneLayoutCommit commit, string nodeId)
+    private static float GetAncestorScrollOffsetY(SceneLayoutCommit commit, SceneNodeId nodeId)
     {
         var offsetY = 0f;
         var currentId = nodeId;
@@ -2646,7 +2653,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         return offsetY;
     }
 
-    private static float GetAncestorScrollOffsetX(SceneLayoutCommit commit, string nodeId)
+    private static float GetAncestorScrollOffsetX(SceneLayoutCommit commit, SceneNodeId nodeId)
     {
         var offsetX = 0f;
         var currentId = nodeId;
@@ -2666,7 +2673,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private static VisibleScreenRect? IntersectWithClippingAncestorViewports(
         SceneLayoutCommit commit,
-        string nodeId,
+        SceneNodeId nodeId,
         float left,
         float top,
         float right,
@@ -2701,6 +2708,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
         return result;
     }
+
+    private SceneNodeId ToSceneNodeId(string id)
+        => sceneNodeIds.GetOrCreate(id);
 
     private readonly record struct VisibleScreenRect(float Left, float Top, float Right, float Bottom)
     {
@@ -2799,7 +2809,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             reloadCoordinator.Options.Mode == ReactRuntimeReloadMode.FastRefresh ? "development" : "production";
         propertyAtoms = new ReactAppPropertyAtoms(runtime.MainRealm.Agent.Atoms);
         stackLayoutCalculator = new LayoutCalculator(backendServices.Text);
-        sceneStore.Reset("root", new SceneViewport(Width, Height));
+        sceneStore.Reset(sceneNodeIds.RootId, new SceneViewport(Width, Height));
 
         try
         {
@@ -2829,7 +2839,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
         propertyAtoms = new ReactAppPropertyAtoms(runtime.MainRealm.Agent.Atoms);
         stackLayoutCalculator = new LayoutCalculator(backendServices.Text);
-        sceneStore.Reset("root", new SceneViewport(Width, Height));
+        sceneStore.Reset(sceneNodeIds.RootId, new SceneViewport(Width, Height));
 
         try
         {
@@ -3201,4 +3211,3 @@ public sealed partial class NativeResolvedContainerLayout
     [JsMember]
     public NativeLayoutOffset ContentOffset { get; }
 }
-

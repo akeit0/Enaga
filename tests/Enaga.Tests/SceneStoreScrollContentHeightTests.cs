@@ -5,14 +5,23 @@ namespace Enaga.Tests;
 
 public sealed class SceneStoreScrollContentHeightTests
 {
+    private static readonly SceneNodeId Root = new(1);
+    private static readonly SceneNodeId Scroll = new(2);
+    private static readonly SceneNodeId Label = new(3);
+    private static readonly SceneNodeId Container = new(4);
+    private static readonly SceneNodeId OuterScroll = new(5);
+    private static readonly SceneNodeId InnerScroll = new(6);
+    private static readonly SceneNodeId InnerContent = new(7);
+    private static readonly SceneNodeId OverflowingChild = new(8);
+
     [Fact]
     public void Snapshot_InfersScrollContentWidthFromDescendantBoundsAndPadding()
     {
-        var store = new SceneStore("root", new SceneViewport(1280, 800));
+        var store = new SceneStore(Root, new SceneViewport(1280, 800));
         store.UpsertNode(
-            "scroll",
+            Scroll,
             SceneNodeKind.ScrollView,
-            "root",
+            Root,
             "scroll",
             new SceneLayoutBox(
                 SceneNodeKind.ScrollView,
@@ -24,9 +33,9 @@ public sealed class SceneStoreScrollContentHeightTests
                 PaddingRight: 20,
                 HorizontalScrollEnabled: true));
         store.UpsertNode(
-            "label",
+            Label,
             SceneNodeKind.Text,
-            "scroll",
+            Scroll,
             "label",
             new SceneLayoutBox(
                 SceneNodeKind.Text,
@@ -38,18 +47,18 @@ public sealed class SceneStoreScrollContentHeightTests
 
         var commit = store.Snapshot();
 
-        Assert.True(commit.Layout.TryGetValue("scroll", out var scrollBox));
+        Assert.True(commit.Layout.TryGetValue(Scroll, out var scrollBox));
         Assert.True(Math.Abs(296 - scrollBox.ContentWidth) < 0.001f);
     }
 
     [Fact]
     public void Snapshot_DoesNotInferScrollContentWidthWhenHorizontalScrollIsDisabled()
     {
-        var store = new SceneStore("root", new SceneViewport(1280, 800));
+        var store = new SceneStore(Root, new SceneViewport(1280, 800));
         store.UpsertNode(
-            "scroll",
+            Scroll,
             SceneNodeKind.ScrollView,
-            "root",
+            Root,
             "scroll",
             new SceneLayoutBox(
                 SceneNodeKind.ScrollView,
@@ -60,9 +69,9 @@ public sealed class SceneStoreScrollContentHeightTests
                 PaddingLeft: 16,
                 PaddingRight: 20));
         store.UpsertNode(
-            "label",
+            Label,
             SceneNodeKind.Text,
-            "scroll",
+            Scroll,
             "label",
             new SceneLayoutBox(
                 SceneNodeKind.Text,
@@ -74,18 +83,18 @@ public sealed class SceneStoreScrollContentHeightTests
 
         var commit = store.Snapshot();
 
-        Assert.True(commit.Layout.TryGetValue("scroll", out var scrollBox));
+        Assert.True(commit.Layout.TryGetValue(Scroll, out var scrollBox));
         Assert.True(Math.Abs(200 - scrollBox.ContentWidth) < 0.001f);
     }
 
     [Fact]
     public void Snapshot_InfersScrollContentHeightFromDescendantBoundsAndPadding()
     {
-        var store = new SceneStore("root", new SceneViewport(1280, 800));
+        var store = new SceneStore(Root, new SceneViewport(1280, 800));
         store.UpsertNode(
-            "scroll",
+            Scroll,
             SceneNodeKind.ScrollView,
-            "root",
+            Root,
             "scroll",
             new SceneLayoutBox(
                 SceneNodeKind.ScrollView,
@@ -96,9 +105,9 @@ public sealed class SceneStoreScrollContentHeightTests
                 PaddingTop: 16,
                 PaddingBottom: 20));
         store.UpsertNode(
-            "container",
+            Container,
             SceneNodeKind.View,
-            "scroll",
+            Scroll,
             "container",
             new SceneLayoutBox(
                 SceneNodeKind.View,
@@ -107,9 +116,9 @@ public sealed class SceneStoreScrollContentHeightTests
                 160,
                 0));
         store.UpsertNode(
-            "label",
+            Label,
             SceneNodeKind.Text,
-            "container",
+            Container,
             "label",
             new SceneLayoutBox(
                 SceneNodeKind.Text,
@@ -121,18 +130,18 @@ public sealed class SceneStoreScrollContentHeightTests
 
         var commit = store.Snapshot();
 
-        Assert.True(commit.Layout.TryGetValue("scroll", out var scrollBox));
+        Assert.True(commit.Layout.TryGetValue(Scroll, out var scrollBox));
         Assert.True(Math.Abs(144 - scrollBox.ContentHeight) < 0.001f);
     }
 
     [Fact]
     public void Snapshot_DoesNotExpandOuterScrollFromNestedScrollDescendants()
     {
-        var store = new SceneStore("root", new SceneViewport(1280, 800));
+        var store = new SceneStore(Root, new SceneViewport(1280, 800));
         store.UpsertNode(
-            "outer-scroll",
+            OuterScroll,
             SceneNodeKind.ScrollView,
-            "root",
+            Root,
             "outer-scroll",
             new SceneLayoutBox(
                 SceneNodeKind.ScrollView,
@@ -143,9 +152,9 @@ public sealed class SceneStoreScrollContentHeightTests
                 PaddingTop: 10,
                 PaddingBottom: 12));
         store.UpsertNode(
-            "inner-scroll",
+            InnerScroll,
             SceneNodeKind.ScrollView,
-            "outer-scroll",
+            OuterScroll,
             "inner-scroll",
             new SceneLayoutBox(
                 SceneNodeKind.ScrollView,
@@ -155,9 +164,9 @@ public sealed class SceneStoreScrollContentHeightTests
                 40,
                 ContentHeight: 200));
         store.UpsertNode(
-            "inner-content",
+            InnerContent,
             SceneNodeKind.Text,
-            "inner-scroll",
+            InnerScroll,
             "inner-content",
             new SceneLayoutBox(
                 SceneNodeKind.Text,
@@ -169,18 +178,18 @@ public sealed class SceneStoreScrollContentHeightTests
 
         var commit = store.Snapshot();
 
-        Assert.True(commit.Layout.TryGetValue("outer-scroll", out var outerScrollBox));
+        Assert.True(commit.Layout.TryGetValue(OuterScroll, out var outerScrollBox));
         Assert.True(Math.Abs(82 - outerScrollBox.ContentHeight) < 0.001f);
     }
 
     [Fact]
     public void Snapshot_PrefersExplicitScrollContentHeightOverDescendantInference()
     {
-        var store = new SceneStore("root", new SceneViewport(1280, 800));
+        var store = new SceneStore(Root, new SceneViewport(1280, 800));
         store.UpsertNode(
-            "scroll",
+            Scroll,
             SceneNodeKind.ScrollView,
-            "root",
+            Root,
             "scroll",
             new SceneLayoutBox(
                 SceneNodeKind.ScrollView,
@@ -190,9 +199,9 @@ public sealed class SceneStoreScrollContentHeightTests
                 120,
                 ContentHeight: 180));
         store.UpsertNode(
-            "container",
+            Container,
             SceneNodeKind.View,
-            "scroll",
+            Scroll,
             "container",
             new SceneLayoutBox(
                 SceneNodeKind.View,
@@ -201,9 +210,9 @@ public sealed class SceneStoreScrollContentHeightTests
                 220,
                 180));
         store.UpsertNode(
-            "overflowing-child",
+            OverflowingChild,
             SceneNodeKind.Text,
-            "container",
+            Container,
             "overflowing-child",
             new SceneLayoutBox(
                 SceneNodeKind.Text,
@@ -215,7 +224,7 @@ public sealed class SceneStoreScrollContentHeightTests
 
         var commit = store.Snapshot();
 
-        Assert.True(commit.Layout.TryGetValue("scroll", out var scrollBox));
+        Assert.True(commit.Layout.TryGetValue(Scroll, out var scrollBox));
         Assert.True(Math.Abs(180 - scrollBox.ContentHeight) < 0.001f);
     }
 }

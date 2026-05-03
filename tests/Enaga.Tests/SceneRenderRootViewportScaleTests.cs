@@ -225,16 +225,17 @@ public sealed class SceneRenderRootViewportScaleTests
 
         private static SceneLayoutCommit CreateCommit(int width, int height)
         {
-            var nodes = new Dictionary<string, SceneGraphNode>(StringComparer.Ordinal)
+            var root = new SceneNodeId(1);
+            var nodes = new Dictionary<SceneNodeId, SceneGraphNode>
             {
-                ["root"] = new(SceneNodeKind.View, null, []),
+                [root] = new(SceneNodeKind.View, null, []),
             };
-            var layout = new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal)
+            var layout = new Dictionary<SceneNodeId, SceneLayoutBox>
             {
-                ["root"] = new(SceneNodeKind.View, 0, 0, width, height, "#000000"),
+                [root] = new(SceneNodeKind.View, 0, 0, width, height, "#000000"),
             };
 
-            return new SceneLayoutCommit("root", new SceneViewport(width, height), nodes, layout, []);
+            return new SceneLayoutCommit(root, new SceneViewport(width, height), nodes, layout, []);
         }
     }
 

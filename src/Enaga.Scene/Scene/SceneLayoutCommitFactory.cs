@@ -3,10 +3,10 @@ namespace Enaga.Scene;
 public static class SceneLayoutCommitFactory
 {
     public static SceneLayoutCommit Create(
-        string rootId,
+        SceneNodeId rootId,
         SceneViewport viewport,
-        IReadOnlyDictionary<string, SceneGraphNode> nodes,
-        IReadOnlyDictionary<string, SceneLayoutBox> layout)
+        SceneNodeMap<SceneGraphNode> nodes,
+        SceneNodeMap<SceneLayoutBox> layout)
     {
         var resolvedLayout = ResolveLayoutContentSizes(nodes, layout);
         var hostAnimatedShaderRootIds = BuildHostAnimatedShaderRootIds(nodes, resolvedLayout);
@@ -16,15 +16,24 @@ public static class SceneLayoutCommitFactory
         };
     }
 
-    private static IReadOnlyDictionary<string, SceneLayoutBox> ResolveLayoutContentSizes(
-        IReadOnlyDictionary<string, SceneGraphNode> nodes,
-        IReadOnlyDictionary<string, SceneLayoutBox> layout)
+    public static SceneLayoutCommit Create(
+        SceneNodeId rootId,
+        SceneViewport viewport,
+        IReadOnlyDictionary<SceneNodeId, SceneGraphNode> nodes,
+        IReadOnlyDictionary<SceneNodeId, SceneLayoutBox> layout)
+        => Create(
+            rootId,
+            viewport,
+            nodes as SceneNodeMap<SceneGraphNode> ?? new SceneNodeMap<SceneGraphNode>(nodes),
+            layout as SceneNodeMap<SceneLayoutBox> ?? new SceneNodeMap<SceneLayoutBox>(layout));
+
+    private static SceneNodeMap<SceneLayoutBox> ResolveLayoutContentSizes(
+        SceneNodeMap<SceneGraphNode> nodes,
+        SceneNodeMap<SceneLayoutBox> layout)
     {
-        Dictionary<string, SceneLayoutBox>? resolvedLayout = null;
         foreach (var (id, node) in nodes)
         {
-            var currentLayout = (IReadOnlyDictionary<string, SceneLayoutBox>?)resolvedLayout ?? layout;
-            if (node.NodeKind != SceneNodeKind.ScrollView || !currentLayout.TryGetValue(id, out var box))
+            if (node.NodeKind != SceneNodeKind.ScrollView || !layout.TryGetValue(id, out var box))
                 continue;
 
             var resolvedContentWidth = box.HorizontalScrollEnabled
@@ -33,13 +42,13 @@ public static class SceneLayoutCommitFactory
             var resolvedContentHeight = Math.Max(box.Height, box.ContentHeight);
             if (box.HorizontalScrollEnabled && box.ContentWidth <= box.Width + 0.001f)
             {
-                var inferredContentWidth = InferScrollContentWidth(id, box, nodes, currentLayout);
+                var inferredContentWidth = InferScrollContentWidth(id, box, nodes, layout);
                 resolvedContentWidth = Math.Max(resolvedContentWidth, inferredContentWidth);
             }
 
             if (box.ContentHeight <= box.Height + 0.001f)
             {
-                var inferredContentHeight = InferScrollContentHeight(id, box, nodes, currentLayout);
+                var inferredContentHeight = InferScrollContentHeight(id, box, nodes, layout);
                 resolvedContentHeight = Math.Max(resolvedContentHeight, inferredContentHeight);
             }
 
@@ -49,28 +58,27 @@ public static class SceneLayoutCommitFactory
                 continue;
             }
 
-            resolvedLayout ??= new Dictionary<string, SceneLayoutBox>(layout, StringComparer.Ordinal);
-            resolvedLayout[id] = box with
+            layout[id] = box with
             {
                 ContentWidth = resolvedContentWidth,
                 ContentHeight = resolvedContentHeight
             };
         }
 
-        return resolvedLayout ?? layout;
+        return layout;
     }
 
     private static float InferScrollContentWidth(
-        string scrollViewId,
+        SceneNodeId scrollViewId,
         SceneLayoutBox scrollBox,
-        IReadOnlyDictionary<string, SceneGraphNode> nodes,
-        IReadOnlyDictionary<string, SceneLayoutBox> layout)
+        SceneNodeMap<SceneGraphNode> nodes,
+        SceneNodeMap<SceneLayoutBox> layout)
     {
         if (!nodes.TryGetValue(scrollViewId, out var scrollNode) || scrollNode.Children.Count == 0)
             return scrollBox.Width;
 
         var maxRight = scrollBox.AbsLeft + scrollBox.PaddingLeft;
-        var pending = new Stack<string>(scrollNode.Children);
+        var pending = new Stack<SceneNodeId>(scrollNode.Children);
         while (pending.Count > 0)
         {
             var nodeId = pending.Pop();
@@ -89,16 +97,16 @@ public static class SceneLayoutCommitFactory
     }
 
     private static float InferScrollContentHeight(
-        string scrollViewId,
+        SceneNodeId scrollViewId,
         SceneLayoutBox scrollBox,
-        IReadOnlyDictionary<string, SceneGraphNode> nodes,
-        IReadOnlyDictionary<string, SceneLayoutBox> layout)
+        SceneNodeMap<SceneGraphNode> nodes,
+        SceneNodeMap<SceneLayoutBox> layout)
     {
         if (!nodes.TryGetValue(scrollViewId, out var scrollNode) || scrollNode.Children.Count == 0)
             return scrollBox.Height;
 
         var maxBottom = scrollBox.AbsTop + scrollBox.PaddingTop;
-        var pending = new Stack<string>(scrollNode.Children);
+        var pending = new Stack<SceneNodeId>(scrollNode.Children);
         while (pending.Count > 0)
         {
             var nodeId = pending.Pop();
@@ -116,11 +124,11 @@ public static class SceneLayoutCommitFactory
         return Math.Max(scrollBox.Height, maxBottom - scrollBox.AbsTop + scrollBox.PaddingBottom);
     }
 
-    private static string[] BuildHostAnimatedShaderRootIds(
-        IReadOnlyDictionary<string, SceneGraphNode> nodes,
-        IReadOnlyDictionary<string, SceneLayoutBox> layout)
+    private static SceneNodeId[] BuildHostAnimatedShaderRootIds(
+        SceneNodeMap<SceneGraphNode> nodes,
+        SceneNodeMap<SceneLayoutBox> layout)
     {
-        var roots = new List<string>();
+        var roots = new List<SceneNodeId>();
         foreach (var (id, box) in layout)
         {
             if (!IsHostAnimatedRuntimeShader(box))
@@ -146,17 +154,17 @@ public static class SceneLayoutCommitFactory
         return roots.Count == 0 ? [] : [.. roots];
     }
 
-    private static string[] BuildPaintOrderIds(
-        string rootId,
-        IReadOnlyDictionary<string, SceneGraphNode> nodes,
-        IReadOnlyDictionary<string, SceneLayoutBox> layout)
+    private static SceneNodeId[] BuildPaintOrderIds(
+        SceneNodeId rootId,
+        SceneNodeMap<SceneGraphNode> nodes,
+        SceneNodeMap<SceneLayoutBox> layout)
     {
         if (!nodes.ContainsKey(rootId) || !layout.ContainsKey(rootId))
             return [];
 
-        var order = new List<string>(layout.Count);
-        var visited = new HashSet<string>(StringComparer.Ordinal);
-        var pending = new Stack<string>();
+        var order = new List<SceneNodeId>(layout.Count);
+        var visited = new HashSet<SceneNodeId>();
+        var pending = new Stack<SceneNodeId>();
         pending.Push(rootId);
         while (pending.Count > 0)
         {

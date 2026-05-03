@@ -5,6 +5,7 @@ namespace Enaga.Html;
 
 internal sealed class HtmlSceneEmitter(
     string rootId,
+    SceneNodeIdentityMap<string> sceneNodeIds,
     int width,
     int height,
     float rootLayoutWidth,
@@ -20,33 +21,35 @@ internal sealed class HtmlSceneEmitter(
         HtmlPipelineMetrics metrics)
     {
         metrics.AddDisplayListCommandsRebuilt(placedNodes.Count + 1);
-        var childMap = new Dictionary<string, string[]>(childRelations.Count, StringComparer.Ordinal);
+        var childMap = new Dictionary<SceneNodeId, SceneNodeId[]>(childRelations.Count);
         for (var index = 0; index < childRelations.Count; index++)
         {
             var relation = childRelations[index];
-            childMap[relation.ParentId] = relation.ChildIds;
+            childMap[ToSceneNodeId(relation.ParentId)] = [.. relation.ChildIds.Select(ToSceneNodeId)];
         }
 
-        var nodes = new Dictionary<string, SceneGraphNode>(placedNodes.Count + 1, StringComparer.Ordinal);
-        var layout = new Dictionary<string, SceneLayoutBox>(placedNodes.Count + 1, StringComparer.Ordinal);
-        nodes[rootId] = new SceneGraphNode(
+        var rootSceneNodeId = ToSceneNodeId(rootId);
+        var nodes = new SceneNodeMap<SceneGraphNode>(placedNodes.Count + 1);
+        var layout = new SceneNodeMap<SceneLayoutBox>(placedNodes.Count + 1);
+        nodes[rootSceneNodeId] = new SceneGraphNode(
             rootKind,
             ParentId: null,
-            childMap.TryGetValue(rootId, out var rootChildren) ? rootChildren : [],
+            childMap.TryGetValue(rootSceneNodeId, out var rootChildren) ? rootChildren : [],
             rootId);
-        layout[rootId] = CreateLayoutBox(rootId, rootKind, rootStyle, 0, 0, rootLayoutWidth, rootLayoutHeight, null, null, null, null, SceneControlKind.None, viewportScale);
+        layout[rootSceneNodeId] = CreateLayoutBox(rootSceneNodeId, rootKind, rootStyle, 0, 0, rootLayoutWidth, rootLayoutHeight, null, null, null, null, SceneControlKind.None, viewportScale);
 
         for (var index = 0; index < placedNodes.Count; index++)
         {
             var placed = placedNodes[index];
             var node = placed.Node;
-            nodes[placed.Id] = new SceneGraphNode(
+            var sceneNodeId = ToSceneNodeId(placed.Id);
+            nodes[sceneNodeId] = new SceneGraphNode(
                 node.NodeKind,
-                placed.ParentId,
-                childMap.TryGetValue(placed.Id, out var childIds) ? childIds : [],
+                placed.ParentId is null ? null : ToSceneNodeId(placed.ParentId),
+                childMap.TryGetValue(sceneNodeId, out var childIds) ? childIds : [],
                 node.Label);
-            layout[placed.Id] = CreateLayoutBox(
-                placed.Id,
+            layout[sceneNodeId] = CreateLayoutBox(
+                sceneNodeId,
                 node.NodeKind,
                 node.Style,
                 placed.AbsLeft,
@@ -61,11 +64,11 @@ internal sealed class HtmlSceneEmitter(
                 viewportScale);
         }
 
-        return SceneLayoutCommitFactory.Create(rootId, new SceneViewport(width, height), nodes, layout);
+        return SceneLayoutCommitFactory.Create(rootSceneNodeId, new SceneViewport(width, height), nodes, layout);
     }
 
     private SceneLayoutBox CreateLayoutBox(
-        string id,
+        SceneNodeId id,
         SceneNodeKind nodeKind,
         HtmlComputedStyle style,
         float absLeft,
@@ -136,7 +139,7 @@ internal sealed class HtmlSceneEmitter(
     }
 
     private bool TryReuseLayoutBox(
-        string id,
+        SceneNodeId id,
         SceneNodeKind nodeKind,
         HtmlComputedStyle style,
         float absLeft,
@@ -214,6 +217,9 @@ internal sealed class HtmlSceneEmitter(
 
     private static bool Same(float left, float right)
         => Math.Abs(left - right) <= 0.001f;
+
+    private SceneNodeId ToSceneNodeId(string id)
+        => sceneNodeIds.GetOrCreate(id);
 
     private static bool SameTextStyle(SceneTextStyle? previous, HtmlComputedStyle style)
     {

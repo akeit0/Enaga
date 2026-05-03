@@ -32,22 +32,23 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         4.00f,
         5.00f
     ];
-    private readonly Dictionary<string, HtmlTextInputState> inputStates = new(StringComparer.Ordinal);
+    private readonly Dictionary<SceneNodeId, HtmlTextInputState> inputStates = new();
     private readonly Dictionary<HtmlNodeId, HtmlSelectState> selectStates = [];
-    private readonly Dictionary<string, HtmlScrollViewState> scrollStates = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ScrollScaleAnchor> pendingScrollScaleAnchors = new(StringComparer.Ordinal);
-    private readonly SceneWheelScrollTargetLatch<string> wheelScrollTargetLatch = new();
+    private readonly Dictionary<SceneNodeId, HtmlScrollViewState> scrollStates = new();
+    private readonly Dictionary<SceneNodeId, ScrollScaleAnchor> pendingScrollScaleAnchors = new();
+    private readonly SceneWheelScrollTargetLatch<SceneNodeId> wheelScrollTargetLatch = new();
+    private readonly SceneNodeIdentityMap<string> overlaySceneNodeIds = new("__html-overlay-root", StringComparer.Ordinal);
     private readonly HtmlTextInputController textInputController;
     private readonly IRuntimeTextServices textServices;
-    private string? focusedInputId;
+    private SceneNodeId? focusedInputId;
     private float lastPointerX;
     private float lastPointerY;
-    private string? lastPrimaryClickInputId;
+    private SceneNodeId? lastPrimaryClickInputId;
     private float lastPrimaryClickX;
     private float lastPrimaryClickY;
     private long lastPrimaryClickTimestamp;
-    private readonly SceneScrollBarDragState activeScrollBarDrag = new();
-    private string? activeLinkPressNodeId;
+    private readonly SceneScrollBarDragState<SceneNodeId> activeScrollBarDrag = new();
+    private SceneNodeId? activeLinkPressNodeId;
     private HtmlNodeId? activeClickDomNodeId;
     private HtmlNodeId? openSelectDomNodeId;
     private float activeClickX;
@@ -233,7 +234,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             if (activeLinkPressNodeId is { } linkNodeId &&
                 cachedCommit is not null &&
                 TryHitTestLink(cachedCommit, lastPointerX, lastPointerY, out var releasedNodeId, out var href) &&
-                string.Equals(linkNodeId, releasedNodeId, StringComparison.Ordinal))
+                linkNodeId == releasedNodeId)
             {
                 LastActivatedLinkHref = href;
                 activeLinkPressNodeId = null;
@@ -389,10 +390,10 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         }
     }
 
-    private static bool TryFindScrollScaleAnchor(SceneLayoutCommit commit, string scrollId, SceneLayoutBox scrollBox, out ScrollScaleAnchor anchor)
+    private static bool TryFindScrollScaleAnchor(SceneLayoutCommit commit, SceneNodeId scrollId, SceneLayoutBox scrollBox, out ScrollScaleAnchor anchor)
     {
         anchor = default;
-        var bestId = string.Empty;
+        var bestId = default(SceneNodeId);
         var bestTop = 0f;
         var bestScore = float.PositiveInfinity;
         if (commit.PaintOrderIds.Length > 0)
@@ -406,13 +407,13 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 ConsiderAnchor(id);
         }
 
-        if (bestId.Length == 0)
+        if (!bestId.IsValid)
             return false;
 
         anchor = new ScrollScaleAnchor(bestId, bestTop);
         return true;
 
-        void ConsiderAnchor(string id)
+        void ConsiderAnchor(SceneNodeId id)
         {
             if (id == scrollId || !IsDescendantOf(commit, id, scrollId) || !commit.Layout.TryGetValue(id, out var box))
                 return;
@@ -445,12 +446,12 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         }
     }
 
-    private static bool IsDescendantOf(SceneLayoutCommit commit, string id, string ancestorId)
+    private static bool IsDescendantOf(SceneLayoutCommit commit, SceneNodeId id, SceneNodeId ancestorId)
     {
         var current = id;
         while (commit.Nodes.TryGetValue(current, out var node) && node.ParentId is { } parentId)
         {
-            if (string.Equals(parentId, ancestorId, StringComparison.Ordinal))
+            if (parentId == ancestorId)
                 return true;
 
             current = parentId;
@@ -664,9 +665,8 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         out bool hasPendingScrollAnimation,
         out bool hitTestGeometryChanged)
     {
-        Dictionary<string, SceneLayoutBox>? updatedLayout = null;
-        Dictionary<string, SceneGraphNode>? updatedNodes = null;
-        SceneLayoutOverlayDictionary? effectiveLayout = null;
+        SceneNodeMap<SceneLayoutBox>? updatedLayout = null;
+        SceneNodeMap<SceneGraphNode>? updatedNodes = null;
         activeInputIdScratch.Clear();
         activeScrollIdScratch.Clear();
         hasPendingScrollAnimation = false;
@@ -699,8 +699,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 if (nextScrollBox != box)
                 {
                     hitTestGeometryChanged = true;
-                    updatedLayout ??= new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal);
-                    effectiveLayout ??= new SceneLayoutOverlayDictionary(commit.Layout, updatedLayout);
+                    updatedLayout ??= new SceneNodeMap<SceneLayoutBox>(commit.Layout);
                     updatedLayout[id] = nextScrollBox;
                 }
             }
@@ -724,8 +723,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
                 if (nextSelectBox != box)
                 {
-                    updatedLayout ??= new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal);
-                    effectiveLayout ??= new SceneLayoutOverlayDictionary(commit.Layout, updatedLayout);
+                    updatedLayout ??= new SceneNodeMap<SceneLayoutBox>(commit.Layout);
                     updatedLayout[id] = nextSelectBox;
                 }
 
@@ -733,7 +731,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             }
 
             activeInputIdScratch.Add(id);
-            var layout = (IReadOnlyDictionary<string, SceneLayoutBox>?)(effectiveLayout) ?? commit.Layout;
+            var layout = (IReadOnlyDictionary<SceneNodeId, SceneLayoutBox>?)updatedLayout ?? commit.Layout;
             var inputScreenBox = SceneScreenGeometry.ResolveScreenBox(commit, layout, id, layout[id]);
             var state = EnsureInputState(id, inputScreenBox);
             SyncStateFromLayoutBox(state, inputScreenBox);
@@ -756,20 +754,18 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             if (nextInputBox == box)
                 continue;
 
-            updatedLayout ??= new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal);
-            effectiveLayout ??= new SceneLayoutOverlayDictionary(commit.Layout, updatedLayout);
+            updatedLayout ??= new SceneNodeMap<SceneLayoutBox>(commit.Layout);
             updatedLayout[id] = nextInputBox;
         }
 
         RemoveStaleInputStates(activeInputIdScratch);
         RemoveStaleScrollStates(activeScrollIdScratch);
-        var layoutForOverlay = (IReadOnlyDictionary<string, SceneLayoutBox>?)(effectiveLayout) ?? commit.Layout;
+        var layoutForOverlay = (IReadOnlyDictionary<SceneNodeId, SceneLayoutBox>?)updatedLayout ?? commit.Layout;
         var commitWithLayout = updatedLayout is null
             ? commit
-            : commit with { Layout = layoutForOverlay };
+            : commit with { Layout = updatedLayout };
         if (TryAddSelectPopupOverlay(commitWithLayout, layoutForOverlay, ref updatedNodes, ref updatedLayout))
         {
-            effectiveLayout = new SceneLayoutOverlayDictionary(commit.Layout, updatedLayout!);
             hitTestGeometryChanged = true;
         }
 
@@ -779,16 +775,16 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return commit with
         {
             Nodes = updatedNodes ?? commit.Nodes,
-            Layout = effectiveLayout ?? new SceneLayoutOverlayDictionary(commit.Layout, updatedLayout!)
+            Layout = updatedLayout ?? commit.Layout
         };
     }
 
-    private HtmlTextInputState EnsureInputState(string inputId, SceneLayoutBox box)
+    private HtmlTextInputState EnsureInputState(SceneNodeId inputId, SceneLayoutBox box)
     {
         if (inputStates.TryGetValue(inputId, out var state))
             return state;
 
-        state = new HtmlTextInputState(inputId);
+        state = new HtmlTextInputState(inputId.ToString());
         inputStates[inputId] = state;
         SyncStateFromLayoutBox(state, box);
         state.Text = box.TextContent ?? string.Empty;
@@ -864,9 +860,9 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private bool TryAddSelectPopupOverlay(
         SceneLayoutCommit commit,
-        IReadOnlyDictionary<string, SceneLayoutBox> layout,
-        ref Dictionary<string, SceneGraphNode>? updatedNodes,
-        ref Dictionary<string, SceneLayoutBox>? updatedLayout)
+        IReadOnlyDictionary<SceneNodeId, SceneLayoutBox> layout,
+        ref SceneNodeMap<SceneGraphNode>? updatedNodes,
+        ref SceneNodeMap<SceneLayoutBox>? updatedLayout)
     {
         if (openSelectDomNodeId is not { } selectDomNodeId ||
             parsedDocument is null ||
@@ -897,17 +893,19 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
         var popupLeft = popupScreenLeft + rootScrollX;
         var popupTop = popupScreenTop + rootScrollY;
-        var popupId = $"__html-select-popup:{selectDomNodeId.Value}";
-        var optionIds = new string[visibleCount];
-        updatedNodes ??= new Dictionary<string, SceneGraphNode>(commit.Nodes, StringComparer.Ordinal);
-        updatedLayout ??= new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal);
+        var popupKey = $"__html-select-popup:{selectDomNodeId.Value}";
+        var popupId = overlaySceneNodeIds.GetOrCreate(popupKey);
+        var optionIds = new SceneNodeId[visibleCount];
+        updatedNodes ??= new SceneNodeMap<SceneGraphNode>(commit.Nodes);
+        updatedLayout ??= new SceneNodeMap<SceneLayoutBox>(commit.Layout);
         selectState.BeginPopupLayout();
 
         for (var index = 0; index < visibleCount; index++)
         {
             var option = selectState.Options[index];
-            var rowId = $"{popupId}:option:{index}";
-            var textId = $"{rowId}:text";
+            var rowKey = $"{popupKey}:option:{index}";
+            var rowId = overlaySceneNodeIds.GetOrCreate(rowKey);
+            var textId = overlaySceneNodeIds.GetOrCreate($"{rowKey}:text");
             optionIds[index] = rowId;
             var rowLeft = popupLeft + popupBorderWidth;
             var rowTop = popupTop + popupBorderWidth + rowHeight * index;
@@ -956,7 +954,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
         if (updatedNodes.TryGetValue(commit.RootId, out var updatedRootNode))
         {
-            if (!updatedRootNode.Children.Contains(popupId, StringComparer.Ordinal))
+            if (!updatedRootNode.Children.Contains(popupId))
                 updatedNodes[commit.RootId] = updatedRootNode with { Children = [.. updatedRootNode.Children, popupId] };
         }
         else if (commit.Nodes.TryGetValue(commit.RootId, out var rootNode))
@@ -969,9 +967,9 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private bool TryFindSelectSceneNode(
         SceneLayoutCommit commit,
-        IReadOnlyDictionary<string, SceneLayoutBox> layout,
+        IReadOnlyDictionary<SceneNodeId, SceneLayoutBox> layout,
         HtmlNodeId selectDomNodeId,
-        out string sceneNodeId,
+        out SceneNodeId sceneNodeId,
         out SceneLayoutBox screenBox)
     {
         foreach (var (id, box) in layout)
@@ -988,7 +986,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             return true;
         }
 
-        sceneNodeId = string.Empty;
+        sceneNodeId = default;
         screenBox = default!;
         return false;
     }
@@ -1018,19 +1016,19 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     private bool TryGetFocusedTextInput(out HtmlTextInputState state)
     {
         state = default!;
-        if (focusedInputId is null ||
+        if (focusedInputId is not { } inputId ||
             cachedCommit is null ||
-            !cachedCommit.Layout.TryGetValue(focusedInputId, out var box) ||
+            !cachedCommit.Layout.TryGetValue(inputId, out var box) ||
             box.NodeKind != SceneNodeKind.TextInput)
         {
             return false;
         }
 
-        state = EnsureInputState(focusedInputId, SceneScreenGeometry.ResolveScreenBox(cachedCommit, cachedCommit.Layout, focusedInputId, box));
+        state = EnsureInputState(inputId, SceneScreenGeometry.ResolveScreenBox(cachedCommit, cachedCommit.Layout, inputId, box));
         return true;
     }
 
-    private bool TryHitTestTextInput(SceneLayoutCommit commit, float x, float y, out string inputId, out SceneLayoutBox inputBox)
+    private bool TryHitTestTextInput(SceneLayoutCommit commit, float x, float y, out SceneNodeId inputId, out SceneLayoutBox inputBox)
     {
         var hitTestIndex = GetHitTestIndex(commit);
         var candidateIndexes = hitTestIndex.Query(x, y, HtmlHitTestChannel.TextInput);
@@ -1052,12 +1050,12 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             return true;
         }
 
-        inputId = string.Empty;
+        inputId = default;
         inputBox = default!;
         return false;
     }
 
-    private void SetFocusedTextInput(string? inputId)
+    private void SetFocusedTextInput(SceneNodeId? inputId)
     {
         if (focusedInputId == inputId)
             return;
@@ -1104,7 +1102,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         if (focusOrder.Count == 0)
             return false;
 
-        var index = focusedInputId is null ? -1 : focusOrder.IndexOf(focusedInputId);
+        var index = focusedInputId is null ? -1 : focusOrder.IndexOf(focusedInputId.Value);
         index = forward
             ? (index + 1 + focusOrder.Count) % focusOrder.Count
             : (index - 1 + focusOrder.Count) % focusOrder.Count;
@@ -1112,13 +1110,13 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return true;
     }
 
-    private List<string> GetFocusableInputIds(SceneLayoutCommit commit)
+    private List<SceneNodeId> GetFocusableInputIds(SceneLayoutCommit commit)
     {
-        var ordered = new List<string>();
-        TraverseNode("root");
+        var ordered = new List<SceneNodeId>();
+        TraverseNode(commit.RootId);
         return ordered;
 
-        void TraverseNode(string id)
+        void TraverseNode(SceneNodeId id)
         {
             if (commit.Layout.TryGetValue(id, out var box) &&
                 box.NodeKind == SceneNodeKind.TextInput &&
@@ -1146,9 +1144,9 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             localY);
     }
 
-    private void RemoveStaleInputStates(HashSet<string> activeInputIds)
+    private void RemoveStaleInputStates(HashSet<SceneNodeId> activeInputIds)
     {
-        string[]? staleIds = null;
+        SceneNodeId[]? staleIds = null;
         foreach (var inputId in inputStates.Keys)
         {
             if (activeInputIds.Contains(inputId))
@@ -1164,13 +1162,13 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 inputStates.Remove(staleId);
         }
 
-        if (focusedInputId is not null && !activeInputIds.Contains(focusedInputId))
+        if (focusedInputId is { } focusedId && !activeInputIds.Contains(focusedId))
             focusedInputId = null;
     }
 
-    private void RemoveStaleScrollStates(HashSet<string> activeScrollIds)
+    private void RemoveStaleScrollStates(HashSet<SceneNodeId> activeScrollIds)
     {
-        string[]? staleIds = null;
+        SceneNodeId[]? staleIds = null;
         foreach (var scrollId in scrollStates.Keys)
         {
             if (activeScrollIds.Contains(scrollId))
@@ -1187,7 +1185,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             scrollStates.Remove(staleId);
     }
 
-    private HtmlScrollViewState EnsureScrollState(string scrollViewId, SceneLayoutBox box)
+    private HtmlScrollViewState EnsureScrollState(SceneNodeId scrollViewId, SceneLayoutBox box)
     {
         if (scrollStates.TryGetValue(scrollViewId, out var state))
             return state;
@@ -1197,7 +1195,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return state;
     }
 
-    private string? ResolveWheelScrollView(SceneLayoutCommit commit, float x, float y, float deltaX, float deltaY)
+    private SceneNodeId? ResolveWheelScrollView(SceneLayoutCommit commit, float x, float y, float deltaX, float deltaY)
     {
         if (wheelScrollTargetLatch.TryUseActive(CurrentElapsedMs(), out var activeId) &&
             commit.Layout.ContainsKey(activeId))
@@ -1205,10 +1203,13 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             return activeId;
         }
 
-        return wheelScrollTargetLatch.SetActive(FindScrollViewAtPoint(commit, x, y, deltaX, deltaY));
+        if (FindScrollViewAtPoint(commit, x, y, deltaX, deltaY) is { } foundId)
+            return wheelScrollTargetLatch.SetActive(foundId);
+
+        return wheelScrollTargetLatch.ClearActiveTarget();
     }
 
-    private string? FindScrollViewAtPoint(SceneLayoutCommit commit, float x, float y, float deltaX, float deltaY)
+    private SceneNodeId? FindScrollViewAtPoint(SceneLayoutCommit commit, float x, float y, float deltaX, float deltaY)
     {
         var hitTestIndex = GetHitTestIndex(commit);
         var candidateIndexes = hitTestIndex.Query(x, y, HtmlHitTestChannel.ScrollView);
@@ -1274,13 +1275,14 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private bool UpdateActiveScrollBarDrag(float pointerX, float pointerY)
     {
-        if (activeScrollBarDrag.ScrollViewId is not { } scrollViewId ||
+        if (!activeScrollBarDrag.HasScrollViewId ||
             cachedCommit is null ||
-            !cachedCommit.Layout.TryGetValue(scrollViewId, out var box))
+            !cachedCommit.Layout.TryGetValue(activeScrollBarDrag.ScrollViewId, out var box))
         {
             return false;
         }
 
+        var scrollViewId = activeScrollBarDrag.ScrollViewId;
         var screenBox = SceneScreenGeometry.ResolveScreenBox(cachedCommit, cachedCommit.Layout, scrollViewId, box);
         var state = EnsureScrollState(scrollViewId, screenBox);
         screenBox = screenBox with
@@ -1347,10 +1349,10 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return ids;
     }
 
-    private bool TryResolveNearestDomNodeId(SceneLayoutCommit commit, string sceneNodeId, out HtmlNodeId domNodeId)
+    private bool TryResolveNearestDomNodeId(SceneLayoutCommit commit, SceneNodeId sceneNodeId, out HtmlNodeId domNodeId)
     {
         var currentId = sceneNodeId;
-        while (!string.IsNullOrWhiteSpace(currentId))
+        while (currentId.IsValid)
         {
             if (cachedSceneNodeDomIds.TryGetValue(currentId, out domNodeId) && domNodeId.IsValid)
                 return true;
@@ -1453,10 +1455,10 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return false;
     }
 
-    private bool TryHitTestLink(SceneLayoutCommit commit, float x, float y, out string nodeId, out string href)
+    private bool TryHitTestLink(SceneLayoutCommit commit, float x, float y, out SceneNodeId nodeId, out string href)
         => TryHitTestLink(commit, x, y, out nodeId, out href, out _);
 
-    private bool TryHitTestLink(SceneLayoutCommit commit, float x, float y, out string nodeId, out string href, out string hitNodeId)
+    private bool TryHitTestLink(SceneLayoutCommit commit, float x, float y, out SceneNodeId nodeId, out string href, out SceneNodeId hitNodeId)
     {
         var hitTestIndex = GetHitTestIndex(commit);
         var candidateIndexes = hitTestIndex.Query(x, y, HtmlHitTestChannel.Link);
@@ -1478,13 +1480,13 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             return true;
         }
 
-        nodeId = string.Empty;
+        nodeId = default;
         href = string.Empty;
-        hitNodeId = string.Empty;
+        hitNodeId = default;
         return false;
     }
 
-    private static string ResolveLinkNodeId(SceneLayoutCommit commit, string id, string href)
+    private static SceneNodeId ResolveLinkNodeId(SceneLayoutCommit commit, SceneNodeId id, string href)
     {
         var currentId = id;
         while (commit.Nodes.TryGetValue(currentId, out var node) &&
@@ -1502,7 +1504,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             var currentIndex = -1;
             for (var index = 0; index < siblingParent.Children.Count; index++)
             {
-                if (string.Equals(siblingParent.Children[index], currentId, StringComparison.Ordinal))
+                if (siblingParent.Children[index] == currentId)
                 {
                     currentIndex = index;
                     break;
@@ -1531,7 +1533,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return currentId;
     }
 
-    private static bool IsPointVisibleThroughScrollAncestors(SceneLayoutCommit commit, string nodeId, float x, float y)
+    private static bool IsPointVisibleThroughScrollAncestors(SceneLayoutCommit commit, SceneNodeId nodeId, float x, float y)
     {
         var currentId = nodeId;
         while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
@@ -1556,7 +1558,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
            y >= box.AbsTop &&
            y <= box.AbsTop + box.Height;
 
-    private bool IsSelectSceneNode(SceneLayoutCommit commit, string sceneNodeId)
+    private bool IsSelectSceneNode(SceneLayoutCommit commit, SceneNodeId sceneNodeId)
         => TryResolveNearestDomNodeId(commit, sceneNodeId, out var domNodeId) &&
            TryResolveDomElement(domNodeId, out var element) &&
            IsSelectElement(element);
@@ -1604,7 +1606,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private void AddHitTestEntryFromLayout(
         SceneLayoutCommit commit,
-        string id,
+        SceneNodeId id,
         int zOrder,
         List<HtmlHitTestEntry> entries)
     {
@@ -1631,20 +1633,11 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         for (var fragmentIndex = 0; fragmentIndex < fragments.Count; fragmentIndex++)
         {
             var fragment = fragments[fragmentIndex];
-            var id = string.IsNullOrWhiteSpace(fragment.SceneNodeId)
-                ? fragment.SourceSceneNodeId
-                : fragment.SceneNodeId;
-            if (string.IsNullOrWhiteSpace(id))
+            var id = fragment.SceneNodeId;
+            if (!id.IsValid)
                 continue;
             if (!commit.Layout.TryGetValue(id, out var box))
-            {
-                id = fragment.SourceSceneNodeId;
-                if (string.IsNullOrWhiteSpace(id) ||
-                    !commit.Layout.TryGetValue(id, out box))
-                {
-                    continue;
-                }
-            }
+                continue;
 
             var screenRect = ResolveFragmentScreenRect(commit, id, box, fragment.BorderBox);
             var bounds = ResolveFragmentScreenBounds(commit, id, box, fragment.VisualOverflow);
@@ -1659,7 +1652,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         }
     }
 
-    private static void FillPaintOrderIndex(SceneLayoutCommit commit, Dictionary<string, int> indexes)
+    private static void FillPaintOrderIndex(SceneLayoutCommit commit, Dictionary<SceneNodeId, int> indexes)
     {
         indexes.Clear();
         if (commit.PaintOrderIds.Length > 0)
@@ -1674,20 +1667,13 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             indexes[id] = zOrder++;
     }
 
-    private HtmlNodeId ResolveFragmentDomNodeId(SceneLayoutCommit commit, HtmlFragment fragment, string sceneNodeId)
+    private HtmlNodeId ResolveFragmentDomNodeId(SceneLayoutCommit commit, HtmlFragment fragment, SceneNodeId sceneNodeId)
     {
-        if (!string.IsNullOrWhiteSpace(fragment.SceneNodeId) &&
+        if (fragment.SceneNodeId.IsValid &&
             cachedSceneNodeDomIds.TryGetValue(fragment.SceneNodeId, out var placedDomNodeId) &&
             placedDomNodeId.IsValid)
         {
             return placedDomNodeId;
-        }
-
-        if (!string.IsNullOrWhiteSpace(fragment.SourceSceneNodeId) &&
-            cachedSceneNodeDomIds.TryGetValue(fragment.SourceSceneNodeId, out var sourceDomNodeId) &&
-            sourceDomNodeId.IsValid)
-        {
-            return sourceDomNodeId;
         }
 
         return TryResolveNearestDomNodeId(commit, sceneNodeId, out var domNodeId)
@@ -1697,7 +1683,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private static HtmlHitTestRect ResolveFragmentScreenRect(
         SceneLayoutCommit commit,
-        string sceneNodeId,
+        SceneNodeId sceneNodeId,
         SceneLayoutBox box,
         HtmlLayoutRect rect)
     {
@@ -1709,7 +1695,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private static SceneScreenBounds ResolveFragmentScreenBounds(
         SceneLayoutCommit commit,
-        string sceneNodeId,
+        SceneNodeId sceneNodeId,
         SceneLayoutBox box,
         HtmlLayoutRect rect)
     {
@@ -1730,9 +1716,9 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             Height = rect.Height
         };
 
-    private bool IsDoubleClick(string inputId, float x, float y)
+    private bool IsDoubleClick(SceneNodeId inputId, float x, float y)
     {
-        if (!string.Equals(lastPrimaryClickInputId, inputId, StringComparison.Ordinal))
+        if (lastPrimaryClickInputId != inputId)
             return false;
 
         if (lastPrimaryClickTimestamp == 0)
@@ -1747,7 +1733,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return dx * dx + dy * dy <= DoubleClickThresholdPx * DoubleClickThresholdPx;
     }
 
-    private void RememberPrimaryClick(string inputId, float x, float y)
+    private void RememberPrimaryClick(SceneNodeId inputId, float x, float y)
     {
         lastPrimaryClickInputId = inputId;
         lastPrimaryClickX = x;
@@ -1798,85 +1784,6 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return count;
     }
 
-    private sealed class SceneLayoutOverlayDictionary(
-        IReadOnlyDictionary<string, SceneLayoutBox> baseLayout,
-        IReadOnlyDictionary<string, SceneLayoutBox> updates) : IReadOnlyDictionary<string, SceneLayoutBox>
-    {
-        public int Count
-        {
-            get
-            {
-                var count = baseLayout.Count;
-                foreach (var key in updates.Keys)
-                {
-                    if (!baseLayout.ContainsKey(key))
-                        count++;
-                }
-
-                return count;
-            }
-        }
-
-        public IEnumerable<string> Keys => EnumerateKeys();
-
-        public IEnumerable<SceneLayoutBox> Values => EnumerateValues();
-
-        public SceneLayoutBox this[string key]
-            => updates.TryGetValue(key, out var value) ? value : baseLayout[key];
-
-        public bool ContainsKey(string key)
-            => updates.ContainsKey(key) || baseLayout.ContainsKey(key);
-
-        public bool TryGetValue(string key, out SceneLayoutBox value)
-        {
-            if (updates.TryGetValue(key, out var updated))
-            {
-                value = updated!;
-                return true;
-            }
-
-            if (baseLayout.TryGetValue(key, out var baseValue))
-            {
-                value = baseValue!;
-                return true;
-            }
-
-            value = default!;
-            return false;
-        }
-
-        public IEnumerator<KeyValuePair<string, SceneLayoutBox>> GetEnumerator()
-        {
-            foreach (var pair in baseLayout)
-            {
-                yield return updates.TryGetValue(pair.Key, out var updated)
-                    ? new KeyValuePair<string, SceneLayoutBox>(pair.Key, updated)
-                    : pair;
-            }
-
-            foreach (var pair in updates)
-            {
-                if (!baseLayout.ContainsKey(pair.Key))
-                    yield return pair;
-            }
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-            => GetEnumerator();
-
-        private IEnumerable<string> EnumerateKeys()
-        {
-            foreach (var pair in this)
-                yield return pair.Key;
-        }
-
-        private IEnumerable<SceneLayoutBox> EnumerateValues()
-        {
-            foreach (var pair in this)
-                yield return pair.Value;
-        }
-    }
-
     private sealed class HtmlScrollViewState : ISceneScrollOffsetState
     {
         public HtmlScrollViewState(float scrollX, float scrollY)
@@ -1894,7 +1801,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     }
 
     private readonly record struct HtmlHitTestEntry(
-        string SceneNodeId,
+        SceneNodeId SceneNodeId,
         SceneLayoutBox Box,
         HtmlHitTestRect ScreenRect,
         SceneScreenBounds Bounds,
@@ -2248,7 +2155,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             => x >= Left && x <= Left + Width && y >= Top && y <= Top + Height;
     }
 
-    private readonly record struct ScrollScaleAnchor(string NodeId, float ScreenTop);
+    private readonly record struct ScrollScaleAnchor(SceneNodeId NodeId, float ScreenTop);
 
 }
 

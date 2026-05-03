@@ -16,8 +16,8 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     private SceneLayoutCommit? cachedCommit;
     private HtmlFragmentTree? cachedBaseFragmentTree;
     private HtmlFragmentTree? lastRenderedFragmentTree;
-    private IReadOnlyDictionary<string, HtmlNodeId> cachedSceneNodeDomIds =
-        new Dictionary<string, HtmlNodeId>(StringComparer.Ordinal);
+    private IReadOnlyDictionary<SceneNodeId, HtmlNodeId> cachedSceneNodeDomIds =
+        new Dictionary<SceneNodeId, HtmlNodeId>();
     private IReadOnlyDictionary<HtmlNodeId, HtmlNodeId> cachedDomNodeParentIds =
         new Dictionary<HtmlNodeId, HtmlNodeId>();
     private IReadOnlyDictionary<HtmlNodeId, int> cachedDomNodeDepths =
@@ -25,9 +25,9 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     private SceneLayoutCommit? cachedHitTestCommit;
     private HtmlHitTestSpatialIndex? cachedHitTestIndex;
     private readonly List<HtmlHitTestEntry> hitTestEntryScratch = new();
-    private readonly Dictionary<string, int> hitTestPaintOrderIndexScratch = new(StringComparer.Ordinal);
-    private readonly HashSet<string> activeInputIdScratch = new(StringComparer.Ordinal);
-    private readonly HashSet<string> activeScrollIdScratch = new(StringComparer.Ordinal);
+    private readonly Dictionary<SceneNodeId, int> hitTestPaintOrderIndexScratch = new();
+    private readonly HashSet<SceneNodeId> activeInputIdScratch = new();
+    private readonly HashSet<SceneNodeId> activeScrollIdScratch = new();
     private ulong hitTestGeometryVersion;
     private ulong cachedHitTestGeometryVersion = ulong.MaxValue;
     private IReadOnlySet<HtmlNodeId>? cachedHoveredDomNodeIds;
@@ -37,7 +37,7 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     private int cachedWidth = -1;
     private int cachedHeight = -1;
     private TimeSpan? previousRenderElapsed;
-    private readonly HashSet<string> dirtyScrollViewIds = new(StringComparer.Ordinal);
+    private readonly HashSet<SceneNodeId> dirtyScrollViewIds = new();
     private float viewportScale = 1f;
 
     public HtmlSceneFrameSource(HtmlDocument document, HtmlOptions? options = null)

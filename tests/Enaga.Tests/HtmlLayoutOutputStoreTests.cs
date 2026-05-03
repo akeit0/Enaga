@@ -206,12 +206,12 @@ public sealed class HtmlLayoutOutputStoreTests
             new LayoutSize(width, height),
             new LayoutRect(0, 0, width, height));
 
-    private static string FindAncestorId(SceneLayoutCommit commit, string startId, string prefix)
+    private static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
     {
         var currentId = startId;
         while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
         {
-            if (parentId.StartsWith(prefix, StringComparison.Ordinal))
+            if (commit.Layout.TryGetValue(parentId, out var box) && box.NodeKind == SceneNodeKind.View)
                 return parentId;
 
             currentId = parentId;

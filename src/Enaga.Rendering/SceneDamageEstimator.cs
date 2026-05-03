@@ -52,7 +52,7 @@ internal static class SceneDamageEstimator
 
     public static SceneDamageRect? GetBoxDamageRect(
         SceneLayoutCommit commit,
-        string id,
+        SceneNodeId id,
         int viewportWidth,
         int viewportHeight)
     {
@@ -93,7 +93,7 @@ internal static class SceneDamageEstimator
         SceneDamageRectBufferWriter dirtyRects)
     {
         dirtyRects.Clear();
-        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var ids = new HashSet<SceneNodeId>();
         ids.EnsureCapacity(previousCommit.Layout.Count + nextCommit.Layout.Count + previousCommit.Nodes.Count + nextCommit.Nodes.Count);
         AddKeys(ids, previousCommit.Layout.Keys);
         AddKeys(ids, nextCommit.Layout.Keys);
@@ -141,7 +141,7 @@ internal static class SceneDamageEstimator
 
         for (var index = 0; index < previousNode.Children.Count; index++)
         {
-            if (!string.Equals(previousNode.Children[index], nextNode.Children[index], StringComparison.Ordinal))
+                if (previousNode.Children[index] != nextNode.Children[index])
                 return false;
         }
 
@@ -151,7 +151,7 @@ internal static class SceneDamageEstimator
     private static bool NodesEqualIgnoringChildren(SceneGraphNode previousNode, SceneGraphNode nextNode)
     {
         return previousNode.NodeKind == nextNode.NodeKind &&
-               string.Equals(previousNode.ParentId, nextNode.ParentId, StringComparison.Ordinal) &&
+               previousNode.ParentId == nextNode.ParentId &&
                string.Equals(previousNode.Label, nextNode.Label, StringComparison.Ordinal);
     }
 
@@ -175,14 +175,14 @@ internal static class SceneDamageEstimator
                box.BackgroundShader is not null;
     }
 
-    private static bool HasInsertionRemovalOnlyChildMutation(IReadOnlyList<string> previousChildren, IReadOnlyList<string> nextChildren)
+    private static bool HasInsertionRemovalOnlyChildMutation(IReadOnlyList<SceneNodeId> previousChildren, IReadOnlyList<SceneNodeId> nextChildren)
     {
         if (previousChildren.Count == nextChildren.Count)
         {
             var identical = true;
             for (var index = 0; index < previousChildren.Count; index++)
             {
-                if (string.Equals(previousChildren[index], nextChildren[index], StringComparison.Ordinal))
+                if (previousChildren[index] == nextChildren[index])
                     continue;
 
                 identical = false;
@@ -193,7 +193,7 @@ internal static class SceneDamageEstimator
                 return false;
         }
 
-        var nextPositions = new Dictionary<string, int>(nextChildren.Count, StringComparer.Ordinal);
+        var nextPositions = new Dictionary<SceneNodeId, int>(nextChildren.Count);
         for (var index = 0; index < nextChildren.Count; index++)
             nextPositions[nextChildren[index]] = index;
 
@@ -214,7 +214,7 @@ internal static class SceneDamageEstimator
         return matchedAny || previousChildren.Count != nextChildren.Count;
     }
 
-    private static void AddKeys(HashSet<string> ids, IEnumerable<string> keys)
+    private static void AddKeys(HashSet<SceneNodeId> ids, IEnumerable<SceneNodeId> keys)
     {
         foreach (var key in keys)
             ids.Add(key);
@@ -229,7 +229,7 @@ internal static class SceneDamageEstimator
     private static void AddBoxRect(
         SceneDamageRectBufferWriter dirtyRects,
         SceneLayoutCommit commit,
-        string id,
+        SceneNodeId id,
         SceneLayoutBox box,
         int viewportWidth,
         int viewportHeight)
@@ -237,7 +237,7 @@ internal static class SceneDamageEstimator
         AddDirtyRect(dirtyRects, GetBoxDamageRect(commit, id, viewportWidth, viewportHeight));
     }
 
-    private static float GetAncestorScrollOffsetY(SceneLayoutCommit commit, string id)
+    private static float GetAncestorScrollOffsetY(SceneLayoutCommit commit, SceneNodeId id)
     {
         var offsetY = 0f;
         var currentId = id;
@@ -255,7 +255,7 @@ internal static class SceneDamageEstimator
         return offsetY;
     }
 
-    private static float GetAncestorScrollOffsetX(SceneLayoutCommit commit, string id)
+    private static float GetAncestorScrollOffsetX(SceneLayoutCommit commit, SceneNodeId id)
     {
         var offsetX = 0f;
         var currentId = id;
@@ -275,7 +275,7 @@ internal static class SceneDamageEstimator
 
     private static ScreenRect? IntersectWithClippingAncestorViewports(
         SceneLayoutCommit commit,
-        string id,
+        SceneNodeId id,
         float left,
         float top,
         float right,

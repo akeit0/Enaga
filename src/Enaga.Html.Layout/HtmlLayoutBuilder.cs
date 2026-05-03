@@ -13,6 +13,7 @@ internal sealed partial class HtmlLayoutBuilder
     private readonly LayoutCalculator layoutCalculator;
     private readonly LayoutScratchArena scratch = new();
     private readonly HtmlLayoutMeasurementCache measurementCache;
+    private readonly SceneNodeIdentityMap<string> sceneNodeIds;
     private readonly List<HtmlPlacedNode> placedNodes = new();
     private readonly List<HtmlChildRelation> childRelations = new();
     private SceneLayoutCommit? previousCommit;
@@ -22,14 +23,15 @@ internal sealed partial class HtmlLayoutBuilder
         this.rootId = rootId;
         this.textServices = textServices;
         this.metrics = metrics;
+        sceneNodeIds = new SceneNodeIdentityMap<string>(rootId, StringComparer.Ordinal);
         measurementCache = new HtmlLayoutMeasurementCache(metrics);
         layoutCalculator = new LayoutCalculator(textServices);
     }
 
     public HtmlFragmentTree? LastFragmentTree { get; private set; }
 
-    public IReadOnlyDictionary<string, Enaga.Html.Dom.HtmlNodeId> LastSceneNodeDomIds { get; private set; } =
-        new Dictionary<string, Enaga.Html.Dom.HtmlNodeId>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId> LastSceneNodeDomIds { get; private set; } =
+        new Dictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId>();
 
     public SceneLayoutCommit Build(HtmlStyledSceneTree styledTree, HtmlLayoutOutputStore layoutOutputStore, int width, int height, float viewportScale)
     {
@@ -46,29 +48,29 @@ internal sealed partial class HtmlLayoutBuilder
 
         LayoutChildren(rootId, rootStyle, rootChildren, 0, 0, bodyLayoutWidth, height, resolvedViewportScale);
         LastSceneNodeDomIds = CreateSceneNodeDomIdMap(styledTree);
-        var commit = new HtmlSceneEmitter(rootId, width, height, width, height, resolvedViewportScale, previousCommit).Emit(
+        var commit = new HtmlSceneEmitter(rootId, sceneNodeIds, width, height, width, height, resolvedViewportScale, previousCommit).Emit(
             rootKind,
             rootStyle,
             placedNodes,
             childRelations,
             metrics);
         previousCommit = commit;
-        LastFragmentTree = HtmlFragmentTreeFactory.Create(rootId, width, height, placedNodes, commit.Layout);
+        LastFragmentTree = HtmlFragmentTreeFactory.Create(rootId, sceneNodeIds, width, height, placedNodes, commit.Layout);
         metrics.AddFragmentsRebuilt(LastFragmentTree.Fragments.Count + childRelations.Count);
         return commit;
     }
 
-    private Dictionary<string, Enaga.Html.Dom.HtmlNodeId> CreateSceneNodeDomIdMap(HtmlStyledSceneTree styledTree)
+    private Dictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId> CreateSceneNodeDomIdMap(HtmlStyledSceneTree styledTree)
     {
-        var map = new Dictionary<string, Enaga.Html.Dom.HtmlNodeId>(placedNodes.Count + 1, StringComparer.Ordinal)
+        var map = new Dictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId>(placedNodes.Count + 1)
         {
-            [rootId] = styledTree.RootDomNodeId
+            [sceneNodeIds.GetOrCreate(rootId)] = styledTree.RootDomNodeId
         };
 
         foreach (var placed in placedNodes)
         {
             if (placed.Node.DomNodeId.IsValid)
-                map[placed.Id] = placed.Node.DomNodeId;
+                map[sceneNodeIds.GetOrCreate(placed.Id)] = placed.Node.DomNodeId;
         }
 
         return map;

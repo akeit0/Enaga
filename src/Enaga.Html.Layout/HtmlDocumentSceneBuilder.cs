@@ -34,8 +34,8 @@ internal sealed class HtmlDocumentSceneBuilder
 
     public HtmlComputedStyleTree? LastComputedStyleTree { get; private set; }
 
-    public IReadOnlyDictionary<string, HtmlNodeId> LastSceneNodeDomIds { get; private set; } =
-        new Dictionary<string, HtmlNodeId>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<SceneNodeId, HtmlNodeId> LastSceneNodeDomIds { get; private set; } =
+        new Dictionary<SceneNodeId, HtmlNodeId>();
 
     public void ApplyHoverSnapshot(IReadOnlySet<HtmlNodeId>? oldHoveredNodeIds, IReadOnlySet<HtmlNodeId>? newHoveredNodeIds)
         => sceneTreeBuilder.ApplyHoverSnapshot(oldHoveredNodeIds, newHoveredNodeIds);

@@ -44,7 +44,7 @@ public sealed class HtmlSceneFrameSourceTests
         var frame = source.RenderFrame(640, 360, TimeSpan.Zero);
 
         Assert.Equal(SceneDamageReason.RuntimeReload | SceneDamageReason.Resize, frame.DamageReasons);
-        Assert.True(frame.Commit.Layout.TryGetValue("root", out var root));
+        Assert.True(frame.Commit.Layout.TryGetValue(frame.Commit.RootId, out var root));
         Assert.False(string.IsNullOrWhiteSpace(root.BackgroundColor));
 
         var hero = frame.Commit.Nodes.Single(pair => pair.Value.Label == "hero");
@@ -113,7 +113,7 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var frame = source.RenderFrame(400, 200, TimeSpan.Zero);
-        var rowNode = frame.Commit.Nodes.Single(pair => pair.Value.Label is null && pair.Value.Children.Count == 2 && pair.Key != "root");
+        var rowNode = frame.Commit.Nodes.Single(pair => pair.Value.Label is null && pair.Value.Children.Count == 2 && pair.Key != frame.Commit.RootId);
         var firstChildId = frame.Commit.Nodes[rowNode.Key].Children[0];
         var secondChildId = frame.Commit.Nodes[rowNode.Key].Children[1];
         var firstBox = frame.Commit.Layout[firstChildId];
@@ -475,7 +475,7 @@ public sealed class HtmlSceneFrameSourceTests
             .ToArray();
         var firstContent = contentBoxes[0].Value;
         var firstItemId = frame.Commit.Nodes[contentBoxes[0].Key].ParentId!;
-        var firstItem = frame.Commit.Layout[firstItemId];
+        var firstItem = frame.Commit.Layout[firstItemId.Value];
 
         Assert.Equal(3, markers.Length);
         Assert.Equal(3, contentBoxes.Length);
@@ -878,7 +878,7 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var frame = source.RenderFrame(240, 180, TimeSpan.Zero);
-        var root = frame.Commit.Layout["root"];
+        var root = frame.Commit.Layout[frame.Commit.RootId];
         var firstLink = frame.Commit.Layout.Values.Single(box => box.TextContent == "1分で読めるIT用語辞典");
         var secondLink = frame.Commit.Layout.Values.Single(box => box.TextContent == "IT略語一覧");
         var firstMenu = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
@@ -907,7 +907,7 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var frame = source.RenderFrame(980, 100, TimeSpan.Zero);
-        var root = frame.Commit.Layout["root"];
+        var root = frame.Commit.Layout[frame.Commit.RootId];
         var scrollBar = SceneScrollBarLayout.ResolveVerticalScrollBar(root);
 
         Assert.Equal(980, root.Width, precision: 0);
@@ -1357,7 +1357,7 @@ public sealed class HtmlSceneFrameSourceTests
             .OrderBy(pair => pair.Value.AbsLeft)
             .ToArray();
         var firstRow = rows[0].Value;
-        var firstPanel = frame.Commit.Layout[frame.Commit.Nodes[rows[0].Key].ParentId!];
+        var firstPanel = frame.Commit.Layout[frame.Commit.Nodes[rows[0].Key].ParentId!.Value];
         var copyTextBottom = frame.Commit.Layout.Values
             .Where(box => box.TextContent is "This" or "row" or "uses" or "margin-inline-start,"
                 or "margin-inline-end," or "and" or "margin-block.")
@@ -1440,11 +1440,16 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerDown(0, 1, synthetic: false);
         var opened = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
 
-        var popupId = opened.Commit.Layout.Keys.Single(key =>
-            key.StartsWith("__html-select-popup:", StringComparison.Ordinal) &&
-            !key.Contains(":option:", StringComparison.Ordinal));
-        var popup = opened.Commit.Layout[popupId];
-        var firstOption = opened.Commit.Layout[$"{popupId}:option:0"];
+        var popup = opened.Commit.Layout.Values.Single(box =>
+            box.NodeKind == SceneNodeKind.View &&
+            box.IsPositioned &&
+            box.BorderWidth == 1 &&
+            box.BorderStyle == SceneBorderStyle.Solid);
+        var firstOption = opened.Commit.Layout.Values.Single(box =>
+            box.NodeKind == SceneNodeKind.View &&
+            box.BackgroundColor == "#ffffff" &&
+            box.AbsLeft > popup.AbsLeft &&
+            box.AbsTop > popup.AbsTop);
 
         Assert.Equal(1, popup.BorderWidth);
         Assert.Equal(SceneBorderStyle.Solid, popup.BorderStyle);
@@ -1465,7 +1470,7 @@ public sealed class HtmlSceneFrameSourceTests
         var selected = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal("EMEA", selected.Commit.Layout[selectId].TextContent);
-        Assert.DoesNotContain(selected.Commit.Layout.Keys, key => key.StartsWith("__html-select-popup:", StringComparison.Ordinal));
+        Assert.DoesNotContain(selected.Commit.Layout.Values, box => box.IsPositioned && box.BorderStyle == SceneBorderStyle.Solid);
     }
 
     [Fact]
@@ -1559,11 +1564,11 @@ public sealed class HtmlSceneFrameSourceTests
         var buttonBox = frame.Commit.Layout[buttonId];
         var buttonText = frame.Commit.Layout[frame.Commit.Nodes[buttonId].Children.Single()];
 
-        Assert.Equal(new SKColor(0xFF, 0xFF, 0xFF, 0xFF), ParseColor(frame.Commit.Layout["root"].BackgroundColor));
+        Assert.Equal(new SKColor(0xFF, 0xFF, 0xFF, 0xFF), ParseColor(frame.Commit.Layout[frame.Commit.RootId].BackgroundColor));
         Assert.Equal(SceneBorderStyle.Solid, buttonBox.BorderStyle);
         Assert.Equal(new SKColor(0xEF, 0xEF, 0xEF, 0xFF), ParseColor(buttonBox.BackgroundColor));
         Assert.Equal("#111827", buttonText.TextStyle?.Color);
-        Assert.True(buttonBox.Width < frame.Commit.Layout["root"].Width - 1);
+        Assert.True(buttonBox.Width < frame.Commit.Layout[frame.Commit.RootId].Width - 1);
     }
 
     [Fact]
@@ -1612,8 +1617,8 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent == "Zone");
         Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent == ".INT");
         Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent == "Registry");
-        var row = frame.Commit.Nodes.First(pair => pair.Key.StartsWith("tr-", StringComparison.Ordinal)).Value;
-        Assert.Contains(row.Children, childId => childId.StartsWith("td-", StringComparison.Ordinal));
+        var row = frame.Commit.Nodes.First(pair => pair.Value.Children.Count >= 2).Value;
+        Assert.True(row.Children.Count >= 2);
         var root = frame.Commit.Layout.Values.Single(box => box.TextContent == "Root");
         var intRegistry = frame.Commit.Layout.Values.Single(box => box.TextContent == ".INT");
         Assert.True(intRegistry.AbsTop >= root.AbsTop);
@@ -1625,7 +1630,7 @@ public sealed class HtmlSceneFrameSourceTests
             abuse.AbsLeft > numberResources.AbsLeft + numberResources.Width,
             $"Expected second table column after first column text, number=({numberResources.AbsLeft},{numberResources.Width}) abuse={abuse.AbsLeft}.");
         var rows = frame.Commit.Nodes
-            .Where(pair => pair.Key.StartsWith("tr-", StringComparison.Ordinal))
+            .Where(pair => pair.Value.Children.Count >= 2 && frame.Commit.Layout.ContainsKey(pair.Key))
             .Select(pair => frame.Commit.Layout[pair.Key])
             .OrderBy(box => box.AbsTop)
             .ToArray();
@@ -1784,7 +1789,7 @@ public sealed class HtmlSceneFrameSourceTests
                 DefaultBackgroundColor: "#08111d"));
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var root = frame.Commit.Layout["root"];
+        var root = frame.Commit.Layout[frame.Commit.RootId];
         var textBoxes = frame.Commit.Layout.Values.Where(box => box.NodeKind == SceneNodeKind.Text).ToArray();
 
         Assert.Equal("#08111d", root.BackgroundColor);
@@ -2032,7 +2037,7 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
 
         var frame = source.RenderFrame(980, 720, TimeSpan.Zero);
-        var rootBox = frame.Commit.Layout["root"];
+        var rootBox = frame.Commit.Layout[frame.Commit.RootId];
         var backgroundColors = frame.Commit.Layout.Values
             .Select(box => box.BackgroundColor)
             .Where(static color => !string.IsNullOrWhiteSpace(color))
@@ -2074,7 +2079,7 @@ public sealed class HtmlSceneFrameSourceTests
         var frame = source.RenderFrame(980, 720, TimeSpan.Zero);
         var footerActionId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "footer-action").Key;
         var footerBannerId = frame.Commit.Nodes[footerActionId].ParentId!;
-        var footerBanner = frame.Commit.Layout[footerBannerId];
+        var footerBanner = frame.Commit.Layout[footerBannerId.Value];
         var footerAction = frame.Commit.Layout[footerActionId];
 
         Assert.True(footerBanner.Width > 850, $"footerBannerWidth={footerBanner.Width}");
@@ -2203,10 +2208,10 @@ public sealed class HtmlSceneFrameSourceTests
 
         source.Wheel(0, -6, synthetic: false);
         var scrolled = hoveredOne;
-        for (var frame = 0; frame < 8 && scrolled.Commit.Layout["root"].ScrollY < 70; frame++)
+        for (var frame = 0; frame < 8 && scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY < 70; frame++)
             scrolled = source.RenderFrame(320, 120, TimeSpan.FromMilliseconds(32 + frame * 16));
 
-        Assert.True(scrolled.Commit.Layout["root"].ScrollY >= 70);
+        Assert.True(scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY >= 70);
         Assert.Equal("#112233", scrolled.Commit.Layout[oneId].BackgroundColor);
         Assert.Equal("#445566", scrolled.Commit.Layout[twoId].BackgroundColor);
     }
@@ -2355,9 +2360,9 @@ public sealed class HtmlSceneFrameSourceTests
         source.Wheel(0, -3, synthetic: false);
         var updated = source.RenderFrame(320, 180, TimeSpan.Zero);
 
-        Assert.Equal(SceneNodeKind.ScrollView, updated.Commit.Nodes["root"].NodeKind);
-        Assert.True(updated.Commit.Layout["root"].ContentHeight > updated.Commit.Layout["root"].Height);
-        Assert.True(updated.Commit.Layout["root"].ScrollY > initial.Commit.Layout["root"].ScrollY);
+        Assert.Equal(SceneNodeKind.ScrollView, updated.Commit.Nodes[updated.Commit.RootId].NodeKind);
+        Assert.True(updated.Commit.Layout[updated.Commit.RootId].ContentHeight > updated.Commit.Layout[updated.Commit.RootId].Height);
+        Assert.True(updated.Commit.Layout[updated.Commit.RootId].ScrollY > initial.Commit.Layout[initial.Commit.RootId].ScrollY);
     }
 
     [Fact]
@@ -2382,8 +2387,8 @@ public sealed class HtmlSceneFrameSourceTests
         var first = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
         var second = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
-        Assert.InRange(first.Commit.Layout["root"].ScrollY, 0.1f, 71.9f);
-        Assert.True(second.Commit.Layout["root"].ScrollY > first.Commit.Layout["root"].ScrollY);
+        Assert.InRange(first.Commit.Layout[first.Commit.RootId].ScrollY, 0.1f, 71.9f);
+        Assert.True(second.Commit.Layout[second.Commit.RootId].ScrollY > first.Commit.Layout[first.Commit.RootId].ScrollY);
     }
 
     [Fact]
@@ -2461,14 +2466,14 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerMove(40, 40, 0, synthetic: false);
         source.Wheel(0, -5, synthetic: false);
         var scrolled = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
-        var oldScrollY = scrolled.Commit.Layout["root"].ScrollY;
+        var oldScrollY = scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY;
         Assert.True(oldScrollY > 0);
 
         source.Wheel(0, 1, synthetic: false, modifiers: 2);
         var scaled = source.RenderFrame(291, 164, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal(1.10f, source.ViewportScale, precision: 2);
-        Assert.True(scaled.Commit.Layout["root"].ScrollY >= oldScrollY);
+        Assert.True(scaled.Commit.Layout[scaled.Commit.RootId].ScrollY >= oldScrollY);
     }
 
     [Fact]
@@ -2654,12 +2659,12 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredNameCellId = FindAncestorId(hoveredFrame.Commit, hoveredFrame.Commit.Nodes.Single(pair => hoveredFrame.Commit.Layout[pair.Key].TextContent == hoveredName.TextContent).Key, "td-");
         Assert.Equal("#f0f0f8", hoveredFrame.Commit.Layout[hoveredNameCellId].BackgroundColor);
 
-        static string FindAncestorId(SceneLayoutCommit commit, string startId, string prefix)
+        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
         {
             var currentId = startId;
             while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
             {
-                if (parentId.StartsWith(prefix, StringComparison.Ordinal))
+                if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
                 currentId = parentId;
             }
@@ -2722,16 +2727,16 @@ public sealed class HtmlSceneFrameSourceTests
         for (var frame = 0; frame < 60; frame++, elapsedMs += 16)
         {
             scrolled = source.RenderFrame(520, 120, TimeSpan.FromMilliseconds(elapsedMs));
-            var scrollY = scrolled.Commit.Layout["root"].ScrollY;
+            var scrollY = scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY;
             if (scrollY > 0 && MathF.Abs(scrollY - previousScrollY) < 0.01f)
                 break;
 
             previousScrollY = scrollY;
         }
 
-        Assert.True(scrolled.Commit.Layout["root"].ScrollY > 0);
+        Assert.True(scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY > 0);
         var updated = scrolled.Commit.Layout.Values.First(box => box.TextContent?.Contains("Updated", StringComparison.Ordinal) == true);
-        var updatedScreenY = updated.AbsTop - scrolled.Commit.Layout["root"].ScrollY;
+        var updatedScreenY = updated.AbsTop - scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY;
         Assert.InRange(updatedScreenY + 2, 0, 120);
         source.PointerMove(updated.AbsLeft + 2, updatedScreenY + 2, buttons: 0, synthetic: false);
         var hovered = source.RenderFrame(520, 120, TimeSpan.FromMilliseconds(elapsedMs));
@@ -2739,18 +2744,18 @@ public sealed class HtmlSceneFrameSourceTests
         var updatedNodeId = hovered.Commit.Nodes.Single(pair => hovered.Commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent?.Contains("Updated", StringComparison.Ordinal) == true).Key;
         var rowId = FindAncestorId(hovered.Commit, updatedNodeId, "tr-");
         var cellIds = hovered.Commit.Nodes[rowId].Children
-            .Where(childId => childId.StartsWith("td-", StringComparison.Ordinal))
+            .Where(childId => IsMatchingGeneratedAncestor(hovered.Commit, childId, "td-"))
             .ToArray();
 
         Assert.True(cellIds.Length >= 2);
         Assert.All(cellIds, cellId => Assert.Equal("#f0f0f8", hovered.Commit.Layout[cellId].BackgroundColor));
 
-        static string FindAncestorId(SceneLayoutCommit commit, string startId, string prefix)
+        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
         {
             var currentId = startId;
             while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
             {
-                if (parentId.StartsWith(prefix, StringComparison.Ordinal))
+                if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
                 currentId = parentId;
             }
@@ -2820,16 +2825,16 @@ public sealed class HtmlSceneFrameSourceTests
         for (var frame = 0; frame < 60; frame++, elapsedMs += 16)
         {
             scrolled = source.RenderFrame(820, 400, TimeSpan.FromMilliseconds(elapsedMs));
-            var scrollY = scrolled.Commit.Layout["root"].ScrollY;
+            var scrollY = scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY;
             if (scrollY > 0 && MathF.Abs(scrollY - previousScrollY) < 0.01f)
                 break;
 
             previousScrollY = scrollY;
         }
 
-        Assert.True(scrolled.Commit.Layout["root"].ScrollY > 0);
+        Assert.True(scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY > 0);
         var firstLink = scrolled.Commit.Layout.Values.First(box => box.TextContent == "root-anchors.xml");
-        source.PointerMove(firstLink.AbsLeft + 4, firstLink.AbsTop - scrolled.Commit.Layout["root"].ScrollY + 4, buttons: 0, synthetic: false);
+        source.PointerMove(firstLink.AbsLeft + 4, firstLink.AbsTop - scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY + 4, buttons: 0, synthetic: false);
         var hovered = source.RenderFrame(820, 400, TimeSpan.FromMilliseconds(elapsedMs));
 
         var firstRowId = FindAncestorId(hovered.Commit, FindNodeIdByText(hovered.Commit, "root-anchors.xml"), "tr-");
@@ -2840,20 +2845,20 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.All(FindCellIds(hovered.Commit, secondRowId), cellId => Assert.Equal("#fafafc", hovered.Commit.Layout[cellId].BackgroundColor));
         Assert.All(FindCellIds(hovered.Commit, thirdRowId), cellId => Assert.Equal("#fafafc", hovered.Commit.Layout[cellId].BackgroundColor));
 
-        static string FindNodeIdByText(SceneLayoutCommit commit, string text)
+        static SceneNodeId FindNodeIdByText(SceneLayoutCommit commit, string text)
             => commit.Nodes.Single(pair => commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == text).Key;
 
-        static string[] FindCellIds(SceneLayoutCommit commit, string rowId)
+        static SceneNodeId[] FindCellIds(SceneLayoutCommit commit, SceneNodeId rowId)
             => commit.Nodes[rowId].Children
-                .Where(childId => childId.StartsWith("td-", StringComparison.Ordinal))
+                .Where(childId => IsMatchingGeneratedAncestor(commit, childId, "td-"))
                 .ToArray();
 
-        static string FindAncestorId(SceneLayoutCommit commit, string startId, string prefix)
+        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
         {
             var currentId = startId;
             while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
             {
-                if (parentId.StartsWith(prefix, StringComparison.Ordinal))
+                if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
                 currentId = parentId;
             }
@@ -2906,22 +2911,22 @@ public sealed class HtmlSceneFrameSourceTests
         var frame = source.RenderFrame(300, 300, TimeSpan.Zero);
         source.PointerMove(230, 125, 0, synthetic: false);
         source.Wheel(0, -1, synthetic: false);
-        for (var index = 0; index < 60 && frame.Commit.Layout["root"].ScrollY < 51.5f; index++)
+        for (var index = 0; index < 60 && frame.Commit.Layout[frame.Commit.RootId].ScrollY < 51.5f; index++)
             frame = source.RenderFrame(300, 300, TimeSpan.FromMilliseconds(16 + index * 16));
 
-        Assert.InRange(frame.Commit.Layout["root"].ScrollY, 51.5f, 52.5f);
+        Assert.InRange(frame.Commit.Layout[frame.Commit.RootId].ScrollY, 51.5f, 52.5f);
         source.PointerMove(230, 125, 0, synthetic: false);
         var hovered = source.RenderFrame(300, 300, TimeSpan.FromMilliseconds(1000));
         var rowId = FindAncestorId(hovered.Commit, FindNodeIdByText(hovered.Commit, "Updated 2024-11-05"), "tr-");
         var cellIds = hovered.Commit.Nodes[rowId].Children
-            .Where(childId => childId.StartsWith("td-", StringComparison.Ordinal))
+            .Where(childId => IsMatchingGeneratedAncestor(hovered.Commit, childId, "td-"))
             .ToArray();
 
         Assert.Equal(2, cellIds.Length);
         Assert.All(cellIds, cellId => Assert.Equal("#f0f0f8", hovered.Commit.Layout[cellId].BackgroundColor));
         Assert.All(cellIds, cellId => Assert.Contains(hovered.DirtyRects, rect => Intersects(rect, ToScreenBox(hovered.Commit, cellId))));
 
-        static string FindNodeIdByText(SceneLayoutCommit commit, string text)
+        static SceneNodeId FindNodeIdByText(SceneLayoutCommit commit, string text)
             => commit.Nodes.Single(pair => commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == text).Key;
 
         static bool Intersects(SceneDamageRect rect, SceneLayoutBox box)
@@ -2930,15 +2935,15 @@ public sealed class HtmlSceneFrameSourceTests
                rect.Y < box.AbsTop + box.Height &&
                rect.Y + rect.Height > box.AbsTop;
 
-        static SceneLayoutBox ToScreenBox(SceneLayoutCommit commit, string id)
+        static SceneLayoutBox ToScreenBox(SceneLayoutCommit commit, SceneNodeId id)
             => Enaga.Input.SceneScreenGeometry.ResolveScreenBox(commit, commit.Layout, id, commit.Layout[id]);
 
-        static string FindAncestorId(SceneLayoutCommit commit, string startId, string prefix)
+        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
         {
             var currentId = startId;
             while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
             {
-                if (parentId.StartsWith(prefix, StringComparison.Ordinal))
+                if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
                 currentId = parentId;
             }
@@ -3013,15 +3018,15 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(1, table.Border.BottomWidth);
         Assert.Equal("#5eb9e6", table.Border.BottomColor);
 
-        static string FindNodeId(SceneLayoutCommit commit, SceneLayoutBox target)
+        static SceneNodeId FindNodeId(SceneLayoutCommit commit, SceneLayoutBox target)
             => commit.Layout.First(pair => pair.Value == target).Key;
 
-        static string FindAncestorId(SceneLayoutCommit commit, string startId, string prefix)
+        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
         {
             var currentId = startId;
             while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
             {
-                if (parentId.StartsWith(prefix, StringComparison.Ordinal))
+                if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
                 currentId = parentId;
             }
@@ -3107,12 +3112,12 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.True(secondCell.AbsLeft >= firstCell.AbsLeft + firstCell.Width);
         Assert.True(nextRowCell.AbsTop >= firstCell.AbsTop + firstCell.Height);
 
-        static string FindAncestorId(SceneLayoutCommit commit, string startId, string prefix)
+        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
         {
             var currentId = startId;
             while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
             {
-                if (parentId.StartsWith(prefix, StringComparison.Ordinal))
+                if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
 
                 currentId = parentId;
@@ -3139,7 +3144,7 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var metrics = SceneScrollBarLayout.ResolveVerticalScrollBar(initial.Commit.Layout["root"]);
+        var metrics = SceneScrollBarLayout.ResolveVerticalScrollBar(initial.Commit.Layout[initial.Commit.RootId]);
         Assert.NotNull(metrics);
 
         var thumb = metrics!.Value.ThumbRect;
@@ -3151,7 +3156,7 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerUp(0, 0, synthetic: false);
         var updated = source.RenderFrame(320, 180, TimeSpan.Zero);
 
-        Assert.True(updated.Commit.Layout["root"].ScrollY > initial.Commit.Layout["root"].ScrollY);
+        Assert.True(updated.Commit.Layout[updated.Commit.RootId].ScrollY > initial.Commit.Layout[initial.Commit.RootId].ScrollY);
     }
 
     [Fact]
@@ -3168,7 +3173,7 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var initial = source.RenderFrame(240, 120, TimeSpan.Zero);
-        var metrics = SceneScrollBarLayout.ResolveHorizontalScrollBar(initial.Commit.Layout["root"]);
+        var metrics = SceneScrollBarLayout.ResolveHorizontalScrollBar(initial.Commit.Layout[initial.Commit.RootId]);
         Assert.NotNull(metrics);
 
         var thumb = metrics!.Value.ThumbRect;
@@ -3180,7 +3185,7 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerUp(0, 0, synthetic: false);
         var updated = source.RenderFrame(240, 120, TimeSpan.Zero);
 
-        Assert.True(updated.Commit.Layout["root"].ScrollX > initial.Commit.Layout["root"].ScrollX);
+        Assert.True(updated.Commit.Layout[updated.Commit.RootId].ScrollX > initial.Commit.Layout[initial.Commit.RootId].ScrollX);
     }
 
     [Fact]
@@ -3202,12 +3207,12 @@ public sealed class HtmlSceneFrameSourceTests
         var overflowing = source.RenderFrame(200, 100, TimeSpan.Zero);
         var overflowingFill = overflowing.Commit.Layout[overflowing.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
         Assert.Equal(188, overflowingFill.Width, precision: 0);
-        Assert.NotNull(SceneScrollBarLayout.ResolveVerticalScrollBar(overflowing.Commit.Layout["root"]));
+        Assert.NotNull(SceneScrollBarLayout.ResolveVerticalScrollBar(overflowing.Commit.Layout[overflowing.Commit.RootId]));
 
         var fitting = source.RenderFrame(200, 260, TimeSpan.Zero);
         var fittingFill = fitting.Commit.Layout[fitting.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
         Assert.Equal(200, fittingFill.Width, precision: 0);
-        Assert.Null(SceneScrollBarLayout.ResolveVerticalScrollBar(fitting.Commit.Layout["root"]));
+        Assert.Null(SceneScrollBarLayout.ResolveVerticalScrollBar(fitting.Commit.Layout[fitting.Commit.RootId]));
     }
 
     [Fact]
@@ -3227,7 +3232,7 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var overflowing = source.RenderFrame(200, 100, TimeSpan.Zero);
-        var overflowingRoot = overflowing.Commit.Layout["root"];
+        var overflowingRoot = overflowing.Commit.Layout[overflowing.Commit.RootId];
         var overflowingWide = overflowing.Commit.Layout[overflowing.Commit.Nodes.Single(pair => pair.Value.Label == "wide").Key];
         Assert.True(overflowingRoot.HorizontalScrollEnabled);
         Assert.True(overflowingRoot.ContentWidth > overflowingRoot.Width);
@@ -3235,7 +3240,7 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.NotNull(SceneScrollBarLayout.ResolveHorizontalScrollBar(overflowingRoot));
 
         var fitting = source.RenderFrame(360, 100, TimeSpan.Zero);
-        var fittingRoot = fitting.Commit.Layout["root"];
+        var fittingRoot = fitting.Commit.Layout[fitting.Commit.RootId];
         var fittingWide = fitting.Commit.Layout[fitting.Commit.Nodes.Single(pair => pair.Value.Label == "wide").Key];
         Assert.Equal(100, fittingWide.Height, precision: 0);
         Assert.Null(SceneScrollBarLayout.ResolveHorizontalScrollBar(fittingRoot));
@@ -3259,7 +3264,7 @@ public sealed class HtmlSceneFrameSourceTests
 
         var frame = source.RenderFrame(200, 100, TimeSpan.Zero);
         var fragmentTree = GetCachedBaseFragmentTree(source);
-        var root = frame.Commit.Layout["root"];
+        var root = frame.Commit.Layout[frame.Commit.RootId];
         var scrollBarFragments = fragmentTree.Fragments.Values
             .Where(fragment => fragment.Kind == HtmlFragmentKind.ScrollBar)
             .ToArray();
@@ -3293,7 +3298,7 @@ public sealed class HtmlSceneFrameSourceTests
 
         var frame = source.RenderFrame(200, 100, TimeSpan.Zero);
         var fragmentTree = GetCachedBaseFragmentTree(source);
-        var root = frame.Commit.Layout["root"];
+        var root = frame.Commit.Layout[frame.Commit.RootId];
         var scrollBarFragments = fragmentTree.Fragments.Values
             .Where(fragment => fragment.Kind == HtmlFragmentKind.ScrollBar)
             .ToArray();
@@ -3326,12 +3331,12 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var normal = source.RenderFrame(200, 100, TimeSpan.Zero);
-        var normalRoot = normal.Commit.Layout["root"];
+        var normalRoot = normal.Commit.Layout[normal.Commit.RootId];
         Assert.Equal(12, normalRoot.ScrollBarWidth, precision: 2);
 
         source.Wheel(0, 1, synthetic: false, modifiers: 2);
         var scaled = source.RenderFrame(182, 91, TimeSpan.Zero);
-        var scaledRoot = scaled.Commit.Layout["root"];
+        var scaledRoot = scaled.Commit.Layout[scaled.Commit.RootId];
         var scaledFill = scaled.Commit.Layout[scaled.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
 
         Assert.Equal(12, scaledRoot.ScrollBarWidth * source.ViewportScale, precision: 1);
@@ -3356,7 +3361,7 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var frame = source.RenderFrame(200, 100, TimeSpan.Zero);
-        var root = frame.Commit.Layout["root"];
+        var root = frame.Commit.Layout[frame.Commit.RootId];
         var fill = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
 
         Assert.NotNull(SceneScrollBarLayout.ResolveVerticalScrollBar(root));
@@ -3382,7 +3387,7 @@ public sealed class HtmlSceneFrameSourceTests
 
         source.Wheel(0, 1, synthetic: false, modifiers: 2);
         var frame = source.RenderFrame(182, 91, TimeSpan.Zero);
-        var root = frame.Commit.Layout["root"];
+        var root = frame.Commit.Layout[frame.Commit.RootId];
         var fill = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
 
         Assert.Equal(1.1f, source.ViewportScale, precision: 2);
@@ -3597,6 +3602,23 @@ public sealed class HtmlSceneFrameSourceTests
     {
         Assert.True(SceneCommitPainter.TryParseCssColor(color, out var parsed), $"Failed to parse color '{color ?? "<null>"}'");
         return parsed;
+    }
+
+    private static bool IsMatchingGeneratedAncestor(SceneLayoutCommit commit, SceneNodeId nodeId, string prefix)
+    {
+        if (!commit.Nodes.TryGetValue(nodeId, out var node))
+            return false;
+
+        if (prefix is "td-" or "th-")
+            return node.Children.Count > 0 && node.ParentId is { } parentId && commit.Nodes.TryGetValue(parentId, out var parent) && parent.Children.Count > 1;
+
+        if (prefix == "tr-")
+            return node.Children.Count > 1;
+
+        if (prefix == "table-")
+            return node.ParentId == commit.RootId || node.Children.Count > 1 && node.Children.Any(childId => commit.Nodes.TryGetValue(childId, out var child) && child.Children.Count > 1);
+
+        return false;
     }
 
 }

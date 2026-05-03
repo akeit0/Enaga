@@ -42,8 +42,8 @@ public sealed record SceneViewport(int Width, int Height);
 
 public sealed record SceneGraphNode(
     SceneNodeKind NodeKind,
-    string? ParentId,
-    IReadOnlyList<string> Children,
+    SceneNodeId? ParentId,
+    IReadOnlyList<SceneNodeId> Children,
     string? Label = null);
 
 public sealed record SceneFont(
@@ -93,6 +93,78 @@ public sealed record SceneTextStyle
     public bool TextOverflowEllipsis { get; init; }
     public SceneBoxShadow[]? TextShadows { get; init; }
 }
+
+public readonly record struct SceneBoxGeometry(
+    float AbsLeft,
+    float AbsTop,
+    float Width,
+    float Height,
+    float PaddingLeft,
+    float PaddingTop,
+    float PaddingRight,
+    float PaddingBottom,
+    bool IsPositioned);
+
+public readonly record struct SceneBoxPaint(
+    string? BackgroundColor,
+    string? BorderColor,
+    float BorderWidth,
+    float BorderRadius,
+    SceneBoxSizing BoxSizing,
+    SceneBorderStyle BorderStyle,
+    SceneGradient? BackgroundGradient,
+    SceneRuntimeShader? BackgroundShader,
+    SceneBoxShadow[]? BackgroundShadows,
+    string? BackgroundImageSource,
+    string? BackgroundImageFit,
+    SceneBoxBorder? Border);
+
+public readonly record struct SceneTextPayload(
+    string TextContent,
+    SceneTextStyle? TextStyle,
+    float LineHeight);
+
+public readonly record struct SceneTextInputPayload(
+    string TextContent,
+    SceneTextStyle? TextStyle,
+    string PlaceholderText,
+    string? PlaceholderColor,
+    bool Multiline,
+    float LineHeight,
+    int CaretIndex,
+    int SelectionStart,
+    int SelectionEnd,
+    bool IsFocused,
+    string CompositionText,
+    int CompositionStart,
+    int CompositionCursorOffset,
+    int CompositionSelectionStart,
+    int CompositionSelectionLength,
+    string? CompositionUnderlineColor,
+    string? CompositionSelectionUnderlineColor,
+    bool ImeOpen,
+    string? ImeIndicator);
+
+public readonly record struct SceneScrollPayload(
+    float ScrollX,
+    float ScrollY,
+    bool IsScrollContainer,
+    bool ClipContent,
+    float ContentWidth,
+    float ContentHeight,
+    bool HorizontalScrollEnabled,
+    float ScrollBarWidth,
+    string? ScrollBarTrackColor,
+    string? ScrollBarThumbColor);
+
+public readonly record struct SceneImagePayload(
+    string ImageSource,
+    string? ImagePlaceholderSource,
+    string? ImageFit);
+
+public readonly record struct SceneInteractionPayload(
+    string? LinkHref,
+    SceneControlKind ControlKind);
 
 public sealed record SceneLayoutBox(
     SceneNodeKind NodeKind,
@@ -150,7 +222,80 @@ public sealed record SceneLayoutBox(
     string? ScrollBarTrackColor = null,
     string? ScrollBarThumbColor = null,
     bool IsPositioned = false,
-    SceneControlKind ControlKind = SceneControlKind.None);
+    SceneControlKind ControlKind = SceneControlKind.None)
+{
+    public SceneBoxGeometry Geometry => new(
+        AbsLeft,
+        AbsTop,
+        Width,
+        Height,
+        PaddingLeft,
+        PaddingTop,
+        PaddingRight,
+        PaddingBottom,
+        IsPositioned);
+
+    public SceneBoxPaint Paint => new(
+        BackgroundColor,
+        BorderColor,
+        BorderWidth,
+        BorderRadius,
+        BoxSizing,
+        BorderStyle,
+        BackgroundGradient,
+        BackgroundShader,
+        BackgroundShadows,
+        BackgroundImageSource,
+        BackgroundImageFit,
+        Border);
+
+    public SceneTextPayload? Text => NodeKind == SceneNodeKind.Text && TextContent is { } textContent
+        ? new SceneTextPayload(textContent, TextStyle, LineHeight)
+        : null;
+
+    public SceneTextInputPayload? TextInput => NodeKind == SceneNodeKind.TextInput
+        ? new SceneTextInputPayload(
+            TextContent ?? string.Empty,
+            TextStyle,
+            PlaceholderText ?? string.Empty,
+            PlaceholderColor,
+            Multiline,
+            LineHeight,
+            CaretIndex,
+            SelectionStart,
+            SelectionEnd,
+            IsFocused,
+            CompositionText ?? string.Empty,
+            CompositionStart,
+            CompositionCursorOffset,
+            CompositionSelectionStart,
+            CompositionSelectionLength,
+            CompositionUnderlineColor,
+            CompositionSelectionUnderlineColor,
+            ImeOpen,
+            ImeIndicator)
+        : null;
+
+    public SceneScrollPayload? Scroll => NodeKind == SceneNodeKind.ScrollView || IsScrollContainer || ClipContent || ContentWidth > 0 || ContentHeight > 0
+        ? new SceneScrollPayload(
+            ScrollX,
+            ScrollY,
+            IsScrollContainer,
+            ClipContent,
+            ContentWidth,
+            ContentHeight,
+            HorizontalScrollEnabled,
+            ScrollBarWidth,
+            ScrollBarTrackColor,
+            ScrollBarThumbColor)
+        : null;
+
+    public SceneImagePayload? Image => NodeKind == SceneNodeKind.Image && ImageSource is { } imageSource
+        ? new SceneImagePayload(imageSource, ImagePlaceholderSource, ImageFit)
+        : null;
+
+    public SceneInteractionPayload Interaction => new(LinkHref, ControlKind);
+}
 
 public sealed record SceneBoxBorder(
     float LeftWidth,
@@ -167,11 +312,26 @@ public sealed record SceneBoxBorder(
     string? BottomColor);
 
 public sealed record SceneLayoutCommit(
-    string RootId,
+    SceneNodeId RootId,
     SceneViewport Viewport,
-    IReadOnlyDictionary<string, SceneGraphNode> Nodes,
-    IReadOnlyDictionary<string, SceneLayoutBox> Layout,
-    string[] HostAnimatedShaderRootIds)
+    SceneNodeMap<SceneGraphNode> Nodes,
+    SceneNodeMap<SceneLayoutBox> Layout,
+    SceneNodeId[] HostAnimatedShaderRootIds)
 {
-    public string[] PaintOrderIds { get; init; } = [];
+    public SceneLayoutCommit(
+        SceneNodeId rootId,
+        SceneViewport viewport,
+        IReadOnlyDictionary<SceneNodeId, SceneGraphNode> nodes,
+        IReadOnlyDictionary<SceneNodeId, SceneLayoutBox> layout,
+        SceneNodeId[] hostAnimatedShaderRootIds)
+        : this(
+            rootId,
+            viewport,
+            new SceneNodeMap<SceneGraphNode>(nodes),
+            new SceneNodeMap<SceneLayoutBox>(layout),
+            hostAnimatedShaderRootIds)
+    {
+    }
+
+    public SceneNodeId[] PaintOrderIds { get; init; } = [];
 }
