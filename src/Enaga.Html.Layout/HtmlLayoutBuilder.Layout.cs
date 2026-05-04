@@ -177,6 +177,7 @@ internal sealed partial class HtmlLayoutBuilder
         }
         else if (node.NodeKind == SceneNodeKind.TextInput &&
                  style.PreferIntrinsicWidth &&
+                 !LayoutValue.IsSet(width) &&
                  !string.IsNullOrEmpty(node.TextContent))
         {
             var textStyle = textStyleCache.GetInlineMeasureStyle(style);

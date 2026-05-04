@@ -13,7 +13,8 @@ internal static class HtmlUrlResolver
 
         if (trimmed.StartsWith("#", StringComparison.Ordinal) ||
             trimmed.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
-            trimmed.StartsWith("tel:", StringComparison.OrdinalIgnoreCase))
+            trimmed.StartsWith("tel:", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase))
         {
             return trimmed;
         }

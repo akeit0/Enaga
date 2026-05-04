@@ -47,7 +47,8 @@ internal sealed record HtmlSceneNode(
     int RowSpan = 1,
     int ColSpan = 1,
     SceneControlKind ControlKind = SceneControlKind.None,
-    HtmlSceneNodeRole Role = HtmlSceneNodeRole.Normal)
+    HtmlSceneNodeRole Role = HtmlSceneNodeRole.Normal,
+    bool IsChecked = false)
 {
     public HtmlSceneNodeId Id { get; set; } = Id;
 

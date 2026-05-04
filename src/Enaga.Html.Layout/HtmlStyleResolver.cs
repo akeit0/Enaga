@@ -45,7 +45,7 @@ internal sealed class HtmlStyleResolver(HtmlOptions options, LayoutEngineConfig 
             style.Apply(HtmlCssParser.ParseDeclarations(inlineStyle));
 
         style.NormalizeAfterCascade(element.LocalName, layoutConfig);
-        style.ApplyDefaultInteraction(element.LocalName, isHovered, isActive);
+        style.ApplyDefaultInteraction(element, isHovered, isActive);
         style.ResolveBackgroundImageUrl(value => HtmlUrlResolver.Resolve(value, basePath));
         return style;
     }

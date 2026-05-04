@@ -48,7 +48,7 @@ internal sealed class HtmlSceneEmitter(
             ParentId: null,
             childMap.TryGetValue(rootSceneNodeId, out var rootChildren) ? rootChildren : [],
             Label: null);
-        layout[rootSceneNodeId] = CreateLayoutBox(rootSceneNodeId, rootKind, rootStyle, 0, 0, rootLayoutWidth, rootLayoutHeight, null, null, null, null, SceneControlKind.None, viewportScale);
+        layout[rootSceneNodeId] = CreateLayoutBox(rootSceneNodeId, rootKind, rootStyle, 0, 0, rootLayoutWidth, rootLayoutHeight, null, null, null, null, SceneControlKind.None, isChecked: false, viewportScale);
 
         for (var index = 0; index < placedNodes.Count; index++)
         {
@@ -73,6 +73,7 @@ internal sealed class HtmlSceneEmitter(
                 node.PlaceholderText,
                 node.LinkHref,
                 node.ControlKind,
+                node.IsChecked,
                 viewportScale);
         }
 
@@ -103,12 +104,13 @@ internal sealed class HtmlSceneEmitter(
         string? placeholderText,
         string? linkHref,
         SceneControlKind controlKind,
+        bool isChecked,
         float viewportScale)
     {
-        if (TryReuseLayoutBox(id, nodeKind, style, absLeft, absTop, width, height, textContent, imageSource, placeholderText, linkHref, controlKind, viewportScale, out var reused))
+        if (TryReuseLayoutBox(id, nodeKind, style, absLeft, absTop, width, height, textContent, imageSource, placeholderText, linkHref, controlKind, isChecked, viewportScale, out var reused))
             return reused;
 
-        var textStyle = nodeKind is SceneNodeKind.Text or SceneNodeKind.TextInput
+        var textStyle = nodeKind is SceneNodeKind.Text or SceneNodeKind.TextInput || controlKind == SceneControlKind.Radio
             ? textStyleCache.GetTextStyle(style)
             : null;
 
@@ -148,7 +150,8 @@ internal sealed class HtmlSceneEmitter(
             ScrollBarThumbColor: style.ScrollbarThumbColor,
             BackgroundShadows: style.BackgroundShadows,
             IsPositioned: style.Position != PositionMode.Static,
-            ControlKind: controlKind);
+            ControlKind: controlKind,
+            IsChecked: isChecked);
     }
 
     private bool TryReuseLayoutBox(
@@ -164,6 +167,7 @@ internal sealed class HtmlSceneEmitter(
         string? placeholderText,
         string? linkHref,
         SceneControlKind controlKind,
+        bool isChecked,
         float viewportScale,
         out SceneLayoutBox box)
     {
@@ -197,6 +201,7 @@ internal sealed class HtmlSceneEmitter(
             previous.HorizontalScrollEnabled != style.IsScrollContainer ||
             previous.BorderStyle != style.BorderStyle ||
             previous.ControlKind != controlKind ||
+            previous.IsChecked != isChecked ||
             previous.LinkHref != linkHref ||
             previous.BackgroundImageSource != style.BackgroundImageSource ||
             previous.BackgroundImageFit != style.BackgroundImageFit ||

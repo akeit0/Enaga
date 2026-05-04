@@ -392,6 +392,27 @@ public sealed class HtmlSceneFrameSourceTests
     }
 
     [Fact]
+    public void HtmlSceneFrameSource_ActivatesJavascriptAnchorHrefUnresolved()
+    {
+        const string href = "javascript:document.getElementById('status').textContent='done'";
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument($"<body><a id='run' href=\"{href}\">Run</a><p id='status'>idle</p></body>", BasePath: Path.GetFullPath("site")),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+        string? activated = null;
+        source.LinkActivated += link => activated = link;
+
+        var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var linkId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "run").Key;
+        var linkBox = frame.Commit.Layout[linkId];
+        source.PointerMove(linkBox.AbsLeft + 4, linkBox.AbsTop + 4, 0, synthetic: false);
+        source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
+
+        Assert.Equal(href, source.LastActivatedLinkHref);
+        Assert.Equal(href, activated);
+    }
+
+    [Fact]
     public void HtmlSceneFrameSource_RaisesElementClickedForDomHit()
     {
         var source = new HtmlSceneFrameSource(
@@ -640,8 +661,8 @@ public sealed class HtmlSceneFrameSourceTests
         source.LinkActivated += href => activated = href;
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
-        var secondLinkWord = frame.Commit.Layout.Values.Single(box => box.TextContent == "playbook");
-        source.PointerMove(secondLinkWord.AbsLeft + 2, secondLinkWord.AbsTop + 2, 0, synthetic: false);
+        var linkText = frame.Commit.Layout.Values.Single(box => box.TextContent?.Contains("playbook", StringComparison.Ordinal) == true);
+        source.PointerMove(linkText.AbsLeft + 2, linkText.AbsTop + 2, 0, synthetic: false);
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
 
@@ -1610,6 +1631,41 @@ public sealed class HtmlSceneFrameSourceTests
     }
 
     [Fact]
+    public void HtmlSceneFrameSource_SelectChoiceOverridesStaticSelectedAttribute()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument("""
+                <body>
+                  <select id='mode'>
+                    <option value='s'>Starts</option>
+                    <option value='e'>Ends</option>
+                    <option value='' selected>Contains</option>
+                  </select>
+                </body>
+                """),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var selectId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "mode").Key;
+        var selectBox = initial.Commit.Layout[selectId];
+
+        Assert.Equal("Contains", selectBox.TextContent);
+
+        source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + 8, 0, synthetic: false);
+        source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
+        source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
+        source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + selectBox.Height + 4, 0, synthetic: false);
+        source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
+        var selected = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
+        var stable = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(48));
+
+        Assert.Equal("Starts", selected.Commit.Layout[selectId].TextContent);
+        Assert.Equal("Starts", stable.Commit.Layout[selectId].TextContent);
+    }
+
+    [Fact]
     public void SceneRenderRoot_RendersSelectDropdownImmediatelyAfterClick()
     {
         var source = new HtmlSceneFrameSource(
@@ -1967,6 +2023,55 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(SceneNodeKind.View, submit.NodeKind);
         Assert.Equal("検索", submitText.TextContent);
         Assert.True(submit.BorderRadius > 0);
+    }
+
+    [Fact]
+    public void RenderFrame_AppliesSavedPageSearchControlSizingAndButtonAlignment()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                """
+                <body>
+                  <aside id="search_area">
+                    <div id="search_sub_area">
+                      <form id="fSearch" method="get" action="https://wa3.i-3-i.info/search.html">
+                        <input type="search" name="q" id="q" value="" style="color: rgb(153, 153, 153); background-color: rgb(238, 255, 255);">
+                        <br><select size="1" name="ln" id="ln" style="background-color: rgb(238, 255, 255);">
+                          <option value="s">で始まる用語を</option>
+                          <option value="e">で終わる用語を</option>
+                          <option value="" selected="selected">を含む用語を</option>
+                        </select>
+                        <br><input type="submit" id="submitSearch" value="検索">
+                      </form>
+                    </div>
+                  </aside>
+                </body>
+                """,
+                """
+                #search_area { width: 240px; }
+                #search_sub_area { width: 100%; }
+                #q { width: 98%; height: 34px; font-size: 18px; line-height: 24px; padding-left: 5px; padding-top: 5px; border-radius: 5px; }
+                #ln { width: 98%; height: 34px; font-size: 18px; line-height: 24px; padding-left: 5px; padding-top: 5px; }
+                #submitSearch { width: 60%; font-size: 18px; padding-left: 10px; padding-right: 10px; padding-top: 5px; padding-bottom: 5px; }
+                """),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var frame = source.RenderFrame(320, 220, TimeSpan.Zero);
+        var search = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "q").Key];
+        var select = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "ln").Key];
+        var submitNode = frame.Commit.Nodes.Single(pair => pair.Value.Label == "submitSearch");
+        var submit = frame.Commit.Layout[submitNode.Key];
+        var submitText = frame.Commit.Layout[submitNode.Value.Children.Single()];
+
+        Assert.Equal("rgb(238, 255, 255)", search.BackgroundColor);
+        Assert.Equal("rgb(153, 153, 153)", search.TextStyle?.Color);
+        Assert.True(search.Width > 220);
+        Assert.True(select.Width > 220);
+        Assert.Equal("rgb(238, 255, 255)", select.BackgroundColor);
+        Assert.InRange(submit.Width, 135, 150);
+        Assert.Equal("#efefef", submit.BackgroundColor);
+        Assert.Equal(SceneTextAlign.Center, submitText.TextStyle?.TextAlign);
+        Assert.True(Math.Abs((submitText.AbsLeft + submitText.Width * 0.5f) - (submit.AbsLeft + submit.Width * 0.5f)) <= 2);
     }
 
     [Fact]
@@ -4263,6 +4368,112 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal("A", updatedBox.ImeIndicator);
         Assert.True(source.TryGetTextCompositionCursor(out var cursor));
         Assert.True(cursor.Height > 0);
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_TreatsSearchInputAsEditableTextInput()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument("<body><input type='search' id='query' value='Native' /></body>"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(360, 180, TimeSpan.Zero);
+        var queryId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "query").Key;
+        var queryBox = initial.Commit.Layout[queryId];
+
+        source.PointerMove(queryBox.AbsLeft + queryBox.Width - queryBox.PaddingRight - 2, queryBox.AbsTop + queryBox.PaddingTop + 2, 0, synthetic: false);
+        source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
+        source.TextInput(" search", synthetic: false);
+        var updated = source.RenderFrame(360, 180, TimeSpan.Zero);
+
+        Assert.Equal(SceneNodeKind.TextInput, queryBox.NodeKind);
+        Assert.Equal(SceneControlKind.TextInput, queryBox.ControlKind);
+        Assert.Equal("Native search", updated.Commit.Layout[queryId].TextContent);
+    }
+
+    [Fact]
+    public void RenderFrame_RendersSubmitResetAndRadioAsNativeControls()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument("""
+                <body>
+                  <form>
+                    <input type='radio' id='first' name='choice' checked>
+                    <input type='radio' id='second' name='choice'>
+                    <input type='submit' id='submit'>
+                    <input type='reset' id='reset'>
+                  </form>
+                </body>
+                """),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var frame = source.RenderFrame(420, 180, TimeSpan.Zero);
+        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
+        var second = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key];
+        var submitNode = frame.Commit.Nodes.Single(pair => pair.Value.Label == "submit");
+        var resetNode = frame.Commit.Nodes.Single(pair => pair.Value.Label == "reset");
+        var submit = frame.Commit.Layout[submitNode.Key];
+        var reset = frame.Commit.Layout[resetNode.Key];
+
+        Assert.Equal(SceneNodeKind.View, first.NodeKind);
+        Assert.Equal(SceneControlKind.Radio, first.ControlKind);
+        Assert.True(first.IsChecked);
+        Assert.False(second.IsChecked);
+        Assert.Equal(SceneNodeKind.View, submit.NodeKind);
+        Assert.Equal(SceneControlKind.Button, submit.ControlKind);
+        Assert.Equal("Submit", frame.Commit.Layout[submitNode.Value.Children.Single()].TextContent);
+        Assert.Equal(SceneNodeKind.View, reset.NodeKind);
+        Assert.Equal(SceneControlKind.Button, reset.ControlKind);
+        Assert.Equal("Reset", frame.Commit.Layout[resetNode.Value.Children.Single()].TextContent);
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_UpdatesRadioGroupAndResetsFormControls()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument("""
+                <body>
+                  <form>
+                    <input type='search' id='query' value='Native'>
+                    <input type='radio' id='first' name='choice' checked>
+                    <input type='radio' id='second' name='choice'>
+                    <input type='reset' id='reset'>
+                  </form>
+                </body>
+                """),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(520, 220, TimeSpan.Zero);
+        var queryId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "query").Key;
+        var firstId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key;
+        var secondId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key;
+        var resetId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "reset").Key;
+        var queryBox = initial.Commit.Layout[queryId];
+        var secondBox = initial.Commit.Layout[secondId];
+        var resetBox = initial.Commit.Layout[resetId];
+
+        source.PointerMove(queryBox.AbsLeft + queryBox.Width - queryBox.PaddingRight - 2, queryBox.AbsTop + queryBox.PaddingTop + 2, 0, synthetic: false);
+        source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
+        source.TextInput(" search", synthetic: false);
+        source.PointerMove(secondBox.AbsLeft + secondBox.Width * 0.5f, secondBox.AbsTop + secondBox.Height * 0.5f, 0, synthetic: false);
+        source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
+        var changed = source.RenderFrame(520, 220, TimeSpan.Zero);
+
+        Assert.Equal("Native search", changed.Commit.Layout[queryId].TextContent);
+        Assert.False(changed.Commit.Layout[firstId].IsChecked);
+        Assert.True(changed.Commit.Layout[secondId].IsChecked);
+
+        source.PointerMove(resetBox.AbsLeft + resetBox.Width * 0.5f, resetBox.AbsTop + resetBox.Height * 0.5f, 0, synthetic: false);
+        source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
+        var reset = source.RenderFrame(520, 220, TimeSpan.Zero);
+
+        Assert.Equal("Native", reset.Commit.Layout[queryId].TextContent);
+        Assert.True(reset.Commit.Layout[firstId].IsChecked);
+        Assert.False(reset.Commit.Layout[secondId].IsChecked);
     }
 
     private static HtmlFragmentTree GetCachedBaseFragmentTree(HtmlSceneFrameSource source)

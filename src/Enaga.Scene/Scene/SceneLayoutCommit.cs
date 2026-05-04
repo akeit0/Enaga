@@ -35,7 +35,8 @@ public enum SceneControlKind
     TextInput,
     TextArea,
     Button,
-    Select
+    Select,
+    Radio
 }
 
 public sealed record SceneViewport(int Width, int Height);
@@ -233,7 +234,8 @@ public sealed record SceneLayoutBox(
     string? ScrollBarTrackColor = null,
     string? ScrollBarThumbColor = null,
     bool IsPositioned = false,
-    SceneControlKind ControlKind = SceneControlKind.None)
+    SceneControlKind ControlKind = SceneControlKind.None,
+    bool IsChecked = false)
 {
     public SceneBoxGeometry Geometry => new(
         AbsLeft,

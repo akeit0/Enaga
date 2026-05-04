@@ -197,6 +197,9 @@ internal sealed class HtmlSceneTreeBuilder
         int viewportHeight,
         HtmlComputedStyleTree styleTree)
     {
+        if (IsHiddenInputElement(element))
+            return;
+
         var linkHref = ResolveLinkHref(element, inheritedLinkHref, basePath);
         var style = ResolveElementStyle(element, styleTree);
         if (style.Display == HtmlDisplay.None)
@@ -215,9 +218,7 @@ internal sealed class HtmlSceneTreeBuilder
             !string.Equals(element.LocalName, "br", StringComparison.OrdinalIgnoreCase))
         {
             var nodeKind = ResolveNodeKind(element, style);
-            var children = nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
-                ? BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree)
-                : [];
+            var children = BuildElementChildren(element, nodeKind, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
             nodes.Add(new HtmlSceneNode(
                 firstNodeId,
                 nodeKind,
@@ -230,7 +231,8 @@ internal sealed class HtmlSceneTreeBuilder
                 element.Id,
                 element.NodeId,
                 ControlKind: ResolveControlKind(element),
-                Role: role));
+                Role: role,
+                IsChecked: IsCheckedInputElement(element)));
             return;
         }
 
@@ -239,9 +241,7 @@ internal sealed class HtmlSceneTreeBuilder
             style = style.CloneForFormatting();
             style.ApplyInlineBlockDefaults();
             var nodeKind = ResolveNodeKind(element, style);
-            var children = nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
-                ? BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree)
-                : [];
+            var children = BuildElementChildren(element, nodeKind, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
             nodes.Add(new HtmlSceneNode(
                 firstNodeId,
                 nodeKind,
@@ -254,7 +254,8 @@ internal sealed class HtmlSceneTreeBuilder
                 element.Id,
                 element.NodeId,
                 ControlKind: ResolveControlKind(element),
-                Role: role));
+                Role: role,
+                IsChecked: IsCheckedInputElement(element)));
             return;
         }
 
@@ -273,7 +274,8 @@ internal sealed class HtmlSceneTreeBuilder
                 element.Id,
                 element.NodeId,
                 ControlKind: ResolveControlKind(element),
-                Role: role));
+                Role: role,
+                IsChecked: IsCheckedInputElement(element)));
             return;
         }
 
@@ -282,9 +284,7 @@ internal sealed class HtmlSceneTreeBuilder
             style = style.CloneForFormatting();
             style.ApplyInlineBoxDefaults();
             var nodeKind = ResolveNodeKind(element, style);
-            var children = nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
-                ? BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree)
-                : [];
+            var children = BuildElementChildren(element, nodeKind, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
             nodes.Add(new HtmlSceneNode(
                 firstNodeId,
                 nodeKind,
@@ -297,7 +297,8 @@ internal sealed class HtmlSceneTreeBuilder
                 element.Id,
                 element.NodeId,
                 ControlKind: ResolveControlKind(element),
-                Role: role));
+                Role: role,
+                IsChecked: IsCheckedInputElement(element)));
             return;
         }
 
@@ -536,7 +537,7 @@ internal sealed class HtmlSceneTreeBuilder
     }
 
     private static bool IsInlineElement(HtmlDomElement element)
-        => element.LocalName is "a" or "span" or "strong" or "b" or "em" or "i" or "u" or "small" or "font" or "br" or "button" or "select";
+        => element.LocalName is "a" or "span" or "strong" or "b" or "em" or "i" or "u" or "small" or "font" or "br" or "button" or "select" or "input";
 
     private HtmlSceneNode? BuildElementNode(
         HtmlDomElement element,
@@ -679,8 +680,25 @@ internal sealed class HtmlSceneTreeBuilder
             RowSpan: rowSpan,
             ColSpan: colSpan,
             ControlKind: ResolveControlKind(element),
-            Role: role);
+            Role: role,
+            IsChecked: IsCheckedInputElement(element));
     }
+
+    private HtmlSceneNode[] BuildElementChildren(
+        HtmlDomElement element,
+        SceneNodeKind nodeKind,
+        HtmlComputedStyle style,
+        HtmlNodeIdGenerator idGenerator,
+        string? linkHref,
+        string? basePath,
+        int viewportWidth,
+        int viewportHeight,
+        HtmlComputedStyleTree styleTree)
+        => IsInputButtonElement(element)
+            ? BuildInputButtonChildren(element, style, idGenerator, linkHref)
+            : nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
+                ? BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree)
+                : [];
 
     private static HtmlSceneNodeRole ResolveSceneNodeRole(HtmlDomElement element)
         => element.LocalName switch
@@ -900,8 +918,7 @@ internal sealed class HtmlSceneTreeBuilder
         var value = element.GetAttribute("value");
         if (string.IsNullOrWhiteSpace(value))
         {
-            var type = element.GetAttribute("type");
-            value = string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase) ? "Reset" : "Submit";
+            value = ResolveInputButtonDefaultValue(element.GetAttribute("type"));
         }
 
         var textStyle = formattingStyleCache.GetInlineTextStyle(style);
@@ -1173,7 +1190,7 @@ internal sealed class HtmlSceneTreeBuilder
     {
         if (element.LocalName == "img")
             return SceneNodeKind.Image;
-        if (IsInputButtonElement(element))
+        if (IsInputButtonElement(element) || IsRadioInputElement(element))
             return SceneNodeKind.View;
         if (element.LocalName is "input" or "textarea" or "select")
             return SceneNodeKind.TextInput;
@@ -1188,9 +1205,24 @@ internal sealed class HtmlSceneTreeBuilder
             "select" => SceneControlKind.Select,
             "textarea" => SceneControlKind.TextArea,
             "button" => SceneControlKind.Button,
-            "input" => SceneControlKind.TextInput,
+            "input" => ResolveInputControlKind(element),
             _ => SceneControlKind.None
         };
+
+    private static SceneControlKind ResolveInputControlKind(HtmlDomElement element)
+    {
+        var type = element.GetAttribute("type");
+        if (string.Equals(type, "radio", StringComparison.OrdinalIgnoreCase))
+            return SceneControlKind.Radio;
+        if (string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase))
+        {
+            return SceneControlKind.Button;
+        }
+
+        return SceneControlKind.TextInput;
+    }
 
     private static bool IsHiddenInputElement(HtmlDomElement element)
         => string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase) &&
@@ -1205,6 +1237,23 @@ internal sealed class HtmlSceneTreeBuilder
         return string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsRadioInputElement(HtmlDomElement element)
+        => string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase) &&
+           string.Equals(element.GetAttribute("type"), "radio", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCheckedInputElement(HtmlDomElement element)
+        => string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase) &&
+           element.Attributes.ContainsKey("checked");
+
+    private static string ResolveInputButtonDefaultValue(string? type)
+    {
+        if (string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase))
+            return "Reset";
+        if (string.Equals(type, "button", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+        return "Submit";
     }
     private static string? ResolveLinkHref(HtmlDomElement element, string? inheritedLinkHref, string? basePath)
     {

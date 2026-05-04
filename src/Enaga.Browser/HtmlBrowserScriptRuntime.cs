@@ -95,9 +95,6 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     {
         var parsed = new HtmlDocumentParser().Parse(document.Html, document.BasePath);
         var scripts = LoadExecutableScriptTexts(parsed.AuthorScripts, parsed.BasePath, documentSource);
-        if (scripts.Count == 0)
-            return null;
-
         var styleSheet = MergeStyleSheets(parsed.AuthorStyleTexts, document.StyleSheet);
         var scriptRuntime = new HtmlBrowserScriptRuntime(parsed.ToDomDocument(), documentSource, styleSheet, document.BasePath);
         for (var index = 0; index < scripts.Count; index++)
@@ -105,12 +102,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             try
             {
                 var script = scripts[index];
-                var program = JavaScriptParser.ParseScript(script.Text, script.DisplayName);
-                var compiledScript = JsCompiler.Compile(scriptRuntime.runtime.MainRealm, program);
-                scriptRuntime.runtime.MainRealm.Execute(compiledScript);
-                scriptRuntime.MirrorWindowPropertiesToGlobal();
-                scriptRuntime.PumpEventLoopUntilIdle();
-                scriptRuntime.MirrorWindowPropertiesToGlobal();
+                scriptRuntime.ExecuteScriptText(script.Text, script.DisplayName);
             }
             catch (Exception ex)
             {
@@ -119,6 +111,36 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         }
 
         return scriptRuntime;
+    }
+
+    public void ExecuteJavaScriptUrl(string href)
+    {
+        const string JavaScriptScheme = "javascript:";
+        if (!href.StartsWith(JavaScriptScheme, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var script = href[JavaScriptScheme.Length..];
+        if (script.Length == 0)
+            return;
+
+        try
+        {
+            ExecuteScriptText(script, "javascript:href");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Browser script:javascript-url] {FormatExceptionMessage(ex)}");
+        }
+    }
+
+    private void ExecuteScriptText(string text, string displayName)
+    {
+        var program = JavaScriptParser.ParseScript(text, displayName);
+        var compiledScript = JsCompiler.Compile(runtime.MainRealm, program);
+        runtime.MainRealm.Execute(compiledScript);
+        MirrorWindowPropertiesToGlobal();
+        PumpEventLoopUntilIdle();
+        MirrorWindowPropertiesToGlobal();
     }
 
     private static IReadOnlyList<BrowserScriptText> LoadExecutableScriptTexts(IReadOnlyList<HtmlDomScript> scripts, string? basePath, string documentSource)
@@ -1501,18 +1523,25 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             }
 
             var value = info.GetArgumentStringOrDefault(0, string.Empty);
-            elementValues[element.NodeId] = value;
-            var nextElement = string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase)
-                ? document.SetTextContent(element.NodeId, value)
-                : document.SetAttribute(element.NodeId, "value", value);
+            var nextElement = SetElementValue(element, value);
             if (nextElement is not null)
             {
                 elementObject.UserData = nextElement;
-                NotifyDocumentMutated();
             }
 
             return JsValue.Undefined;
         }, "value", 1);
+
+    private HtmlDomElement? SetElementValue(HtmlDomElement element, string value)
+    {
+        elementValues[element.NodeId] = value;
+        var nextElement = string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase)
+            ? document.SetTextContent(element.NodeId, value)
+            : document.SetAttribute(element.NodeId, "value", value);
+        if (nextElement is not null)
+            NotifyDocumentMutated();
+        return nextElement;
+    }
 
     private JsHostFunction CreateElementAttributeSetter(JsRealm realm, string name, string attributeName)
         => new(realm, (in CallInfo info) =>
@@ -1703,7 +1732,40 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         if (string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase))
             return element.TextContent;
 
+        if (string.Equals(element.LocalName, "select", StringComparison.OrdinalIgnoreCase))
+            return ResolveSelectedOptionValue(element);
+
         return element.GetAttribute("value") ?? string.Empty;
+    }
+
+    private static string ResolveSelectedOptionValue(HtmlDomElement element)
+    {
+        string? firstValue = null;
+        return ResolveSelectedOptionValue(element, ref firstValue) ?? firstValue ?? string.Empty;
+    }
+
+    private static string? ResolveSelectedOptionValue(HtmlDomElement element, ref string? firstValue)
+    {
+        foreach (var child in element.Children)
+        {
+            if (child is not HtmlDomElement childElement)
+                continue;
+
+            if (string.Equals(childElement.LocalName, "option", StringComparison.OrdinalIgnoreCase))
+            {
+                var value = childElement.GetAttribute("value") ?? childElement.InnerText;
+                firstValue ??= value;
+                if (childElement.Attributes.ContainsKey("selected"))
+                    return value;
+                continue;
+            }
+
+            var nested = ResolveSelectedOptionValue(childElement, ref firstValue);
+            if (nested is not null)
+                return nested;
+        }
+
+        return null;
     }
 
     private JsUserDataObject<HtmlDomElement> CreateEventObject(

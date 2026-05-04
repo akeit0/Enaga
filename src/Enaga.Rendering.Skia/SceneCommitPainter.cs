@@ -267,7 +267,9 @@ internal sealed class SceneCommitPainter : IDisposable
 
         if (!selfPaintRejected)
         {
-            if (box.Text is not null)
+            if (box.ControlKind == SceneControlKind.Radio)
+                DrawRadioControl(canvas, paintBox);
+            else if (box.Text is not null)
                 DrawText(canvas, paintBox);
             else if (box.TextInput is not null)
                 DrawTextInput(canvas, paintBox);
@@ -1343,6 +1345,31 @@ internal sealed class SceneCommitPainter : IDisposable
 
         canvas.DrawLine(centerX - size, centerY - size * 0.45f, centerX, centerY + size * 0.45f, strokePaint);
         canvas.DrawLine(centerX, centerY + size * 0.45f, centerX + size, centerY - size * 0.45f, strokePaint);
+    }
+
+    private void DrawRadioControl(SKCanvas canvas, SceneLayoutBox box)
+    {
+        var size = Math.Min(box.Width, box.Height);
+        if (size <= 0)
+            return;
+
+        var radius = Math.Max(1, size * 0.5f);
+        var centerX = box.AbsLeft + box.Width * 0.5f;
+        var centerY = box.AbsTop + box.Height * 0.5f;
+
+        fillPaint.Color = ResolveColor(box.BackgroundColor, SKColors.White);
+        canvas.DrawCircle(centerX, centerY, radius, fillPaint);
+
+        strokePaint.Color = ResolveColor(box.BorderColor, new SKColor(107, 114, 128, 255));
+        strokePaint.Style = SKPaintStyle.Stroke;
+        strokePaint.StrokeWidth = Math.Max(1, box.BorderWidth > 0 ? box.BorderWidth : 1.5f);
+        canvas.DrawCircle(centerX, centerY, Math.Max(0.5f, radius - strokePaint.StrokeWidth * 0.5f), strokePaint);
+
+        if (!box.IsChecked)
+            return;
+
+        fillPaint.Color = ResolveColor(box.TextStyle?.Color, new SKColor(37, 99, 235, 255));
+        canvas.DrawCircle(centerX, centerY, Math.Max(1.5f, size * 0.28f), fillPaint);
     }
 
     private void DrawImeIndicator(SKCanvas canvas, SceneLayoutBox box)

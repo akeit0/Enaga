@@ -36,6 +36,23 @@ public sealed class HtmlBrowserScriptRuntimeTests
     }
 
     [Fact]
+    public void ExecuteJavaScriptUrl_RunsAgainstCurrentDocument()
+    {
+        var document = new HtmlDocument("""
+            <body>
+              <div id="status">idle</div>
+            </body>D
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+        Assert.NotNull(runtime);
+
+        runtime.ExecuteJavaScriptUrl("javascript:document.getElementById('status').textContent = 'clicked'");
+
+        Assert.Contains("clicked", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DispatchClick_DrainsAwaitContinuation_FromAsyncHandler()
     {
         var document = new HtmlDocument("""

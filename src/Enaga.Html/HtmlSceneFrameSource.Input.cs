@@ -34,6 +34,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     ];
     private readonly Dictionary<SceneNodeId, HtmlTextInputState> inputStates = new();
     private readonly Dictionary<HtmlNodeId, HtmlSelectState> selectStates = [];
+    private readonly Dictionary<HtmlNodeId, bool> radioCheckedStates = [];
     private readonly Dictionary<SceneNodeId, HtmlScrollViewState> scrollStates = new();
     private readonly Dictionary<SceneNodeId, ScrollScaleAnchor> pendingScrollScaleAnchors = new();
     private readonly List<SceneDamageRect> dynamicVisualDirtyRects = new();
@@ -232,6 +233,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
         string? linkToActivate = null;
         HtmlDomElement? clickedDomElement = null;
+        var handledInputClick = false;
         lock (sync)
         {
             var oldActiveDomNodeId = activeDomNodeId;
@@ -269,7 +271,12 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 cachedCommit is not null &&
                 IsDomClickRelease(cachedCommit, pressedDomNodeId, lastPointerX, lastPointerY))
             {
-                TryResolveDomElement(pressedDomNodeId, out clickedDomElement);
+                if (TryResolveDomElement(pressedDomNodeId, out clickedDomElement))
+                {
+                    handledInputClick = HandleInputClick(clickedDomElement, out var inputLinkToActivate);
+                    if (handledInputClick)
+                        linkToActivate = inputLinkToActivate;
+                }
             }
 
             activeClickDomNodeId = null;
@@ -279,6 +286,8 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             ElementClicked?.Invoke(clickedDomElement);
         if (linkToActivate is not null)
             LinkActivated?.Invoke(linkToActivate);
+        if (handledInputClick)
+            RequestRenderWake();
     }
 
     private bool IsDomClickRelease(SceneLayoutCommit commit, HtmlNodeId pressedDomNodeId, float x, float y)
@@ -292,6 +301,328 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         var deltaX = x - activeClickX;
         var deltaY = y - activeClickY;
         return deltaX * deltaX + deltaY * deltaY <= DoubleClickThresholdPx * DoubleClickThresholdPx;
+    }
+
+    private bool HandleInputClick(HtmlDomElement element, out string? linkToActivate)
+    {
+        linkToActivate = null;
+        if (!string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var type = element.GetAttribute("type");
+        if (string.Equals(type, "radio", StringComparison.OrdinalIgnoreCase))
+        {
+            CheckRadioInput(element);
+            RequestInteractiveUpdate();
+            return true;
+        }
+
+        if (string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase))
+        {
+            ResetFormControls(element);
+            RequestInteractiveUpdate();
+            return true;
+        }
+
+        if (string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase))
+        {
+            linkToActivate = BuildFormSubmitUrl(element);
+            if (linkToActivate is not null)
+            {
+                LastActivatedLinkHref = linkToActivate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private string? BuildFormSubmitUrl(HtmlDomElement submitElement)
+    {
+        var formNodeId = ResolveEnclosingFormNodeId(submitElement.NodeId);
+        if (!formNodeId.IsValid || !cachedDomElements.TryGetValue(formNodeId, out var formElement))
+            return null;
+
+        var action = formElement.GetAttribute("action");
+        var resolvedAction = ResolveFormActionUrl(action);
+        if (string.IsNullOrWhiteSpace(resolvedAction))
+            return null;
+
+        var method = formElement.GetAttribute("method");
+        if (!string.IsNullOrWhiteSpace(method) &&
+            !string.Equals(method, "get", StringComparison.OrdinalIgnoreCase))
+        {
+            return resolvedAction;
+        }
+
+        var parameters = new List<KeyValuePair<string, string>>();
+        foreach (var element in cachedDomElements.Values)
+        {
+            if (!IsDescendantOrSelf(element.NodeId, formNodeId) ||
+                element.GetAttribute("name") is not { Length: > 0 } name ||
+                IsDisabledFormControl(element))
+            {
+                continue;
+            }
+
+            if (TryResolveFormControlSubmitValue(element, submitElement, out var value))
+                parameters.Add(new KeyValuePair<string, string>(name, value));
+        }
+
+        if (parameters.Count == 0)
+            return resolvedAction;
+
+        var query = string.Join("&", parameters.Select(static pair =>
+            $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}"));
+        var fragmentIndex = resolvedAction.IndexOf('#', StringComparison.Ordinal);
+        var fragment = fragmentIndex >= 0 ? resolvedAction[fragmentIndex..] : string.Empty;
+        var actionWithoutFragment = fragmentIndex >= 0 ? resolvedAction[..fragmentIndex] : resolvedAction;
+        var hasQuery = actionWithoutFragment.Contains('?', StringComparison.Ordinal);
+        var queryAlreadyOpen = actionWithoutFragment.EndsWith("?", StringComparison.Ordinal) ||
+                               actionWithoutFragment.EndsWith("&", StringComparison.Ordinal);
+        var separator = hasQuery ? queryAlreadyOpen ? string.Empty : "&" : "?";
+        return actionWithoutFragment + separator + query + fragment;
+    }
+
+    private string? ResolveFormActionUrl(string? action)
+    {
+        if (string.IsNullOrWhiteSpace(action))
+            return document.BasePath;
+
+        var trimmed = action.Trim();
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absolute))
+            return absolute.ToString();
+
+        if (string.IsNullOrWhiteSpace(document.BasePath))
+            return trimmed;
+
+        if (Uri.TryCreate(document.BasePath, UriKind.Absolute, out var baseUri) &&
+            Uri.TryCreate(baseUri, trimmed, out var resolvedUri))
+        {
+            return resolvedUri.ToString();
+        }
+
+        return Path.GetFullPath(Path.Combine(document.BasePath, trimmed));
+    }
+
+    private bool TryResolveFormControlSubmitValue(HtmlDomElement element, HtmlDomElement submitElement, out string value)
+    {
+        value = string.Empty;
+        if (string.Equals(element.LocalName, "select", StringComparison.OrdinalIgnoreCase))
+        {
+            value = ResolveSelectValue(element);
+            return true;
+        }
+
+        if (string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase))
+        {
+            value = ResolveTextInputValue(element);
+            return true;
+        }
+
+        if (!string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var type = element.GetAttribute("type");
+        if (string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase))
+        {
+            if (element.NodeId != submitElement.NodeId)
+                return false;
+
+            value = element.GetAttribute("value") ?? string.Empty;
+            return true;
+        }
+
+        if (string.Equals(type, "radio", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "checkbox", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ResolveCheckedInput(element))
+                return false;
+
+            value = element.GetAttribute("value") ?? "on";
+            return true;
+        }
+
+        if (string.Equals(type, "file", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        value = ResolveTextInputValue(element);
+        return true;
+    }
+
+    private string ResolveTextInputValue(HtmlDomElement element)
+    {
+        if (cachedDomSceneNodeIds.TryGetValue(element.NodeId, out var sceneNodeIds))
+        {
+            for (var index = 0; index < sceneNodeIds.Count; index++)
+            {
+                if (inputStates.TryGetValue(sceneNodeIds[index], out var state))
+                    return state.Text;
+            }
+        }
+
+        return ResolveFormControlDefaultValue(element);
+    }
+
+    private string ResolveSelectValue(HtmlDomElement element)
+    {
+        var state = EnsureSelectState(element);
+        return state.SelectedValue;
+    }
+
+    private bool ResolveCheckedInput(HtmlDomElement element)
+        => radioCheckedStates.TryGetValue(element.NodeId, out var isChecked)
+            ? isChecked
+            : element.Attributes.ContainsKey("checked");
+
+    private void CheckRadioInput(HtmlDomElement element)
+    {
+        var name = element.GetAttribute("name");
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var formNodeId = ResolveEnclosingFormNodeId(element.NodeId);
+            foreach (var candidate in cachedDomElements.Values)
+            {
+                if (candidate.NodeId != element.NodeId &&
+                    IsRadioInput(candidate) &&
+                    string.Equals(candidate.GetAttribute("name"), name, StringComparison.Ordinal) &&
+                    ResolveEnclosingFormNodeId(candidate.NodeId) == formNodeId)
+                {
+                    radioCheckedStates[candidate.NodeId] = false;
+                }
+            }
+        }
+
+        radioCheckedStates[element.NodeId] = true;
+    }
+
+    private bool ResolveRadioChecked(HtmlDomElement element)
+        => ResolveCheckedInput(element);
+
+    private static bool IsDisabledFormControl(HtmlDomElement element)
+        => element.Attributes.ContainsKey("disabled");
+
+    private void ResetFormControls(HtmlDomElement resetElement)
+    {
+        var formNodeId = ResolveEnclosingFormNodeId(resetElement.NodeId);
+        foreach (var element in cachedDomElements.Values)
+        {
+            if (formNodeId.IsValid && !IsDescendantOrSelf(element.NodeId, formNodeId))
+                continue;
+
+            if (IsRadioInput(element))
+            {
+                radioCheckedStates.Remove(element.NodeId);
+                continue;
+            }
+
+            if (IsSelectElement(element))
+            {
+                selectStates.Remove(element.NodeId);
+                continue;
+            }
+
+            if (!IsEditableInputElement(element) && !string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!cachedDomSceneNodeIds.TryGetValue(element.NodeId, out var sceneNodeIds))
+                continue;
+
+            for (var index = 0; index < sceneNodeIds.Count; index++)
+            {
+                if (inputStates.TryGetValue(sceneNodeIds[index], out var state))
+                    ResetTextInputState(state, ResolveFormControlDefaultValue(element));
+            }
+        }
+    }
+
+    private void ResetTextInputState(HtmlTextInputState state, string value)
+    {
+        state.Text = value;
+        state.CaretIndex = state.Text.Length;
+        state.SelectionAnchorIndex = state.CaretIndex;
+        state.SelectionStart = state.CaretIndex;
+        state.SelectionEnd = state.CaretIndex;
+        state.IsSelectingWithMouse = false;
+        state.CompositionText = string.Empty;
+        state.CompositionStartIndex = state.CaretIndex;
+        state.CompositionCursorOffset = 0;
+        state.CompositionSelectionStart = 0;
+        state.CompositionSelectionLength = 0;
+        state.IsTextCompositionActive = false;
+        state.PendingCompositionCommit = false;
+        state.CompositionReplacedSelection = false;
+        state.CompositionRestoreText = null;
+        state.PendingHostText = null;
+    }
+
+    private HtmlNodeId ResolveEnclosingFormNodeId(HtmlNodeId nodeId)
+    {
+        var current = nodeId;
+        while (current.IsValid && cachedDomElements.TryGetValue(current, out var element))
+        {
+            if (string.Equals(element.LocalName, "form", StringComparison.OrdinalIgnoreCase))
+                return current;
+            current = cachedDomNodeParentIds.TryGetValue(current, out var parentId) ? parentId : default;
+        }
+
+        return default;
+    }
+
+    private bool IsDescendantOrSelf(HtmlNodeId nodeId, HtmlNodeId ancestorNodeId)
+    {
+        var current = nodeId;
+        while (current.IsValid)
+        {
+            if (current == ancestorNodeId)
+                return true;
+            current = cachedDomNodeParentIds.TryGetValue(current, out var parentId) ? parentId : default;
+        }
+
+        return false;
+    }
+
+    private static bool IsRadioInput(HtmlDomElement element)
+        => string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase) &&
+           string.Equals(element.GetAttribute("type"), "radio", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsButtonLikeElement(HtmlDomElement element)
+    {
+        if (string.Equals(element.LocalName, "button", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var type = element.GetAttribute("type");
+        return string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsEditableInputElement(HtmlDomElement element)
+    {
+        if (!string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var type = element.GetAttribute("type");
+        return string.IsNullOrWhiteSpace(type) ||
+               string.Equals(type, "text", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(type, "search", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(type, "email", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(type, "tel", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(type, "url", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(type, "password", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveFormControlDefaultValue(HtmlDomElement element)
+    {
+        if (string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase))
+            return element.TextContent;
+
+        return element.GetAttribute("value") ?? string.Empty;
     }
 
     private bool TryResolveDomElement(HtmlNodeId nodeId, out HtmlDomElement element)
@@ -630,6 +961,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     {
         inputStates.Clear();
         selectStates.Clear();
+        radioCheckedStates.Clear();
         scrollStates.Clear();
         focusedInputId = null;
         openSelectDomNodeId = null;
@@ -695,7 +1027,22 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             }
 
             if (box.NodeKind != SceneNodeKind.TextInput)
+            {
+                if (box.ControlKind == SceneControlKind.Radio &&
+                    TryResolveNearestDomNodeId(commit, id, out var radioDomNodeId) &&
+                    TryResolveDomElement(radioDomNodeId, out var radioElement))
+                {
+                    var nextRadioBox = box with { IsChecked = ResolveRadioChecked(radioElement) };
+                    if (nextRadioBox != box)
+                    {
+                        updatedLayout ??= SceneNodeMap<SceneLayoutBox>.CreateOverlay(commit.Layout, Math.Max(4, radioCheckedStates.Count));
+                        updatedLayout[id] = nextRadioBox;
+                        AddDynamicVisualDirtyRect(SceneScreenGeometry.ResolveScreenBox(commit, updatedLayout, id, nextRadioBox));
+                    }
+                }
+
                 continue;
+            }
 
             if (TryResolveNearestDomNodeId(commit, id, out var inputDomNodeId) &&
                 TryResolveDomElement(inputDomNodeId, out var inputElement) &&
@@ -1562,14 +1909,14 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         if (!cachedDomElements.TryGetValue(nodeId, out var element))
             return true;
 
-        return string.Equals(element.LocalName, "button", StringComparison.OrdinalIgnoreCase) ||
+        return IsButtonLikeElement(element) ||
                parsed.CanHoverAffectElement(element);
     }
 
     private bool DocumentHasDefaultHoverControls()
     {
         foreach (var element in cachedDomElements.Values)
-            if (string.Equals(element.LocalName, "button", StringComparison.OrdinalIgnoreCase))
+            if (IsButtonLikeElement(element))
                 return true;
 
         return false;
@@ -1785,7 +2132,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             if (box.ControlKind != SceneControlKind.Button ||
                 !TryResolveNearestDomNodeId(commit, sceneNodeId, out var domNodeId) ||
                 !cachedDomElements.TryGetValue(domNodeId, out var element) ||
-                !string.Equals(element.LocalName, "button", StringComparison.OrdinalIgnoreCase))
+                !IsButtonLikeElement(element))
             {
                 continue;
             }
@@ -1846,7 +2193,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         if (!cachedDomElements.TryGetValue(nodeId, out var element))
             return true;
 
-        return string.Equals(element.LocalName, "button", StringComparison.OrdinalIgnoreCase) ||
+        return IsButtonLikeElement(element) ||
                parsed.CanHoverAffectElement(element);
     }
 
@@ -2138,10 +2485,29 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 : TryHitOpenSelectOption(lastPointerX, lastPointerY, out _, out _) ||
                   TryHitTestSelect(cachedCommit, lastPointerX, lastPointerY, out _, out _)
                     ? PointerCursorKind.Pointer
+                : TryHitTestPointerControl(cachedCommit, lastPointerX, lastPointerY)
+                    ? PointerCursorKind.Pointer
                 : TryHitTestTextInput(cachedCommit, lastPointerX, lastPointerY, out _, out _)
                     ? PointerCursorKind.Text
                     : PointerCursorKind.Default;
         currentCursor = nextCursor;
+    }
+
+    private bool TryHitTestPointerControl(SceneLayoutCommit commit, float x, float y)
+    {
+        if (!TryHitTestDomNode(commit, x, y, out var domNodeIds, includeAncestors: true) || domNodeIds is null)
+            return false;
+
+        foreach (var nodeId in domNodeIds)
+        {
+            if (cachedDomElements.TryGetValue(nodeId, out var element) &&
+                (IsButtonLikeElement(element) || IsRadioInput(element)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool TryHitTestDomNode(
@@ -2297,6 +2663,15 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         {
             if (TryAcceptLinkHit(commit, hitTestIndex.Entries[index], x, y, out nodeId, out href, out hitNodeId, out hitDomNodeId))
                 return true;
+        }
+
+        if (TryHitTestLinkFromLayout(commit, x, y, out var layoutNodeId, out var layoutHref))
+        {
+            nodeId = ResolveLinkNodeId(commit, layoutNodeId, layoutHref);
+            href = layoutHref;
+            hitNodeId = layoutNodeId;
+            TryResolveNearestDomNodeId(commit, layoutNodeId, out hitDomNodeId);
+            return true;
         }
 
         nodeId = default;
@@ -3026,6 +3401,10 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
         public string SelectedText => options.Count == 0 ? string.Empty : options[Math.Clamp(SelectedIndex, 0, options.Count - 1)].Text;
 
+        public string SelectedValue => options.Count == 0 ? string.Empty : options[Math.Clamp(SelectedIndex, 0, options.Count - 1)].Value;
+
+        private bool HasUserSelection { get; set; }
+
         public void Refresh(HtmlDomElement element)
         {
             var previousValue = options.Count == 0 ? null : options[Math.Clamp(SelectedIndex, 0, options.Count - 1)].Value;
@@ -3040,12 +3419,27 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             }
 
             var selected = -1;
-            for (var index = 0; index < options.Count; index++)
+            if (HasUserSelection && previousValue is not null)
             {
-                if (options[index].Selected)
+                for (var index = 0; index < options.Count; index++)
                 {
-                    selected = index;
-                    break;
+                    if (string.Equals(options[index].Value, previousValue, StringComparison.Ordinal))
+                    {
+                        selected = index;
+                        break;
+                    }
+                }
+            }
+
+            if (selected < 0)
+            {
+                for (var index = 0; index < options.Count; index++)
+                {
+                    if (options[index].Selected)
+                    {
+                        selected = index;
+                        break;
+                    }
                 }
             }
 
@@ -3075,6 +3469,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             }
 
             SelectedIndex = Math.Clamp(index, 0, options.Count - 1);
+            HasUserSelection = true;
             HoveredIndex = -1;
         }
 

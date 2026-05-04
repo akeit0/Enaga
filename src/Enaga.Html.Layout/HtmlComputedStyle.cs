@@ -968,6 +968,8 @@ internal sealed partial class HtmlComputedStyle
                     Display = HtmlDisplay.InlineBlock;
                     PreferIntrinsicWidth = true;
                     WrapText = false;
+                    JustifyContent = MainAxisJustification.Center;
+                    AlignItems = CrossAlignment.Center;
                     Height = LayoutValue.IsSet(Height) ? Height : Defaults.FormInputHeight;
                     PaddingLeft = Math.Max(PaddingLeft, Defaults.ButtonPaddingX);
                     PaddingRight = Math.Max(PaddingRight, Defaults.ButtonPaddingX);
@@ -979,6 +981,8 @@ internal sealed partial class HtmlComputedStyle
                     BorderRadius = Math.Max(BorderRadius, Defaults.DefaultRadius);
                     BackgroundColor ??= Defaults.ColorButtonBackground;
                     Color ??= Defaults.ColorButton;
+                    if (!HasExplicitTextAlign)
+                        TextAlign = SceneTextAlign.Center;
                 }
                 break;
         }
@@ -1040,6 +1044,60 @@ internal sealed partial class HtmlComputedStyle
             {
                 BorderStyle = BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
                 BorderColor ??= Defaults.ColorInputBorder;
+            }
+        }
+
+        if (string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase))
+        {
+            var type = element.GetAttribute("type");
+            if (string.Equals(type, "radio", StringComparison.OrdinalIgnoreCase))
+            {
+                Display = HtmlDisplay.InlineBlock;
+                PreferIntrinsicWidth = true;
+                FlexGrow = 0;
+                FlexShrink = 0;
+                Width = LayoutValue.IsSet(Width) ? Width : 13;
+                Height = LayoutValue.IsSet(Height) ? Height : 13;
+                PaddingLeft = 0;
+                PaddingTop = 0;
+                PaddingRight = 0;
+                PaddingBottom = 0;
+                BorderWidth = 0;
+                BorderStyle = SceneBorderStyle.None;
+                BorderColor = null;
+                BackgroundColor = null;
+                SetUnit(LayoutValueUnitFlags.WidthPercent, IsWidthPercent);
+                SetUnit(LayoutValueUnitFlags.HeightPercent, IsHeightPercent);
+            }
+            else if (string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase))
+            {
+                Display = HtmlDisplay.InlineBlock;
+                PreferIntrinsicWidth = true;
+                WrapText = false;
+                JustifyContent = MainAxisJustification.Center;
+                AlignItems = CrossAlignment.Center;
+                if (!HasExplicitWidth && string.IsNullOrWhiteSpace(element.GetAttribute("width")))
+                    Width = Defaults.UnsetLength;
+                Height = LayoutValue.IsSet(Height) ? Height : Defaults.FormInputHeight;
+                PaddingLeft = Math.Max(PaddingLeft, Defaults.ButtonPaddingX);
+                PaddingRight = Math.Max(PaddingRight, Defaults.ButtonPaddingX);
+                PaddingTop = Math.Max(PaddingTop, Defaults.ButtonPaddingY);
+                PaddingBottom = Math.Max(PaddingBottom, Defaults.ButtonPaddingY);
+                BorderWidth = Math.Max(BorderWidth, Defaults.DefaultBorderWidth);
+                BorderStyle = BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
+                BorderColor ??= Defaults.ColorButtonBorder;
+                BorderRadius = Math.Max(BorderRadius, Defaults.DefaultRadius);
+                if (string.IsNullOrWhiteSpace(BackgroundColor) ||
+                    string.Equals(BackgroundColor, Defaults.ColorWhite, StringComparison.OrdinalIgnoreCase))
+                {
+                    BackgroundColor = Defaults.ColorButtonBackground;
+                }
+                Color ??= Defaults.ColorButton;
+                if (!HasExplicitTextAlign)
+                    TextAlign = SceneTextAlign.Center;
+                SetUnit(LayoutValueUnitFlags.WidthPercent, HasExplicitWidth && IsWidthPercent);
             }
         }
 
@@ -1230,9 +1288,9 @@ internal sealed partial class HtmlComputedStyle
         }
     }
 
-    internal void ApplyDefaultInteraction(string localName, bool isHovered, bool isActive)
+    internal void ApplyDefaultInteraction(HtmlDomElement element, bool isHovered, bool isActive)
     {
-        if (!string.Equals(localName, "button", StringComparison.OrdinalIgnoreCase))
+        if (!IsButtonLikeElement(element))
             return;
 
         var hasDefaultBackground = string.Equals(BackgroundColor, Defaults.ColorButtonBackground, StringComparison.OrdinalIgnoreCase);
@@ -1254,6 +1312,20 @@ internal sealed partial class HtmlComputedStyle
             if (hasDefaultBorder)
                 BorderColor = Defaults.ColorButtonBorderHover;
         }
+    }
+
+    private static bool IsButtonLikeElement(HtmlDomElement element)
+    {
+        if (string.Equals(element.LocalName, "button", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var type = element.GetAttribute("type");
+        return string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase);
     }
 
     public void Apply(HtmlCssDeclarationBlock declarations)

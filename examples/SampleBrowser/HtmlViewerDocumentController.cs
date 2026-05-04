@@ -80,6 +80,16 @@ internal sealed class SampleBrowserDocumentController : IDisposable
             return;
         }
 
+        if (href.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase))
+        {
+            HtmlBrowserScriptRuntime? runtime;
+            lock (sync)
+                runtime = scriptRuntime;
+
+            runtime?.ExecuteJavaScriptUrl(href);
+            return;
+        }
+
         _ = NavigateAsync(href, styleSheetSource: null, HistoryUpdate.Push);
     }
 
