@@ -2411,11 +2411,14 @@ public sealed class HtmlSceneFrameSourceTests
 
         source.RenderFrame(320, 180, TimeSpan.Zero);
         source.PointerMove(40, 40, 0, synthetic: false);
+        source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(8));
         source.Wheel(0, -3, synthetic: false);
         var updated = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
 
         Assert.Equal(SceneDamageReason.Scroll, updated.DamageReasons);
         Assert.Contains(updated.DirtyRects, rect => rect.Width == 320 && rect.Height == 180);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
     }
 
     [Fact]

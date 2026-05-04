@@ -136,22 +136,22 @@ internal sealed class HtmlSceneTreeBuilder
             }
         }
 
-        return GroupInlineRuns(parent, parentAllowsInlineContent, ApplyFlexOrder(inheritedStyle, NormalizeInlinePunctuation(parentAllowsInlineContent, children.ToArray())), inheritedStyle, idGenerator);
+        return GroupInlineRuns(parent, parentAllowsInlineContent, ApplyFlexOrder(inheritedStyle, NormalizeInlinePunctuation(parentAllowsInlineContent, children)), inheritedStyle, idGenerator);
     }
 
-    private static HtmlSceneNode[] ApplyFlexOrder(HtmlComputedStyle parentStyle, HtmlSceneNode[] children)
+    private static IReadOnlyList<HtmlSceneNode> ApplyFlexOrder(HtmlComputedStyle parentStyle, IReadOnlyList<HtmlSceneNode> children)
     {
-        if (children.Length < 2 || parentStyle.Display != HtmlDisplay.Flex)
+        if (children.Count < 2 || parentStyle.Display != HtmlDisplay.Flex)
             return children;
 
         List<(HtmlSceneNode Node, int Index)>? ordered = null;
-        for (var index = 0; index < children.Length; index++)
+        for (var index = 0; index < children.Count; index++)
         {
             if (children[index].Style.Order == 0)
                 continue;
 
-            ordered = new List<(HtmlSceneNode Node, int Index)>(children.Length);
-            for (var copyIndex = 0; copyIndex < children.Length; copyIndex++)
+            ordered = new List<(HtmlSceneNode Node, int Index)>(children.Count);
+            for (var copyIndex = 0; copyIndex < children.Count; copyIndex++)
                 ordered.Add((children[copyIndex], copyIndex));
             break;
         }
@@ -165,9 +165,9 @@ internal sealed class HtmlSceneTreeBuilder
             return order != 0 ? order : left.Index.CompareTo(right.Index);
         });
 
-        var result = new HtmlSceneNode[ordered.Count];
-        for (var index = 0; index < ordered.Count; index++)
-            result[index] = ordered[index].Node;
+        var result = new List<HtmlSceneNode>(ordered.Count);
+        foreach (var item in ordered)
+            result.Add(item.Node);
         return result;
     }
 
@@ -324,23 +324,27 @@ internal sealed class HtmlSceneTreeBuilder
             string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase) &&
             linkHref is not null)
         {
-            nodes[0] = nodes[0] with { Id = firstNodeId, Label = element.Id ?? nodes[0].Label, DomNodeId = element.NodeId };
+            nodes[0].Id = firstNodeId;
+            nodes[0].Label = element.Id ?? nodes[0].Label;
+            nodes[0].DomNodeId = element.NodeId;
         }
         else if (nodes.Count > 0 && element.Id is not null && nodes[0].Label is null)
         {
-            nodes[0] = nodes[0] with { Id = firstNodeId, Label = element.Id, DomNodeId = element.NodeId };
+            nodes[0].Id = firstNodeId;
+            nodes[0].Label = element.Id;
+            nodes[0].DomNodeId = element.NodeId;
         }
 
         return nodes.ToArray();
     }
 
-    private static HtmlSceneNode[] NormalizeInlinePunctuation(bool parentAllowsInlineContent, HtmlSceneNode[] children)
+    private static IReadOnlyList<HtmlSceneNode> NormalizeInlinePunctuation(bool parentAllowsInlineContent, IReadOnlyList<HtmlSceneNode> children)
     {
-        if (!parentAllowsInlineContent || children.Length < 2)
+        if (!parentAllowsInlineContent || children.Count < 2)
             return children;
 
         List<HtmlSceneNode>? normalized = null;
-        for (var index = 0; index < children.Length; index++)
+        for (var index = 0; index < children.Count; index++)
         {
             var child = children[index];
             if (child.NodeKind == SceneNodeKind.Text &&
@@ -351,26 +355,26 @@ internal sealed class HtmlSceneTreeBuilder
             {
                 normalized ??= CopyPrefix(children, index);
                 var previous = normalized[^1];
-                normalized[^1] = previous with { TextContent = previous.TextContent + text };
+                previous.TextContent += text;
                 continue;
             }
 
             normalized?.Add(child);
         }
 
-        return normalized is null ? children : normalized.ToArray();
+        return normalized is null ? children : normalized;
     }
 
     private HtmlSceneNode[] GroupInlineRuns(
         HtmlDomElement parent,
         bool parentAllowsInlineContent,
-        HtmlSceneNode[] children,
+        IReadOnlyList<HtmlSceneNode> children,
         HtmlComputedStyle parentStyle,
         HtmlNodeIdGenerator idGenerator)
     {
         List<HtmlSceneNode>? grouped = null;
         var index = 0;
-        while (index < children.Length)
+        while (index < children.Count)
         {
             if (!StartsInlineRun(parent, parentAllowsInlineContent, children, index))
             {
@@ -380,7 +384,7 @@ internal sealed class HtmlSceneTreeBuilder
             }
 
             var start = index;
-            while (index < children.Length && IsInlineRunMember(parent, parentAllowsInlineContent, children[index]))
+            while (index < children.Count && IsInlineRunMember(parent, parentAllowsInlineContent, children[index]))
                 index += 1;
 
             if (index - start == 1)
@@ -389,7 +393,8 @@ internal sealed class HtmlSceneTreeBuilder
                     children[start].NodeKind == SceneNodeKind.Text)
                 {
                     grouped ??= CopyPrefix(children, start);
-                    grouped.Add(children[start] with { Style = formattingStyleCache.GetAlignedInlineTextStyle(children[start].Style) });
+                    children[start].Style = formattingStyleCache.GetAlignedInlineTextStyle(children[start].Style);
+                    grouped.Add(children[start]);
                 }
                 else if (NeedsInlineAlignmentContainer(parent, parentStyle) &&
                          IsInlineRunCandidate(parent, parentAllowsInlineContent, children[start]))
@@ -429,13 +434,13 @@ internal sealed class HtmlSceneTreeBuilder
                 Role: HtmlSceneNodeRole.InlineRun));
         }
 
-        return grouped is null ? children : grouped.ToArray();
+        return grouped is null ? ToArray(children) : grouped.ToArray();
     }
 
     private HtmlComputedStyle CreateInlineRunContainerStyle(
         HtmlDomElement parent,
         HtmlComputedStyle parentStyle,
-        HtmlSceneNode[] children,
+        IReadOnlyList<HtmlSceneNode> children,
         int start,
         int count)
     {
@@ -451,7 +456,7 @@ internal sealed class HtmlSceneTreeBuilder
             : formattingStyleCache.GetInlineRunStyle(parentStyle);
     }
 
-    private static bool ContainsInlineControl(HtmlSceneNode[] children, int start, int count)
+    private static bool ContainsInlineControl(IReadOnlyList<HtmlSceneNode> children, int start, int count)
     {
         for (var index = 0; index < count; index++)
         {
@@ -493,14 +498,14 @@ internal sealed class HtmlSceneTreeBuilder
            (node.NodeKind == SceneNodeKind.View && node.Style.Display == HtmlDisplay.Inline) ||
            (parentAllowsInlineContent && (node.NodeKind == SceneNodeKind.Text || IsInlineBreak(node)));
 
-    private static bool StartsInlineRun(HtmlDomElement parent, bool parentAllowsInlineContent, HtmlSceneNode[] children, int index)
+    private static bool StartsInlineRun(HtmlDomElement parent, bool parentAllowsInlineContent, IReadOnlyList<HtmlSceneNode> children, int index)
     {
         var node = children[index];
         if (IsInlineRunCandidate(parent, parentAllowsInlineContent, node))
             return true;
 
         return node.NodeKind == SceneNodeKind.Image &&
-               index + 1 < children.Length &&
+               index + 1 < children.Count &&
                children[index + 1].NodeKind == SceneNodeKind.Text;
     }
 
@@ -961,7 +966,7 @@ internal sealed class HtmlSceneTreeBuilder
             if (IsPunctuationOnly(word) && nodes.Count > 0)
             {
                 var previous = nodes[^1];
-                nodes[^1] = previous with { TextContent = previous.TextContent + word };
+                previous.TextContent += word;
                 continue;
             }
 
@@ -1006,15 +1011,15 @@ internal sealed class HtmlSceneTreeBuilder
             _ => text
         };
 
-    private static List<HtmlSceneNode> CopyPrefix(HtmlSceneNode[] source, int count)
+    private static List<HtmlSceneNode> CopyPrefix(IReadOnlyList<HtmlSceneNode> source, int count)
     {
-        var list = new List<HtmlSceneNode>(source.Length);
+        var list = new List<HtmlSceneNode>(source.Count);
         for (var index = 0; index < count; index++)
             list.Add(source[index]);
         return list;
     }
 
-    private HtmlSceneNode[] CopyInlineRunRange(HtmlSceneNode[] source, int start, int count)
+    private HtmlSceneNode[] CopyInlineRunRange(IReadOnlyList<HtmlSceneNode> source, int start, int count)
     {
         if (count <= 0)
             return [];
@@ -1037,17 +1042,31 @@ internal sealed class HtmlSceneTreeBuilder
                 node.Style.Display != HtmlDisplay.Inline &&
                 (!node.Style.WrapText || containsImage))
             {
-                node = node with { Style = formattingStyleCache.GetInlineTextStyle(node.Style) };
+                node.Style = formattingStyleCache.GetInlineTextStyle(node.Style);
             }
             else if (node.NodeKind == SceneNodeKind.Image)
             {
-                node = node with { Style = formattingStyleCache.GetInlineImageStyle(node.Style) };
+                node.Style = formattingStyleCache.GetInlineImageStyle(node.Style);
             }
 
             range[index] = node;
         }
 
         return range;
+    }
+
+    private static HtmlSceneNode[] ToArray(IReadOnlyList<HtmlSceneNode> source)
+    {
+        if (source is HtmlSceneNode[] array)
+            return array;
+
+        if (source.Count == 0)
+            return [];
+
+        var result = new HtmlSceneNode[source.Count];
+        for (var index = 0; index < source.Count; index++)
+            result[index] = source[index];
+        return result;
     }
 
     private static bool IsPunctuationOnly(string text)

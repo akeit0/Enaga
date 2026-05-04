@@ -49,6 +49,16 @@ internal sealed record HtmlSceneNode(
     SceneControlKind ControlKind = SceneControlKind.None,
     HtmlSceneNodeRole Role = HtmlSceneNodeRole.Normal)
 {
+    public HtmlSceneNodeId Id { get; set; } = Id;
+
+    public HtmlComputedStyle Style { get; set; } = Style;
+
+    public string? TextContent { get; set; } = TextContent;
+
+    public string? Label { get; set; } = Label;
+
+    public HtmlNodeId DomNodeId { get; set; } = DomNodeId;
+
     public uint StyleVersion { get; set; } = 1;
 
     public uint LayoutVersion { get; set; } = 1;

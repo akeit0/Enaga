@@ -290,7 +290,8 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
                 cachedCommit = ApplyInteractiveState(baseCommit, scrollDeltaSeconds, out keepInteractiveDirty, out var hitTestGeometryChanged);
                 if (hitTestGeometryChanged)
                     hitTestGeometryVersion++;
-                if (UpdateHoveredNodeId(cachedCommit, lastPointerX, lastPointerY, requestUpdate: false))
+                if (!ShouldDeferHoverRefreshForScroll(hitTestGeometryChanged) &&
+                    UpdateHoveredNodeId(cachedCommit, lastPointerX, lastPointerY, requestUpdate: false))
                 {
                     cachedBaseCommit = BuildDocumentCommit(parsedDocument, width, height);
                     cachedHoveredDomNodeIds = hoveredDomNodeIds;
@@ -331,4 +332,7 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
             return cachedCommit;
         }
     }
+
+    private bool ShouldDeferHoverRefreshForScroll(bool hitTestGeometryChanged)
+        => hitTestGeometryChanged && dirtyScrollViewIds.Count > 0;
 }
