@@ -191,9 +191,9 @@ internal sealed class SampleBrowserDiagnosticsFrameSource :
                 continue;
             }
 
-            commit.Nodes.TryGetValue(id, out var node);
+            var label = commit.Nodes.TryGetValue(id, out var node) ? node.Label : null;
             hits.Add(
-                $"{id} label={node?.Label ?? "-"} kind={box.NodeKind} " +
+                $"{id} label={label ?? "-"} kind={box.NodeKind} " +
                 $"rect=({Format(screenBox.AbsLeft)},{Format(screenBox.AbsTop)},{Format(screenBox.Width)},{Format(screenBox.Height)}) " +
                 $"scroll=({Format(screenBox.ScrollX)},{Format(screenBox.ScrollY)}) " +
                 $"bg={box.BackgroundColor ?? "-"} text={Trim(box.TextContent)} link={(string.IsNullOrWhiteSpace(box.LinkHref) ? "-" : "yes")}");

@@ -75,7 +75,7 @@ internal sealed class HtmlSceneTreeBuilder
         int viewportHeight,
         HtmlComputedStyleTree styleTree)
     {
-        var children = new List<HtmlSceneNode>();
+        var children = new List<HtmlSceneNode>(parent.Children.Count);
         var listItemIndex = 0;
         var parentIsOrderedList = string.Equals(parent.LocalName, "ol", StringComparison.OrdinalIgnoreCase);
         var parentIsList = parentIsOrderedList || string.Equals(parent.LocalName, "ul", StringComparison.OrdinalIgnoreCase);
@@ -88,7 +88,8 @@ internal sealed class HtmlSceneTreeBuilder
                 case HtmlDomElement element:
                     if (parentAllowsInlineContent && IsInlineElement(element))
                     {
-                        children.AddRange(BuildInlineElementNodes(
+                        AddInlineElementNodes(
+                            children,
                             element,
                             inheritedStyle,
                             idGenerator,
@@ -96,7 +97,7 @@ internal sealed class HtmlSceneTreeBuilder
                             basePath,
                             viewportWidth,
                             viewportHeight,
-                            styleTree));
+                            styleTree);
                         break;
                     }
 
@@ -182,7 +183,8 @@ internal sealed class HtmlSceneTreeBuilder
            IsTableRowNode(node) ||
            IsTableCellNode(node);
 
-    private HtmlSceneNode[] BuildInlineElementNodes(
+    private void AddInlineElementNodes(
+        List<HtmlSceneNode> nodes,
         HtmlDomElement element,
         HtmlComputedStyle inheritedStyle,
         HtmlNodeIdGenerator idGenerator,
@@ -195,11 +197,15 @@ internal sealed class HtmlSceneTreeBuilder
         var linkHref = ResolveLinkHref(element, inheritedLinkHref, basePath);
         var style = ResolveElementStyle(element, styleTree);
         if (style.Display == HtmlDisplay.None)
-            return [];
+            return;
         if (style.Display == HtmlDisplay.Contents)
-            return BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
+        {
+            nodes.AddRange(BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree));
+            return;
+        }
 
         var firstNodeId = idGenerator.Next();
+        var firstNodeIndex = nodes.Count;
         var role = ResolveSceneNodeRole(element);
         if (style.Display != HtmlDisplay.Inline &&
             style.Display != HtmlDisplay.InlineBlock &&
@@ -209,22 +215,20 @@ internal sealed class HtmlSceneTreeBuilder
             var children = nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
                 ? BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree)
                 : [];
-            return
-            [
-                new HtmlSceneNode(
-                    firstNodeId,
-                    nodeKind,
-                    style,
-                    children,
-                    nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
-                    nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null,
-                    null,
-                    linkHref,
-                    element.Id,
-                    element.NodeId,
-                    ControlKind: ResolveControlKind(element),
-                    Role: role)
-            ];
+            nodes.Add(new HtmlSceneNode(
+                firstNodeId,
+                nodeKind,
+                style,
+                children,
+                nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
+                nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null,
+                null,
+                linkHref,
+                element.Id,
+                element.NodeId,
+                ControlKind: ResolveControlKind(element),
+                Role: role));
+            return;
         }
 
         if (style.Display == HtmlDisplay.InlineBlock)
@@ -235,30 +239,26 @@ internal sealed class HtmlSceneTreeBuilder
             var children = nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
                 ? BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree)
                 : [];
-            return
-            [
-                new HtmlSceneNode(
-                    firstNodeId,
-                    nodeKind,
-                    style,
-                    children,
-                    nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
-                    nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null,
-                    null,
-                    linkHref,
-                    element.Id,
-                    element.NodeId,
-                    ControlKind: ResolveControlKind(element),
-                    Role: role)
-            ];
+            nodes.Add(new HtmlSceneNode(
+                firstNodeId,
+                nodeKind,
+                style,
+                children,
+                nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
+                nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null,
+                null,
+                linkHref,
+                element.Id,
+                element.NodeId,
+                ControlKind: ResolveControlKind(element),
+                Role: role));
+            return;
         }
 
         if (string.Equals(element.LocalName, "br", StringComparison.OrdinalIgnoreCase))
         {
             var breakStyle = formattingStyleCache.GetInlineBreakStyle(style);
-            return
-            [
-                new HtmlSceneNode(
+            nodes.Add(new HtmlSceneNode(
                 firstNodeId,
                 SceneNodeKind.View,
                 breakStyle,
@@ -270,8 +270,8 @@ internal sealed class HtmlSceneTreeBuilder
                 element.Id,
                 element.NodeId,
                 ControlKind: ResolveControlKind(element),
-                Role: role)
-            ];
+                Role: role));
+            return;
         }
 
         if (style.HasInlineBoxMetrics)
@@ -282,25 +282,22 @@ internal sealed class HtmlSceneTreeBuilder
             var children = nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
                 ? BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree)
                 : [];
-            return
-            [
-                new HtmlSceneNode(
-                    firstNodeId,
-                    nodeKind,
-                    style,
-                    children,
-                    nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
-                    nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null,
-                    null,
-                    linkHref,
-                    element.Id,
-                    element.NodeId,
-                    ControlKind: ResolveControlKind(element),
-                    Role: role)
-            ];
+            nodes.Add(new HtmlSceneNode(
+                firstNodeId,
+                nodeKind,
+                style,
+                children,
+                nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
+                nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null,
+                null,
+                linkHref,
+                element.Id,
+                element.NodeId,
+                ControlKind: ResolveControlKind(element),
+                Role: role));
+            return;
         }
 
-        var nodes = new List<HtmlSceneNode>();
         for (var childIndex = 0; childIndex < element.Children.Count; childIndex++)
         {
             var child = element.Children[childIndex];
@@ -310,7 +307,7 @@ internal sealed class HtmlSceneTreeBuilder
                     AddInlineTextNodes(nodes, text, style, idGenerator, linkHref);
                     break;
                 case HtmlDomElement childElement when IsInlineElement(childElement):
-                    nodes.AddRange(BuildInlineElementNodes(childElement, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree));
+                    AddInlineElementNodes(nodes, childElement, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
                     break;
                 case HtmlDomElement childElement:
                     var built = BuildElementNode(childElement, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, markerText: null, isListItem: false, styleTree);
@@ -320,22 +317,20 @@ internal sealed class HtmlSceneTreeBuilder
             }
         }
 
-        if (nodes.Count > 0 &&
+        if (nodes.Count > firstNodeIndex &&
             string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase) &&
             linkHref is not null)
         {
-            nodes[0].Id = firstNodeId;
-            nodes[0].Label = element.Id ?? nodes[0].Label;
-            nodes[0].DomNodeId = element.NodeId;
+            nodes[firstNodeIndex].Id = firstNodeId;
+            nodes[firstNodeIndex].Label = element.Id ?? nodes[firstNodeIndex].Label;
+            nodes[firstNodeIndex].DomNodeId = element.NodeId;
         }
-        else if (nodes.Count > 0 && element.Id is not null && nodes[0].Label is null)
+        else if (nodes.Count > firstNodeIndex && element.Id is not null && nodes[firstNodeIndex].Label is null)
         {
-            nodes[0].Id = firstNodeId;
-            nodes[0].Label = element.Id;
-            nodes[0].DomNodeId = element.NodeId;
+            nodes[firstNodeIndex].Id = firstNodeId;
+            nodes[firstNodeIndex].Label = element.Id;
+            nodes[firstNodeIndex].DomNodeId = element.NodeId;
         }
-
-        return nodes.ToArray();
     }
 
     private static List<HtmlSceneNode> NormalizeInlinePunctuation(bool parentAllowsInlineContent, List<HtmlSceneNode> children)

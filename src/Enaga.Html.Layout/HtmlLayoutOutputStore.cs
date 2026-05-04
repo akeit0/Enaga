@@ -34,7 +34,7 @@ internal sealed class HtmlLayoutOutputStore
         childrenByNode.EnsureCapacity(nodeCount);
         parentByNode.EnsureCapacity(Math.Max(0, nodeCount - 1));
         propagationBoundaries.EnsureCapacity(nodeCount);
-        Outputs.EnsureCapacity(nodeCount, Math.Max(nodeCount, nodeCount * 4));
+        Outputs.EnsureCapacity(nodeCount, nodeCount * 4);
 
         ClearChildLists();
         parentByNode.Clear();

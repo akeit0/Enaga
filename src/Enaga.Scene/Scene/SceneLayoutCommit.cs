@@ -40,7 +40,7 @@ public enum SceneControlKind
 
 public sealed record SceneViewport(int Width, int Height);
 
-public sealed record SceneGraphNode(
+public readonly record struct SceneGraphNode(
     SceneNodeKind NodeKind,
     SceneNodeId? ParentId,
     SceneNodeId[] Children,

@@ -104,11 +104,11 @@ internal static class SceneDamageEstimator
         {
             previousCommit.Layout.TryGetValue(id, out var previousBox);
             nextCommit.Layout.TryGetValue(id, out var nextBox);
-            previousCommit.Nodes.TryGetValue(id, out var previousNode);
-            nextCommit.Nodes.TryGetValue(id, out var nextNode);
+            var hasPreviousNode = previousCommit.Nodes.TryGetValue(id, out var previousNode);
+            var hasNextNode = nextCommit.Nodes.TryGetValue(id, out var nextNode);
 
             if (previousBox is not null && nextBox is not null &&
-                previousNode is not null && nextNode is not null &&
+                hasPreviousNode && hasNextNode &&
                 previousBox == nextBox &&
                 NodesEqual(previousNode, nextNode))
             {
@@ -116,7 +116,7 @@ internal static class SceneDamageEstimator
             }
 
             if (previousBox is not null && nextBox is not null &&
-                previousNode is not null && nextNode is not null &&
+                hasPreviousNode && hasNextNode &&
                 CanSkipOpaqueContainerDamage(previousCommit, nextCommit, previousNode, nextNode, previousBox, nextBox))
             {
                 continue;
