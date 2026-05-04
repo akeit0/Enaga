@@ -65,9 +65,9 @@ public static class SceneSmoothScrollController
             return false;
         }
 
-        var alpha = (float)(1 - Math.Exp(-Math.Max(deltaSeconds, 1.0 / 60.0) * response));
-        state.ScrollX = SceneScrollMetrics.ClampScrollX(box, state.ScrollX + dx * alpha);
-        state.ScrollY = SceneScrollMetrics.ClampScrollY(box, state.ScrollY + dy * alpha);
-        return true;
+        // var alpha = (float)(1 - Math.Exp(-Math.Max(deltaSeconds, 1.0 / 60.0) * response));
+        // state.ScrollX = SceneScrollMetrics.ClampScrollX(box, state.ScrollX + dx * alpha);
+        // state.ScrollY = SceneScrollMetrics.ClampScrollY(box, state.ScrollY + dy * alpha);
+        // return true;
     }
 }
