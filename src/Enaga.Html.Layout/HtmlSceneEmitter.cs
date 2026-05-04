@@ -8,6 +8,9 @@ internal sealed class HtmlSceneEmitter(
     SceneNodeIdentityMap<HtmlSceneNodeId> sceneNodeIds,
     HtmlSceneTextStyleCache textStyleCache,
     Dictionary<SceneNodeId, SceneNodeId[]> childMap,
+    Dictionary<SceneNodeId, SceneNodeId[]> childArrayCache,
+    SceneNodeMap<SceneGraphNode> nodes,
+    SceneNodeMap<SceneLayoutBox> layout,
     int width,
     int height,
     float rootLayoutWidth,
@@ -28,15 +31,18 @@ internal sealed class HtmlSceneEmitter(
         for (var index = 0; index < childRelations.Count; index++)
         {
             var relation = childRelations[index];
-            var childIds = new SceneNodeId[relation.ChildIds.Length];
+            var parentId = ToSceneNodeId(relation.ParentId);
+            var childIds = GetOrCreateChildArray(parentId, relation.ChildIds.Length);
             for (var childIndex = 0; childIndex < relation.ChildIds.Length; childIndex++)
                 childIds[childIndex] = ToSceneNodeId(relation.ChildIds[childIndex]);
-            childMap[ToSceneNodeId(relation.ParentId)] = childIds;
+            childMap[parentId] = childIds;
         }
 
         var rootSceneNodeId = ToSceneNodeId(rootId);
-        var nodes = new SceneNodeMap<SceneGraphNode>(placedNodes.Count + 1);
-        var layout = new SceneNodeMap<SceneLayoutBox>(placedNodes.Count + 1);
+        nodes.Clear();
+        layout.Clear();
+        nodes.EnsureCapacity(placedNodes.Count + 1);
+        layout.EnsureCapacity(placedNodes.Count + 1);
         nodes[rootSceneNodeId] = new SceneGraphNode(
             rootKind,
             ParentId: null,
@@ -71,6 +77,17 @@ internal sealed class HtmlSceneEmitter(
         }
 
         return SceneLayoutCommitFactory.Create(rootSceneNodeId, new SceneViewport(width, height), nodes, layout);
+    }
+
+    private SceneNodeId[] GetOrCreateChildArray(SceneNodeId parentId, int length)
+    {
+        if (!childArrayCache.TryGetValue(parentId, out var childIds) || childIds.Length != length)
+        {
+            childIds = length == 0 ? [] : new SceneNodeId[length];
+            childArrayCache[parentId] = childIds;
+        }
+
+        return childIds;
     }
 
     private SceneLayoutBox CreateLayoutBox(

@@ -162,25 +162,31 @@ public static class SceneLayoutCommitFactory
         if (!nodes.ContainsKey(rootId) || !layout.ContainsKey(rootId))
             return [];
 
-        var order = new List<SceneNodeId>(layout.Count);
-        var visited = new HashSet<SceneNodeId>();
+        var order = new SceneNodeId[layout.Count];
+        var orderCount = 0;
         var pending = new Stack<SceneNodeId>();
         pending.Push(rootId);
         while (pending.Count > 0)
         {
             var id = pending.Pop();
-            if (!visited.Add(id) ||
-                !nodes.TryGetValue(id, out var node) ||
+            if (!nodes.TryGetValue(id, out var node) ||
                 !layout.ContainsKey(id))
             {
                 continue;
             }
 
-            order.Add(id);
+            order[orderCount++] = id;
             PushChildrenReverse(pending, node.Children);
         }
 
-        return order.Count == 0 ? [] : order.ToArray();
+        if (orderCount == 0)
+            return [];
+        if (orderCount == order.Length)
+            return order;
+
+        var trimmed = new SceneNodeId[orderCount];
+        order.AsSpan(0, orderCount).CopyTo(trimmed);
+        return trimmed;
     }
 
     private static void PushChildrenReverse(Stack<SceneNodeId> pending, ReadOnlySpan<SceneNodeId> children)

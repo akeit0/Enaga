@@ -286,32 +286,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private bool TryResolveDomElement(HtmlNodeId nodeId, out HtmlDomElement element)
     {
-        if (parsedDocument is not null && TryFindDomElement(parsedDocument.RootElement, nodeId, out element!))
-            return true;
-
-        element = null!;
-        return false;
-    }
-
-    private static bool TryFindDomElement(HtmlDomElement current, HtmlNodeId nodeId, out HtmlDomElement element)
-    {
-        if (current.NodeId == nodeId)
-        {
-            element = current;
-            return true;
-        }
-
-        foreach (var child in current.Children)
-        {
-            if (child is HtmlDomElement childElement &&
-                TryFindDomElement(childElement, nodeId, out element))
-            {
-                return true;
-            }
-        }
-
-        element = null!;
-        return false;
+        return cachedDomElements.TryGetValue(nodeId, out element!);
     }
 
     public void Wheel(float deltaX, float deltaY, bool synthetic, int modifiers = 0)

@@ -19,10 +19,10 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     private HtmlFragmentTree? lastRenderedFragmentTree;
     private IReadOnlyDictionary<SceneNodeId, HtmlNodeId> cachedSceneNodeDomIds =
         new Dictionary<SceneNodeId, HtmlNodeId>();
-    private IReadOnlyDictionary<HtmlNodeId, HtmlNodeId> cachedDomNodeParentIds =
-        new Dictionary<HtmlNodeId, HtmlNodeId>();
-    private IReadOnlyDictionary<HtmlNodeId, int> cachedDomNodeDepths =
-        new Dictionary<HtmlNodeId, int>();
+    private readonly Dictionary<HtmlNodeId, HtmlNodeId> cachedDomNodeParentIds = new();
+    private readonly Dictionary<HtmlNodeId, int> cachedDomNodeDepths = new();
+    private readonly Dictionary<HtmlNodeId, HtmlDomElement> cachedDomElements = new();
+    private int cachedDomRelationshipCapacity;
     private SceneLayoutCommit? cachedHitTestCommit;
     private HtmlHitTestSpatialIndex? cachedHitTestIndex;
     private readonly List<HtmlHitTestEntry> hitTestEntryScratch = new();
@@ -81,6 +81,7 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
             parsedDocument = null;
             cachedBaseCommit = null;
             cachedCommit = null;
+            cachedDomRelationshipCapacity = 0;
             Invalidate(BaseCommitInvalidation | HtmlPipelineInvalidation.HitTest, HtmlRenderDamageBits.FullFrame | HtmlRenderDamageBits.Document);
             ResetInteractiveState();
         }

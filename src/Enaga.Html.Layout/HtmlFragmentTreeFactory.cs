@@ -11,26 +11,28 @@ internal static class HtmlFragmentTreeFactory
         float rootWidth,
         float rootHeight,
         List<HtmlPlacedNode> placedNodes,
-        SceneNodeMap<SceneLayoutBox>? layout = null)
+        SceneNodeMap<SceneLayoutBox>? layout = null,
+        HtmlFragmentTree? previousTree = null)
     {
         var rootFragmentId = CreateFragmentId(rootId);
         var rootSceneNodeId = sceneNodeIds.GetOrCreate(rootId);
-        var fragments = new List<HtmlFragment>(placedNodes.Count + 5)
-        {
-            new(
-                rootFragmentId,
-                CreateFormattingNodeId(rootId),
-                ParentId: null,
-                Children: [],
-                HtmlFragmentKind.BlockBox,
-                new HtmlLayoutRect(0, 0, rootWidth, rootHeight),
-                new HtmlLayoutRect(0, 0, rootWidth, rootHeight),
-                PaintVersion: 1,
-                SceneNodeId: rootSceneNodeId,
-                SourceSceneNodeId: rootId)
-        };
+        var fragments = new List<HtmlFragment>(placedNodes.Count + 5);
+        var rootRect = new HtmlLayoutRect(0, 0, rootWidth, rootHeight);
+        fragments.Add(CreateOrReuseFragment(
+            previousTree,
+            rootFragmentId,
+            CreateFormattingNodeId(rootId),
+            ParentId: null,
+            Children: [],
+            HtmlFragmentKind.BlockBox,
+            rootRect,
+            rootRect,
+            PaintVersion: 1,
+            rootSceneNodeId,
+            rootId,
+            HtmlGeneratedFragmentRole.None));
         if (layout is not null && layout.TryGetValue(rootSceneNodeId, out var rootBox))
-            AddScrollBarFragments(fragments, rootId, rootId, rootFragmentId, rootBox);
+            AddScrollBarFragments(fragments, previousTree, rootId, rootId, rootFragmentId, rootBox);
 
         for (var index = 0; index < placedNodes.Count; index++)
         {
@@ -39,19 +41,21 @@ internal static class HtmlFragmentTreeFactory
             var sceneNodeId = sceneNodeIds.GetOrCreate(id);
             var kind = ResolveFragmentKind(placed.Node);
             var rect = new HtmlLayoutRect(placed.AbsLeft, placed.AbsTop, placed.Width, placed.Height);
-            fragments.Add(new HtmlFragment(
+            fragments.Add(CreateOrReuseFragment(
+                previousTree,
                 CreateFragmentId(id),
                 CreateFormattingNodeId(placed.Node.Id),
                 ParentId: placed.ParentId is null ? rootFragmentId : CreateFragmentId(placed.ParentId.Value),
                 Children: [],
                 kind,
-                BorderBox: rect,
-                VisualOverflow: ResolveVisualOverflow(placed, rect),
+                borderBox: rect,
+                visualOverflow: ResolveVisualOverflow(placed, rect),
                 PaintVersion: ResolvePaintVersion(placed),
-                SceneNodeId: sceneNodeId,
-                SourceSceneNodeId: placed.Node.Id));
+                sceneNodeId,
+                placed.Node.Id,
+                HtmlGeneratedFragmentRole.None));
             if (layout is not null && layout.TryGetValue(sceneNodeId, out var box))
-                AddScrollBarFragments(fragments, id, placed.Node.Id, CreateFragmentId(id), box);
+                AddScrollBarFragments(fragments, previousTree, id, placed.Node.Id, CreateFragmentId(id), box);
         }
 
         return new HtmlFragmentTree(rootFragmentId, fragments);
@@ -78,6 +82,7 @@ internal static class HtmlFragmentTreeFactory
 
     private static void AddScrollBarFragments(
         List<HtmlFragment> fragments,
+        HtmlFragmentTree? previousTree,
         HtmlSceneNodeId sceneNodeId,
         HtmlSceneNodeId sourceSceneNodeId,
         HtmlFragmentId parentId,
@@ -92,6 +97,7 @@ internal static class HtmlFragmentTreeFactory
             var gutterWidth = Math.Max(0, box.ScrollBarWidth);
             AddGeneratedFragment(
                 fragments,
+                previousTree,
                 sceneNodeId,
                 sourceSceneNodeId,
                 parentId,
@@ -100,6 +106,7 @@ internal static class HtmlFragmentTreeFactory
                 paintVersion);
             AddGeneratedFragment(
                 fragments,
+                previousTree,
                 sceneNodeId,
                 sourceSceneNodeId,
                 parentId,
@@ -113,6 +120,7 @@ internal static class HtmlFragmentTreeFactory
             var gutterHeight = Math.Max(0, box.ScrollBarWidth);
             AddGeneratedFragment(
                 fragments,
+                previousTree,
                 sceneNodeId,
                 sourceSceneNodeId,
                 parentId,
@@ -121,6 +129,7 @@ internal static class HtmlFragmentTreeFactory
                 paintVersion);
             AddGeneratedFragment(
                 fragments,
+                previousTree,
                 sceneNodeId,
                 sourceSceneNodeId,
                 parentId,
@@ -132,6 +141,7 @@ internal static class HtmlFragmentTreeFactory
 
     private static void AddGeneratedFragment(
         List<HtmlFragment> fragments,
+        HtmlFragmentTree? previousTree,
         HtmlSceneNodeId sceneNodeId,
         HtmlSceneNodeId sourceSceneNodeId,
         HtmlFragmentId parentId,
@@ -142,7 +152,8 @@ internal static class HtmlFragmentTreeFactory
         if (rect.IsEmpty)
             return;
 
-        fragments.Add(new HtmlFragment(
+        fragments.Add(CreateOrReuseFragment(
+            previousTree,
             CreateGeneratedFragmentId(sceneNodeId, role),
             CreateFormattingNodeId(sourceSceneNodeId),
             parentId,
@@ -152,8 +163,52 @@ internal static class HtmlFragmentTreeFactory
             rect,
             paintVersion,
             SceneNodeId: default,
-            SourceSceneNodeId: sourceSceneNodeId,
-            GeneratedRole: role));
+            sourceSceneNodeId,
+            role));
+    }
+
+    private static HtmlFragment CreateOrReuseFragment(
+        HtmlFragmentTree? previousTree,
+        HtmlFragmentId id,
+        HtmlFormattingNodeId sourceNodeId,
+        HtmlFragmentId? ParentId,
+        IReadOnlyList<HtmlFragmentId> Children,
+        HtmlFragmentKind kind,
+        HtmlLayoutRect borderBox,
+        HtmlLayoutRect visualOverflow,
+        uint PaintVersion,
+        SceneNodeId SceneNodeId,
+        HtmlSceneNodeId SourceSceneNodeId,
+        HtmlGeneratedFragmentRole GeneratedRole)
+    {
+        if (previousTree is not null &&
+            previousTree.TryGetFragment(id, out var previous) &&
+            previous.SourceNodeId == sourceNodeId &&
+            previous.ParentId == ParentId &&
+            previous.Children.Count == Children.Count &&
+            previous.Kind == kind &&
+            previous.BorderBox == borderBox &&
+            previous.VisualOverflow == visualOverflow &&
+            previous.PaintVersion == PaintVersion &&
+            previous.SceneNodeId == SceneNodeId &&
+            previous.SourceSceneNodeId == SourceSceneNodeId &&
+            previous.GeneratedRole == GeneratedRole)
+        {
+            return previous;
+        }
+
+        return new HtmlFragment(
+            id,
+            sourceNodeId,
+            ParentId,
+            Children,
+            kind,
+            borderBox,
+            visualOverflow,
+            PaintVersion,
+            SceneNodeId,
+            SourceSceneNodeId,
+            GeneratedRole);
     }
 
     private static HtmlLayoutRect ToLayoutRect(SceneScrollBarLayout.ScrollBarRect rect)

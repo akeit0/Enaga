@@ -104,32 +104,54 @@ public sealed partial class HtmlSceneFrameSource
         frameStyleDamage = builder.LastDamage;
         cachedBaseFragmentTree = builder.LastFragmentTree;
         cachedSceneNodeDomIds = builder.LastSceneNodeDomIds;
-        (cachedDomNodeParentIds, cachedDomNodeDepths) = CreateDomNodeRelationshipMaps(parsed.RootElement);
+        UpdateDomNodeRelationshipMaps(parsed.RootElement);
         hitTestGeometryVersion++;
         return commit;
     }
 
-    private static (IReadOnlyDictionary<HtmlNodeId, HtmlNodeId> Parents, IReadOnlyDictionary<HtmlNodeId, int> Depths)
-        CreateDomNodeRelationshipMaps(HtmlDomElement root)
+    private void UpdateDomNodeRelationshipMaps(HtmlDomElement root)
     {
-        var parents = new Dictionary<HtmlNodeId, HtmlNodeId>();
-        var depths = new Dictionary<HtmlNodeId, int>
-        {
-            [root.NodeId] = 0
-        };
-        AddChildren(root, depth: 0);
-        return (parents, depths);
+        if (cachedDomRelationshipCapacity == 0)
+            cachedDomRelationshipCapacity = CountElementNodes(root);
+        cachedDomNodeParentIds.Clear();
+        cachedDomNodeDepths.Clear();
+        cachedDomElements.Clear();
+        cachedDomNodeParentIds.EnsureCapacity(Math.Max(0, cachedDomRelationshipCapacity - 1));
+        cachedDomNodeDepths.EnsureCapacity(cachedDomRelationshipCapacity);
+        cachedDomElements.EnsureCapacity(cachedDomRelationshipCapacity);
+        cachedDomElements[root.NodeId] = root;
+        cachedDomNodeDepths[root.NodeId] = 0;
+        AddChildren(root, depth: 0, cachedDomNodeParentIds, cachedDomNodeDepths, cachedDomElements);
 
-        void AddChildren(HtmlDomElement parent, int depth)
+        static int CountElementNodes(HtmlDomElement element)
         {
-            foreach (var child in parent.Children)
+            var count = 1;
+            for (var index = 0; index < element.Children.Count; index++)
             {
+                if (element.Children[index] is HtmlDomElement childElement)
+                    count += CountElementNodes(childElement);
+            }
+
+            return count;
+        }
+
+        static void AddChildren(
+            HtmlDomElement parent,
+            int depth,
+            Dictionary<HtmlNodeId, HtmlNodeId> parents,
+            Dictionary<HtmlNodeId, int> depths,
+            Dictionary<HtmlNodeId, HtmlDomElement> elements)
+        {
+            for (var index = 0; index < parent.Children.Count; index++)
+            {
+                var child = parent.Children[index];
                 if (child is not HtmlDomElement childElement)
                     continue;
 
                 parents[childElement.NodeId] = parent.NodeId;
                 depths[childElement.NodeId] = depth + 1;
-                AddChildren(childElement, depth + 1);
+                elements[childElement.NodeId] = childElement;
+                AddChildren(childElement, depth + 1, parents, depths, elements);
             }
         }
     }

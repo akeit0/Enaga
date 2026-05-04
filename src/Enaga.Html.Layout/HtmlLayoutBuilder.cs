@@ -19,7 +19,12 @@ internal sealed partial class HtmlLayoutBuilder
     private readonly List<HtmlPlacedNode> placedNodes = new();
     private readonly List<HtmlChildRelation> childRelations = new();
     private readonly Dictionary<SceneNodeId, SceneNodeId[]> sceneChildMap = new();
+    private readonly Dictionary<SceneNodeId, SceneNodeId[]>[] sceneChildArrayCaches = [new(), new()];
+    private readonly SceneNodeMap<SceneGraphNode>[] sceneNodeBuffers = [new(), new()];
+    private readonly SceneNodeMap<SceneLayoutBox>[] sceneLayoutBuffers = [new(), new()];
+    private readonly Dictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId> sceneNodeDomIds = new();
     private SceneLayoutCommit? previousCommit;
+    private int sceneBufferIndex;
 
     public HtmlLayoutBuilder(string rootId, IRuntimeTextServices textServices, HtmlPipelineMetrics metrics, SceneNodeIdAllocator sceneNodeIdAllocator)
     {
@@ -32,8 +37,7 @@ internal sealed partial class HtmlLayoutBuilder
 
     public HtmlFragmentTree? LastFragmentTree { get; private set; }
 
-    public IReadOnlyDictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId> LastSceneNodeDomIds { get; private set; } =
-        new Dictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId>();
+    public IReadOnlyDictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId> LastSceneNodeDomIds => sceneNodeDomIds;
 
     public SceneLayoutCommit Build(HtmlStyledSceneTree styledTree, HtmlLayoutOutputStore layoutOutputStore, int width, int height, float viewportScale)
     {
@@ -49,33 +53,34 @@ internal sealed partial class HtmlLayoutBuilder
         var rootKind = rootStyle.IsScrollContainer ? SceneNodeKind.ScrollView : SceneNodeKind.View;
 
         LayoutChildren(rootId, rootStyle, rootChildren, 0, 0, bodyLayoutWidth, height, resolvedViewportScale);
-        LastSceneNodeDomIds = CreateSceneNodeDomIdMap(styledTree);
-        var commit = new HtmlSceneEmitter(rootId, sceneNodeIds, textStyleCache, sceneChildMap, width, height, width, height, resolvedViewportScale, previousCommit).Emit(
+        UpdateSceneNodeDomIdMap(styledTree);
+        sceneBufferIndex ^= 1;
+        var emitNodes = sceneNodeBuffers[sceneBufferIndex];
+        var emitLayout = sceneLayoutBuffers[sceneBufferIndex];
+        var commit = new HtmlSceneEmitter(rootId, sceneNodeIds, textStyleCache, sceneChildMap, sceneChildArrayCaches[sceneBufferIndex], emitNodes, emitLayout, width, height, width, height, resolvedViewportScale, previousCommit).Emit(
             rootKind,
             rootStyle,
             placedNodes,
             childRelations,
             metrics);
         previousCommit = commit;
-        LastFragmentTree = HtmlFragmentTreeFactory.Create(rootId, sceneNodeIds, width, height, placedNodes, commit.Layout);
-        metrics.AddFragmentsRebuilt(LastFragmentTree.Fragments.Count + childRelations.Count);
+        LastFragmentTree = HtmlFragmentTreeFactory.Create(rootId, sceneNodeIds, width, height, placedNodes, commit.Layout, LastFragmentTree);
+        metrics.AddFragmentsRebuilt(LastFragmentTree.OrderedFragments.Count + childRelations.Count);
         return commit;
     }
 
-    private Dictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId> CreateSceneNodeDomIdMap(HtmlStyledSceneTree styledTree)
+    private void UpdateSceneNodeDomIdMap(HtmlStyledSceneTree styledTree)
     {
-        var map = new Dictionary<SceneNodeId, Enaga.Html.Dom.HtmlNodeId>(placedNodes.Count + 1)
-        {
-            [sceneNodeIds.GetOrCreate(rootId)] = styledTree.RootDomNodeId
-        };
+        sceneNodeDomIds.Clear();
+        sceneNodeDomIds.EnsureCapacity(placedNodes.Count + 1);
+        sceneNodeDomIds[sceneNodeIds.GetOrCreate(rootId)] = styledTree.RootDomNodeId;
 
-        foreach (var placed in placedNodes)
+        for (var index = 0; index < placedNodes.Count; index++)
         {
+            var placed = placedNodes[index];
             if (placed.Node.DomNodeId.IsValid)
-                map[sceneNodeIds.GetOrCreate(placed.Id)] = placed.Node.DomNodeId;
+                sceneNodeDomIds[sceneNodeIds.GetOrCreate(placed.Id)] = placed.Node.DomNodeId;
         }
-
-        return map;
     }
 
     private static float ResolveRootLayoutWidth(HtmlComputedStyle rootStyle, float viewportWidth)
