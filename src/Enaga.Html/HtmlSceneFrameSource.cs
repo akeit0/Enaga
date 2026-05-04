@@ -40,6 +40,7 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     private TimeSpan? previousRenderElapsed;
     private readonly HashSet<SceneNodeId> dirtyScrollViewIds = new();
     private float viewportScale = 1f;
+    private bool hoverRefreshDeferred;
 
     public HtmlSceneFrameSource(HtmlDocument document, HtmlOptions? options = null)
     {
@@ -119,6 +120,12 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
             var commit = BuildCommitCore(resolvedWidth, resolvedHeight, scrollDeltaSeconds);
             var reasons = ResolveDamageReasons(consumedInvalidation, consumedDamage, frameStyleDamage, previousWidth, previousHeight, resolvedWidth, resolvedHeight);
 
+            if (TryConsumeHoverPaintDirtyRects(out var hoverDirtyRects))
+            {
+                RecordDirtyMetrics(hoverDirtyRects);
+                return new SceneFrameResult(commit, hoverDirtyRects, SceneDamageReason.FragmentDamage);
+            }
+
             if (reasons == SceneDamageReason.None)
             {
                 RecordNoDamageMetrics();
@@ -143,6 +150,19 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
             RecordFullFrameMetrics(resolvedWidth, resolvedHeight);
             return SceneFrameResult.FullFrame(commit, resolvedWidth, resolvedHeight, reasons);
         }
+    }
+
+    private bool TryConsumeHoverPaintDirtyRects(out SceneDamageRect[] dirtyRects)
+    {
+        if (hoverPaintDirtyRects.Count == 0)
+        {
+            dirtyRects = [];
+            return false;
+        }
+
+        dirtyRects = hoverPaintDirtyRects.ToArray();
+        hoverPaintDirtyRects.Clear();
+        return dirtyRects.Length > 0;
     }
 
     private bool TryConsumeScrollDirtyRects(SceneLayoutCommit commit, out SceneDamageRect[] dirtyRects)
@@ -248,8 +268,10 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     private SceneLayoutCommit BuildCommitCore(int width, int height, double scrollDeltaSeconds)
     {
         var rebuildInvalidation = HasAny(pendingInvalidation, BaseCommitInvalidation);
+        var hoverInvalidation = HasAny(pendingInvalidation, HtmlPipelineInvalidation.Hover);
         var interactiveInvalidation = HasAny(pendingInvalidation, HtmlPipelineInvalidation.Interactive | HtmlPipelineInvalidation.Scroll);
         if (!rebuildInvalidation &&
+            !hoverInvalidation &&
             SameDomNodeSet(cachedHoveredDomNodeIds, hoveredDomNodeIds) &&
             cachedActiveDomNodeId == activeDomNodeId &&
             !interactiveInvalidation &&
@@ -267,8 +289,29 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
                 cachedBaseCommit is null ||
                 cachedWidth != width ||
                 cachedHeight != height ||
+                hoverInvalidation ||
                 !SameDomNodeSet(cachedHoveredDomNodeIds, hoveredDomNodeIds) ||
                 cachedActiveDomNodeId != activeDomNodeId;
+
+            if (needsRebuild &&
+                !rebuildInvalidation &&
+                cachedBaseCommit is not null &&
+                cachedCommit is not null &&
+                cachedWidth == width &&
+                cachedHeight == height &&
+                cachedActiveDomNodeId == activeDomNodeId)
+            {
+                parsedDocument ??= documentParser.Parse(document);
+                if (TryApplyHoverPaintOverlay(parsedDocument, cachedCommit, width, height, out var overlayCommit))
+                {
+                    cachedCommit = overlayCommit;
+                    cachedHoveredDomNodeIds = hoveredDomNodeIds;
+                    pendingInvalidation &= ~(HtmlPipelineInvalidation.Hover | HtmlPipelineInvalidation.HitTest);
+                    pendingDamage = HtmlRenderDamageBits.None;
+                    LastError = null;
+                    return cachedCommit;
+                }
+            }
 
             if (needsRebuild)
             {
@@ -291,12 +334,16 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
                 cachedCommit = ApplyInteractiveState(baseCommit, scrollDeltaSeconds, out keepInteractiveDirty, out var hitTestGeometryChanged);
                 if (hitTestGeometryChanged)
                     hitTestGeometryVersion++;
-                if (!ShouldDeferHoverRefreshForScroll(hitTestGeometryChanged) &&
-                    UpdateHoveredNodeId(cachedCommit, lastPointerX, lastPointerY, requestUpdate: false))
+                if (ShouldDeferHoverRefreshForScroll(hitTestGeometryChanged))
+                {
+                    hoverRefreshDeferred = true;
+                }
+                else if (UpdateHoveredNodeId(cachedCommit, lastPointerX, lastPointerY, requestUpdate: false))
                 {
                     cachedBaseCommit = BuildDocumentCommit(parsedDocument, width, height);
                     cachedHoveredDomNodeIds = hoveredDomNodeIds;
                     cachedActiveDomNodeId = activeDomNodeId;
+                    hoverRefreshDeferred = false;
                     cachedCommit = ApplyInteractiveState(cachedBaseCommit, scrollDeltaSeconds: 0, out var hoverRefreshDirty, out var hoverHitTestGeometryChanged);
                     if (hoverHitTestGeometryChanged)
                         hitTestGeometryVersion++;
@@ -306,7 +353,7 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
 
             cachedWidth = width;
             cachedHeight = height;
-            pendingInvalidation &= ~(HtmlPipelineInvalidation.Interactive | HtmlPipelineInvalidation.Scroll | HtmlPipelineInvalidation.HitTest);
+            pendingInvalidation &= ~(HtmlPipelineInvalidation.Interactive | HtmlPipelineInvalidation.Scroll | HtmlPipelineInvalidation.HitTest | HtmlPipelineInvalidation.Hover);
             pendingDamage = HtmlRenderDamageBits.None;
             if (keepInteractiveDirty)
                 Invalidate(HtmlPipelineInvalidation.Interactive | HtmlPipelineInvalidation.Scroll, HtmlRenderDamageBits.Scroll | HtmlRenderDamageBits.DirtyRects);

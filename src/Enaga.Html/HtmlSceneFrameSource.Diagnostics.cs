@@ -178,7 +178,8 @@ internal enum HtmlPipelineInvalidation
     Interactive = 1 << 5,
     Scroll = 1 << 6,
     Viewport = 1 << 7,
-    HitTest = 1 << 8
+    HitTest = 1 << 8,
+    Hover = 1 << 9
 }
 
 [Flags]

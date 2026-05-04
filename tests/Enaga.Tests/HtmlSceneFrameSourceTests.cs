@@ -2422,6 +2422,105 @@ public sealed class HtmlSceneFrameSourceTests
     }
 
     [Fact]
+    public void HtmlSceneFrameSource_SkipsHoverRebuildWhenHoverStateCannotAffectRendering()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                """
+                <body>
+                  <a href="one.html">One</a>
+                  <a href="two.html">Two</a>
+                </body>
+                """,
+                "a { color: #112233; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
+        source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
+        var hoveredFirst = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
+
+        var second = hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "Two");
+        source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
+        var hoveredSecond = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
+
+        Assert.Equal(SceneDamageReason.None, hoveredFirst.DamageReasons);
+        Assert.Equal(SceneDamageReason.None, hoveredSecond.DamageReasons);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_UsesPaintOverlayForLinkHoverColorChange()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                """
+                <body>
+                  <a href="one.html">One</a>
+                  <a href="two.html">Two</a>
+                </body>
+                """,
+                "a { color: #112233; } a:hover { color: #445566; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
+        source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
+        var hoveredFirst = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
+
+        Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
+        Assert.Equal("#445566", hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "One").TextStyle?.Color);
+        Assert.Equal("#112233", hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "Two").TextStyle?.Color);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+
+        var second = hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "Two");
+        source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
+        var hoveredSecond = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
+
+        Assert.Equal(SceneDamageReason.FragmentDamage, hoveredSecond.DamageReasons);
+        Assert.Equal("#112233", hoveredSecond.Commit.Layout.Values.First(box => box.TextContent == "One").TextStyle?.Color);
+        Assert.Equal("#445566", hoveredSecond.Commit.Layout.Values.First(box => box.TextContent == "Two").TextStyle?.Color);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_SkipsHoverRebuildWhenMovingWithinSameHoverDependentAncestor()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                """
+                <body>
+                  <table class="iana-table">
+                    <tr><td>One</td><td>Two</td></tr>
+                  </table>
+                </body>
+                """,
+                "td { background: #fafafc; padding: 8px; } .iana-table tr:hover td { background: #f0f0f8; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
+        source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
+        var hoveredFirst = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
+        Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
+        Assert.True(hoveredFirst.Commit.Layout.Values.Count(box => box.BackgroundColor == "#f0f0f8") >= 2);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+
+        var second = hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "Two");
+        source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
+        var hoveredSecond = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
+
+        Assert.Equal(SceneDamageReason.None, hoveredSecond.DamageReasons);
+        Assert.True(hoveredSecond.Commit.Layout.Values.Count(box => box.BackgroundColor == "#f0f0f8") >= 2);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+    }
+
+    [Fact]
     public void HtmlSceneFrameSource_ChangesViewportScaleWithControlWheel()
     {
         var source = new HtmlSceneFrameSource(
