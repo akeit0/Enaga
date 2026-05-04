@@ -244,12 +244,13 @@ internal sealed class SceneCommitPainter : IDisposable
         if (IsHostAnimatedRuntimeShader(box))
             return;
 
+        var paintBox = ApplyPaintOverride(commit, id, box);
         var selfPaintRejected = ShouldCullSelfPaint(canvas, box);
         if (selfPaintRejected)
             recordingCulledNodePaints++;
 
         if (!selfPaintRejected)
-            DrawBox(canvas, box);
+            DrawBox(canvas, paintBox);
 
         var clipPushed = false;
         if (ShouldClipChildren(box))
@@ -265,9 +266,9 @@ internal sealed class SceneCommitPainter : IDisposable
         if (!selfPaintRejected)
         {
             if (box.Text is not null)
-                DrawText(canvas, box);
+                DrawText(canvas, paintBox);
             else if (box.TextInput is not null)
-                DrawTextInput(canvas, box);
+                DrawTextInput(canvas, paintBox);
             else if (box.Image is not null)
                 DrawImage(canvas, box);
         }
@@ -514,6 +515,8 @@ internal sealed class SceneCommitPainter : IDisposable
 
         hash.Add(node);
         hash.Add(box);
+        if (commit.TryGetPaintOverride(id, out var paintOverride))
+            hash.Add(paintOverride);
         AddNodeListToSignature(commit, node.Children, ref hash);
     }
 
@@ -625,6 +628,23 @@ internal sealed class SceneCommitPainter : IDisposable
         DrawBorder(canvas, box, geometry.BorderRect, geometry.BorderRadius);
     }
 
+    private static SceneLayoutBox ApplyPaintOverride(SceneLayoutCommit commit, SceneNodeId id, SceneLayoutBox box)
+    {
+        if (!commit.TryGetPaintOverride(id, out var paintOverride))
+            return box;
+
+        var textStyle = box.TextStyle;
+        if (paintOverride.TextColor is not null && textStyle is not null)
+            textStyle = textStyle with { Color = paintOverride.TextColor };
+
+        return box with
+        {
+            BackgroundColor = paintOverride.BackgroundColor ?? box.BackgroundColor,
+            BorderColor = paintOverride.BorderColor ?? box.BorderColor,
+            TextStyle = textStyle
+        };
+    }
+
     private void PaintAnimatedShaderNodes(SKCanvas canvas, SceneLayoutCommit commit, float elapsedSeconds)
     {
         foreach (var id in commit.HostAnimatedShaderRootIds)
@@ -680,11 +700,12 @@ internal sealed class SceneCommitPainter : IDisposable
         if (!commit.Layout.TryGetValue(id, out var box) || !commit.Nodes.TryGetValue(id, out var node))
             return;
 
+        var paintBox = ApplyPaintOverride(commit, id, box);
         var hostAnimatedShader = IsHostAnimatedRuntimeShader(box);
         if (hostAnimatedShader)
             DrawAnimatedShaderBox(canvas, box, elapsedSeconds);
         else
-            DrawBox(canvas, box);
+            DrawBox(canvas, paintBox);
 
         var clipPushed = false;
         if (ShouldClipChildren(box))
@@ -695,9 +716,9 @@ internal sealed class SceneCommitPainter : IDisposable
         }
 
         if (box.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(box.TextContent))
-            DrawText(canvas, box);
+            DrawText(canvas, paintBox);
         else if (box.NodeKind == SceneNodeKind.TextInput)
-            DrawTextInput(canvas, box);
+            DrawTextInput(canvas, paintBox);
         else if (box.NodeKind == SceneNodeKind.Image)
             DrawImage(canvas, box);
 

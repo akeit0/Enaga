@@ -132,6 +132,40 @@ public sealed class SceneDamageEstimatorTests
                         rect.Y + rect.Height >= 320));
     }
 
+    [Fact]
+    public void Resolve_DirtiesPaintOverrideChanges()
+    {
+        var previousCommit = CreateCommit(includeTooltip: false);
+        var nextCommit = previousCommit with
+        {
+            PaintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>
+            {
+                [Content] = new(BackgroundColor: "#334155")
+            }
+        };
+        using var resultBuffer = new SceneDamageRectBufferWriter(16);
+        using var scratchBuffer = new SceneDamageRectBufferWriter(16);
+
+        var dirtyRects = SceneDamageEstimator.Resolve(
+            previousCommit,
+            nextCommit,
+            [],
+            SceneDamageReason.None,
+            800,
+            600,
+            false,
+            resultBuffer,
+            scratchBuffer);
+
+        Assert.True(
+            Contains(
+                dirtyRects,
+                rect => rect.X <= 220 &&
+                        rect.Y <= 0 &&
+                        rect.X + rect.Width >= 800 &&
+                        rect.Y + rect.Height >= 600));
+    }
+
     private static SceneLayoutCommit CreateCommit(bool includeTooltip, bool tooltipPositioned = false)
     {
         var nodes = new Dictionary<SceneNodeId, SceneGraphNode>

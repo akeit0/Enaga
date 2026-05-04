@@ -2335,9 +2335,11 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerMove(visibleAnchorWord.AbsLeft + 2, visibleAnchorWord.AbsTop - scrolled.Commit.Layout[paneId].ScrollY + 2, 0, synthetic: false);
         var hovered = source.RenderFrame(320, 200, TimeSpan.FromMilliseconds(192));
 
-        var hoveredAnchorWords = hovered.Commit.Layout.Values
-            .Where(box => box.LinkHref == "docs.html")
-            .Count(box => box.TextStyle?.Color == "#445566");
+        var hoveredAnchorWords = hovered.Commit.Layout
+            .Where(pair => pair.Value.LinkHref == "docs.html")
+            .Count(pair =>
+                hovered.Commit.PaintOverrides.TryGetValue(pair.Key, out var paintOverride) &&
+                paintOverride.TextColor == "#445566");
         Assert.True(hoveredAnchorWords > 0);
         Assert.Equal(hovered.Commit.Layout.Values.Count(box => box.LinkHref == "docs.html"), hoveredAnchorWords);
     }
@@ -2470,8 +2472,10 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredFirst = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
 
         Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
-        Assert.Equal("#445566", hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "One").TextStyle?.Color);
-        Assert.Equal("#112233", hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "Two").TextStyle?.Color);
+        var hoveredFirstOne = hoveredFirst.Commit.Layout.First(pair => pair.Value.TextContent == "One").Key;
+        var hoveredFirstTwo = hoveredFirst.Commit.Layout.First(pair => pair.Value.TextContent == "Two").Key;
+        Assert.Equal("#445566", hoveredFirst.Commit.PaintOverrides[hoveredFirstOne].TextColor);
+        Assert.False(hoveredFirst.Commit.PaintOverrides.ContainsKey(hoveredFirstTwo));
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
         Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
 
@@ -2480,8 +2484,10 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredSecond = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal(SceneDamageReason.FragmentDamage, hoveredSecond.DamageReasons);
-        Assert.Equal("#112233", hoveredSecond.Commit.Layout.Values.First(box => box.TextContent == "One").TextStyle?.Color);
-        Assert.Equal("#445566", hoveredSecond.Commit.Layout.Values.First(box => box.TextContent == "Two").TextStyle?.Color);
+        var hoveredSecondOne = hoveredSecond.Commit.Layout.First(pair => pair.Value.TextContent == "One").Key;
+        var hoveredSecondTwo = hoveredSecond.Commit.Layout.First(pair => pair.Value.TextContent == "Two").Key;
+        Assert.False(hoveredSecond.Commit.PaintOverrides.ContainsKey(hoveredSecondOne));
+        Assert.Equal("#445566", hoveredSecond.Commit.PaintOverrides[hoveredSecondTwo].TextColor);
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
         Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
     }
@@ -2506,7 +2512,7 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
         var hoveredFirst = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
         Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
-        Assert.True(hoveredFirst.Commit.Layout.Values.Count(box => box.BackgroundColor == "#f0f0f8") >= 2);
+        Assert.True(hoveredFirst.Commit.PaintOverrides.Values.Count(paintOverride => paintOverride.BackgroundColor == "#f0f0f8") >= 2);
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
         Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
 
@@ -2515,7 +2521,7 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredSecond = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal(SceneDamageReason.None, hoveredSecond.DamageReasons);
-        Assert.True(hoveredSecond.Commit.Layout.Values.Count(box => box.BackgroundColor == "#f0f0f8") >= 2);
+        Assert.True(hoveredSecond.Commit.PaintOverrides.Values.Count(paintOverride => paintOverride.BackgroundColor == "#f0f0f8") >= 2);
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
         Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
     }

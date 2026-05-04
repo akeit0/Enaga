@@ -1448,7 +1448,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         hoverPaintDirtyRects.Clear();
 
         var changedHoverLinks = CollectChangedHoverLinks(parsed, width, height);
-        var updatedLayout = SceneNodeMap<SceneLayoutBox>.CreateOverlay(commit.Layout, Math.Min(64, changedHoverLinks.Count * 4));
+        var paintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>(Math.Min(64, Math.Max(4, changedHoverLinks.Count * 4)));
         var changed = false;
         foreach (var pair in commit.Layout)
         {
@@ -1463,34 +1463,31 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 continue;
             }
 
-            var targetColor = hoveredDomNodeIds?.Contains(linkNodeId) == true
-                ? hoverColor
-                : cachedBaseCommit?.Layout.TryGetValue(sceneNodeId, out var baseBox) == true
-                    ? baseBox.TextStyle?.Color
-                    : box.TextStyle.Color;
-            if (string.Equals(box.TextStyle.Color, targetColor, StringComparison.Ordinal))
+            if (hoveredDomNodeIds?.Contains(linkNodeId) != true ||
+                string.Equals(box.TextStyle.Color, hoverColor, StringComparison.Ordinal))
+            {
                 continue;
+            }
 
-            var updatedTextStyle = box.TextStyle with { Color = targetColor };
-            updatedLayout[sceneNodeId] = box with { TextStyle = updatedTextStyle };
+            AddPaintOverride(paintOverrides, sceneNodeId, textColor: hoverColor);
             AddHoverPaintDirtyRect(commit, sceneNodeId, box);
             changed = true;
         }
 
-        if (!TryApplyHoverBackgroundOverlay(parsed, commit, updatedLayout, width, height, ref changed))
+        if (!TryApplyHoverBackgroundOverlay(parsed, commit, paintOverrides, width, height, ref changed))
             return false;
 
         if (!changed)
             return false;
 
-        overlayCommit = commit with { Layout = updatedLayout };
+        overlayCommit = commit with { PaintOverrides = paintOverrides };
         return true;
     }
 
     private bool TryApplyHoverBackgroundOverlay(
         HtmlParsedDocument parsed,
         SceneLayoutCommit commit,
-        SceneNodeMap<SceneLayoutBox> updatedLayout,
+        Dictionary<SceneNodeId, ScenePaintOverride> paintOverrides,
         int width,
         int height,
         ref bool changed)
@@ -1510,20 +1507,32 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             if (!parsed.TryResolvePaintOnlyHoveredBackgroundColor(element, ancestors, hoverStates, isHovered, width, height, out var matched, out var hoverColor))
                 return false;
 
-            var targetColor = matched
-                ? hoverColor
-                : cachedBaseCommit?.Layout.TryGetValue(sceneNodeId, out var baseBox) == true
-                    ? baseBox.BackgroundColor
-                    : box.BackgroundColor;
-            if (string.Equals(box.BackgroundColor, targetColor, StringComparison.Ordinal))
+            if (!matched ||
+                string.Equals(box.BackgroundColor, hoverColor, StringComparison.Ordinal))
+            {
                 continue;
+            }
 
-            updatedLayout[sceneNodeId] = box with { BackgroundColor = targetColor };
+            AddPaintOverride(paintOverrides, sceneNodeId, backgroundColor: hoverColor);
             AddHoverPaintDirtyRect(commit, sceneNodeId, box);
             changed = true;
         }
 
         return true;
+    }
+
+    private static void AddPaintOverride(
+        Dictionary<SceneNodeId, ScenePaintOverride> overrides,
+        SceneNodeId id,
+        string? backgroundColor = null,
+        string? textColor = null)
+    {
+        overrides.TryGetValue(id, out var current);
+        overrides[id] = current with
+        {
+            BackgroundColor = backgroundColor ?? current.BackgroundColor,
+            TextColor = textColor ?? current.TextColor
+        };
     }
 
     private Dictionary<HtmlNodeId, HoverLinkPaint> CollectChangedHoverLinks(HtmlParsedDocument parsed, int width, int height)

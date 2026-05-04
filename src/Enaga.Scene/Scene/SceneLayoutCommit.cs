@@ -119,6 +119,17 @@ public readonly record struct SceneBoxPaint(
     string? BackgroundImageFit,
     SceneBoxBorder? Border);
 
+public readonly record struct ScenePaintOverride(
+    string? BackgroundColor = null,
+    string? BorderColor = null,
+    string? TextColor = null)
+{
+    public bool IsEmpty =>
+        BackgroundColor is null &&
+        BorderColor is null &&
+        TextColor is null;
+}
+
 public readonly record struct SceneTextPayload(
     string TextContent,
     SceneTextStyle? TextStyle,
@@ -334,4 +345,13 @@ public sealed record SceneLayoutCommit(
     }
 
     public SceneNodeId[] PaintOrderIds { get; init; } = [];
+
+    private static readonly IReadOnlyDictionary<SceneNodeId, ScenePaintOverride> EmptyPaintOverrides =
+        new Dictionary<SceneNodeId, ScenePaintOverride>();
+
+    public IReadOnlyDictionary<SceneNodeId, ScenePaintOverride> PaintOverrides { get; init; } =
+        EmptyPaintOverrides;
+
+    public bool TryGetPaintOverride(SceneNodeId id, out ScenePaintOverride paintOverride)
+        => PaintOverrides.TryGetValue(id, out paintOverride) && !paintOverride.IsEmpty;
 }

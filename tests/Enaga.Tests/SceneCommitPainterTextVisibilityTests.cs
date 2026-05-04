@@ -181,6 +181,46 @@ public sealed class SceneCommitPainterTextVisibilityTests
     }
 
     [Fact]
+    public void Paint_AppliesScenePaintOverrideBackground()
+    {
+        using var bitmap = new SKBitmap(64, 40, true);
+        using var canvas = new SKCanvas(bitmap);
+        using var painter = new SceneCommitPainter();
+        var commit = CreateSingleBoxCommit(SceneBorderStyle.None) with
+        {
+            PaintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>
+            {
+                [Root] = new(BackgroundColor: "#00ff00")
+            }
+        };
+
+        painter.Paint(canvas, commit, TimeSpan.Zero);
+
+        Assert.Equal(new SKColor(0, 255, 0, 255), bitmap.GetPixel(16, 16));
+    }
+
+    [Fact]
+    public void Paint_InvalidatesScrollContentPictureForPaintOverride()
+    {
+        using var bitmap = new SKBitmap(160, 100, true);
+        using var canvas = new SKCanvas(bitmap);
+        using var painter = new SceneCommitPainter();
+        var firstCommit = CreateScrollBackgroundCommit();
+        var secondCommit = firstCommit with
+        {
+            PaintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>
+            {
+                [One] = new(BackgroundColor: "#00ff00")
+            }
+        };
+
+        painter.Paint(canvas, firstCommit, TimeSpan.Zero);
+        painter.Paint(canvas, secondCommit, TimeSpan.FromMilliseconds(16), [new SceneDamageRect(0, 0, 160, 100)]);
+
+        Assert.Equal(new SKColor(0, 255, 0, 255), bitmap.GetPixel(16, 16));
+    }
+
+    [Fact]
     public void Paint_RoundsUniformSideBorder()
     {
         using var bitmap = new SKBitmap(64, 40, true);
@@ -606,6 +646,35 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     24,
                     TextContent: secondText,
                     TextStyle: new SceneTextStyle(16, "#101820"))
+            },
+            []); 
+    }
+
+    private static SceneLayoutCommit CreateScrollBackgroundCommit()
+    {
+        return new SceneLayoutCommit(
+            Root,
+            new SceneViewport(160, 100),
+            new Dictionary<SceneNodeId, SceneGraphNode>
+            {
+                [Root] = new(SceneNodeKind.ScrollView, null, [One, Two]),
+                [One] = new(SceneNodeKind.View, Root, []),
+                [Two] = new(SceneNodeKind.View, Root, [])
+            },
+            new Dictionary<SceneNodeId, SceneLayoutBox>
+            {
+                [Root] = new(
+                    SceneNodeKind.ScrollView,
+                    0,
+                    0,
+                    160,
+                    100,
+                    IsScrollContainer: true,
+                    ClipContent: true,
+                    ContentHeight: 260,
+                    ScrollY: 0),
+                [One] = new(SceneNodeKind.View, 8, 8, 120, 24, BackgroundColor: "#ff0000"),
+                [Two] = new(SceneNodeKind.View, 8, 220, 120, 24, BackgroundColor: "#101820")
             },
             []);
     }

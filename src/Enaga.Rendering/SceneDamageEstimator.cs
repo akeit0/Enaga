@@ -94,11 +94,19 @@ internal static class SceneDamageEstimator
     {
         dirtyRects.Clear();
         var ids = new HashSet<SceneNodeId>();
-        ids.EnsureCapacity(previousCommit.Layout.Count + nextCommit.Layout.Count + previousCommit.Nodes.Count + nextCommit.Nodes.Count);
+        ids.EnsureCapacity(
+            previousCommit.Layout.Count +
+            nextCommit.Layout.Count +
+            previousCommit.Nodes.Count +
+            nextCommit.Nodes.Count +
+            previousCommit.PaintOverrides.Count +
+            nextCommit.PaintOverrides.Count);
         AddKeys(ids, previousCommit.Layout.Keys);
         AddKeys(ids, nextCommit.Layout.Keys);
         AddKeys(ids, previousCommit.Nodes.Keys);
         AddKeys(ids, nextCommit.Nodes.Keys);
+        AddKeys(ids, previousCommit.PaintOverrides.Keys);
+        AddKeys(ids, nextCommit.PaintOverrides.Keys);
 
         foreach (var id in ids)
         {
@@ -110,7 +118,8 @@ internal static class SceneDamageEstimator
             if (previousBox is not null && nextBox is not null &&
                 hasPreviousNode && hasNextNode &&
                 previousBox == nextBox &&
-                NodesEqual(previousNode, nextNode))
+                NodesEqual(previousNode, nextNode) &&
+                PaintOverridesEqual(previousCommit, nextCommit, id))
             {
                 continue;
             }
@@ -129,6 +138,13 @@ internal static class SceneDamageEstimator
         }
 
         return FinalizeDirtyRects(dirtyRects, viewportWidth, viewportHeight);
+    }
+
+    private static bool PaintOverridesEqual(SceneLayoutCommit previousCommit, SceneLayoutCommit nextCommit, SceneNodeId id)
+    {
+        var hasPrevious = previousCommit.TryGetPaintOverride(id, out var previous);
+        var hasNext = nextCommit.TryGetPaintOverride(id, out var next);
+        return hasPrevious == hasNext && (!hasPrevious || previous == next);
     }
 
     private static bool NodesEqual(SceneGraphNode previousNode, SceneGraphNode nextNode)
