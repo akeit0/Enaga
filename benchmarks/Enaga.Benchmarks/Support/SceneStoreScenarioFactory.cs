@@ -15,9 +15,11 @@ internal static class SceneStoreScenarioFactory
 
     private static BenchmarkSceneStoreState CreateWideContainers(int nodeCount)
     {
-        var store = new SceneStore("root", new SceneViewport(1280, 800));
-        var rootChildren = new List<string>();
-        var mutableNodeIds = new List<string>();
+        var idAllocator = new SceneNodeIdAllocator();
+        var rootId = idAllocator.Allocate();
+        var store = new SceneStore(rootId, new SceneViewport(1280, 800));
+        var rootChildren = new List<SceneNodeId>();
+        var mutableNodeIds = new List<SceneNodeId>();
         var layoutVariantA = new List<SceneLayoutBox>();
         var layoutVariantB = new List<SceneLayoutBox>();
 
@@ -25,13 +27,14 @@ internal static class SceneStoreScenarioFactory
         var createdNodes = 0;
         for (var containerIndex = 0; containerIndex < containerCount && createdNodes < nodeCount; containerIndex++)
         {
-            var containerId = $"container-{containerIndex}";
+            var containerId = idAllocator.Allocate();
+            var containerLabel = $"container-{containerIndex}";
             rootChildren.Add(containerId);
             store.UpsertNode(
                 containerId,
                 SceneNodeKind.View,
-                "root",
-                containerId,
+                rootId,
+                containerLabel,
                 new SceneLayoutBox(
                     SceneNodeKind.View,
                     AbsLeft: 12 + (containerIndex % 4) * 300,
@@ -45,10 +48,11 @@ internal static class SceneStoreScenarioFactory
                     BackgroundColor: containerIndex % 2 == 0 ? "#1b2533" : "#223044"));
             createdNodes++;
 
-            var childIds = new List<string>();
+            var childIds = new List<SceneNodeId>();
             for (var leafIndex = 0; leafIndex < 15 && createdNodes < nodeCount; leafIndex++)
             {
-                var nodeId = $"node-{containerIndex}-{leafIndex}";
+                var nodeId = idAllocator.Allocate();
+                var nodeLabel = $"node-{containerIndex}-{leafIndex}";
                 childIds.Add(nodeId);
                 var kind = ResolveKind(leafIndex);
                 var top = 18 + leafIndex * 26;
@@ -67,7 +71,7 @@ internal static class SceneStoreScenarioFactory
                     PaddingTop: kind == SceneNodeKind.ScrollView ? 6 : 0,
                     PaddingBottom: kind == SceneNodeKind.ScrollView ? 6 : 0);
 
-                store.UpsertNode(nodeId, kind, containerId, nodeId, box);
+                store.UpsertNode(nodeId, kind, containerId, nodeLabel, box);
                 mutableNodeIds.Add(nodeId);
                 layoutVariantA.Add(box);
                 layoutVariantB.Add(box with
@@ -79,10 +83,10 @@ internal static class SceneStoreScenarioFactory
                 createdNodes++;
             }
 
-            store.SetChildren(containerId, childIds);
+            store.SetChildren(containerId, [.. childIds]);
         }
 
-        store.SetChildren("root", rootChildren);
+        store.SetChildren(rootId, [.. rootChildren]);
         return new BenchmarkSceneStoreState(
             store,
             [.. mutableNodeIds],
@@ -92,15 +96,18 @@ internal static class SceneStoreScenarioFactory
 
     private static BenchmarkSceneStoreState CreateDeepNested(int nodeCount)
     {
-        var store = new SceneStore("root", new SceneViewport(1280, 800));
-        var mutableNodeIds = new List<string>(nodeCount);
+        var idAllocator = new SceneNodeIdAllocator();
+        var rootId = idAllocator.Allocate();
+        var store = new SceneStore(rootId, new SceneViewport(1280, 800));
+        var mutableNodeIds = new List<SceneNodeId>(nodeCount);
         var layoutVariantA = new List<SceneLayoutBox>(nodeCount);
         var layoutVariantB = new List<SceneLayoutBox>(nodeCount);
 
-        var parentId = "root";
+        var parentId = rootId;
         for (var index = 0; index < nodeCount; index++)
         {
-            var id = $"chain-{index}";
+            var id = idAllocator.Allocate();
+            var label = $"chain-{index}";
             var kind = ResolveKind(index);
             var box = new SceneLayoutBox(
                 kind,
@@ -115,7 +122,7 @@ internal static class SceneStoreScenarioFactory
                 PaddingTop: kind == SceneNodeKind.ScrollView ? 6 : 0,
                 PaddingBottom: kind == SceneNodeKind.ScrollView ? 6 : 0);
 
-            store.UpsertNode(id, kind, parentId, id, box);
+            store.UpsertNode(id, kind, parentId, label, box);
             store.SetChildren(parentId, [id]);
 
             mutableNodeIds.Add(id);

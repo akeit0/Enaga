@@ -6,6 +6,12 @@ namespace Enaga.Tests;
 
 public sealed class SceneDamageEstimatorTests
 {
+    private static readonly SceneNodeId Root = new(1);
+    private static readonly SceneNodeId Sidebar = new(2);
+    private static readonly SceneNodeId Content = new(3);
+    private static readonly SceneNodeId Tooltip = new(4);
+    private static readonly SceneNodeId Shader = new(5);
+
     [Fact]
     public void Resolve_DoesNotDirtyOpaqueParentWhenOnlyTooltipChildIsAdded()
     {
@@ -34,6 +40,34 @@ public sealed class SceneDamageEstimatorTests
                         rect.Y <= 80 &&
                         rect.X + rect.Width >= 160 &&
                         rect.Y + rect.Height >= 108));
+    }
+
+    [Fact]
+    public void Resolve_DirtiesOpaqueParentWhenPositionedOverlayChildIsAdded()
+    {
+        var previousCommit = CreateCommit(includeTooltip: false);
+        var nextCommit = CreateCommit(includeTooltip: true, tooltipPositioned: true);
+        using var resultBuffer = new SceneDamageRectBufferWriter(16);
+        using var scratchBuffer = new SceneDamageRectBufferWriter(16);
+
+        var dirtyRects = SceneDamageEstimator.Resolve(
+            previousCommit,
+            nextCommit,
+            [],
+            SceneDamageReason.None,
+            800,
+            600,
+            false,
+            resultBuffer,
+            scratchBuffer);
+
+        Assert.True(
+            Contains(
+                dirtyRects,
+                rect => rect.X <= 0 &&
+                        rect.Y <= 0 &&
+                        rect.X + rect.Width >= 800 &&
+                        rect.Y + rect.Height >= 600));
     }
 
     [Fact]
@@ -98,29 +132,63 @@ public sealed class SceneDamageEstimatorTests
                         rect.Y + rect.Height >= 320));
     }
 
-    private static SceneLayoutCommit CreateCommit(bool includeTooltip)
+    [Fact]
+    public void Resolve_DirtiesPaintOverrideChanges()
     {
-        var nodes = new Dictionary<string, SceneGraphNode>(StringComparer.Ordinal)
+        var previousCommit = CreateCommit(includeTooltip: false);
+        var nextCommit = previousCommit with
         {
-            ["root"] = new(SceneNodeKind.View, null, includeTooltip ? ["sidebar", "content", "tooltip"] : ["sidebar", "content"]),
-            ["sidebar"] = new(SceneNodeKind.View, "root", []),
-            ["content"] = new(SceneNodeKind.View, "root", [])
+            PaintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>
+            {
+                [Content] = new(BackgroundColor: "#334155")
+            }
         };
-        var layout = new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal)
+        using var resultBuffer = new SceneDamageRectBufferWriter(16);
+        using var scratchBuffer = new SceneDamageRectBufferWriter(16);
+
+        var dirtyRects = SceneDamageEstimator.Resolve(
+            previousCommit,
+            nextCommit,
+            [],
+            SceneDamageReason.None,
+            800,
+            600,
+            false,
+            resultBuffer,
+            scratchBuffer);
+
+        Assert.True(
+            Contains(
+                dirtyRects,
+                rect => rect.X <= 220 &&
+                        rect.Y <= 0 &&
+                        rect.X + rect.Width >= 800 &&
+                        rect.Y + rect.Height >= 600));
+    }
+
+    private static SceneLayoutCommit CreateCommit(bool includeTooltip, bool tooltipPositioned = false)
+    {
+        var nodes = new Dictionary<SceneNodeId, SceneGraphNode>
         {
-            ["root"] = new(SceneNodeKind.View, 0, 0, 800, 600, "#08111f"),
-            ["sidebar"] = new(SceneNodeKind.View, 0, 0, 200, 600, "#0f172a"),
-            ["content"] = new(SceneNodeKind.View, 220, 0, 580, 600, "#111827")
+            [Root] = new(SceneNodeKind.View, null, includeTooltip ? [Sidebar, Content, Tooltip] : [Sidebar, Content]),
+            [Sidebar] = new(SceneNodeKind.View, Root, []),
+            [Content] = new(SceneNodeKind.View, Root, [])
+        };
+        var layout = new Dictionary<SceneNodeId, SceneLayoutBox>
+        {
+            [Root] = new(SceneNodeKind.View, 0, 0, 800, 600, "#08111f"),
+            [Sidebar] = new(SceneNodeKind.View, 0, 0, 200, 600, "#0f172a"),
+            [Content] = new(SceneNodeKind.View, 220, 0, 580, 600, "#111827")
         };
 
         if (includeTooltip)
         {
-            nodes["tooltip"] = new(SceneNodeKind.View, "root", []);
-            layout["tooltip"] = new(SceneNodeKind.View, 40, 80, 120, 28, "#020617");
+            nodes[Tooltip] = new(SceneNodeKind.View, Root, []);
+            layout[Tooltip] = new(SceneNodeKind.View, 40, 80, 120, 28, "#020617", IsPositioned: tooltipPositioned);
         }
 
         return new SceneLayoutCommit(
-            "root",
+            Root,
             new SceneViewport(800, 600),
             nodes,
             layout,
@@ -129,18 +197,18 @@ public sealed class SceneDamageEstimatorTests
 
     private static SceneLayoutCommit CreateAnimatedCommit(bool includeTooltip)
     {
-        var nodes = new Dictionary<string, SceneGraphNode>(StringComparer.Ordinal)
+        var nodes = new Dictionary<SceneNodeId, SceneGraphNode>
         {
-            ["root"] = new(SceneNodeKind.View, null, includeTooltip ? ["sidebar", "content", "tooltip"] : ["sidebar", "content"]),
-            ["sidebar"] = new(SceneNodeKind.View, "root", []),
-            ["content"] = new(SceneNodeKind.View, "root", ["shader"])
+            [Root] = new(SceneNodeKind.View, null, includeTooltip ? [Sidebar, Content, Tooltip] : [Sidebar, Content]),
+            [Sidebar] = new(SceneNodeKind.View, Root, []),
+            [Content] = new(SceneNodeKind.View, Root, [Shader])
         };
-        var layout = new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal)
+        var layout = new Dictionary<SceneNodeId, SceneLayoutBox>
         {
-            ["root"] = new(SceneNodeKind.View, 0, 0, 800, 600, "#08111f"),
-            ["sidebar"] = new(SceneNodeKind.View, 0, 0, 200, 600, "#0f172a"),
-            ["content"] = new(SceneNodeKind.View, 220, 0, 580, 600, "#111827"),
-            ["shader"] = new(
+            [Root] = new(SceneNodeKind.View, 0, 0, 800, 600, "#08111f"),
+            [Sidebar] = new(SceneNodeKind.View, 0, 0, 200, 600, "#0f172a"),
+            [Content] = new(SceneNodeKind.View, 220, 0, 580, 600, "#111827"),
+            [Shader] = new(
                 SceneNodeKind.View,
                 260,
                 120,
@@ -151,16 +219,16 @@ public sealed class SceneDamageEstimatorTests
 
         if (includeTooltip)
         {
-            nodes["tooltip"] = new(SceneNodeKind.View, "root", []);
-            layout["tooltip"] = new(SceneNodeKind.View, 40, 80, 120, 28, "#020617");
+            nodes[Tooltip] = new(SceneNodeKind.View, Root, []);
+            layout[Tooltip] = new(SceneNodeKind.View, 40, 80, 120, 28, "#020617");
         }
 
         return new SceneLayoutCommit(
-            "root",
+            Root,
             new SceneViewport(800, 600),
             nodes,
             layout,
-            ["shader"]);
+            [Shader]);
     }
 
     private static bool Contains(ReadOnlySpan<SceneDamageRect> dirtyRects, Func<SceneDamageRect, bool> predicate)

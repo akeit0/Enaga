@@ -22,7 +22,10 @@ public sealed partial class HtmlSceneFrameSource
         HtmlRenderDamageBits.Document;
 
     public HtmlPipelineMetricsSnapshot LastPipelineMetrics { get; private set; }
+    public int LastDynamicPaintCandidateCount { get; private set; }
+    public int LastDocumentCommitBuildCount { get; private set; }
     private HtmlPipelineMetricsSnapshot frameBuildMetrics;
+    private int frameDocumentCommitBuildCount;
     private Enaga.Html.Style.RenderDamage frameStyleDamage;
 
     private void Invalidate(HtmlPipelineInvalidation invalidation, HtmlRenderDamageBits damage)
@@ -98,38 +101,88 @@ public sealed partial class HtmlSceneFrameSource
         HtmlParsedDocument parsed,
         int width,
         int height)
+        => BuildDocumentCommit(parsed, width, height, hoveredDomNodeIds, activeDomNodeId);
+
+    private SceneLayoutCommit BuildDocumentCommit(
+        HtmlParsedDocument parsed,
+        int width,
+        int height,
+        IReadOnlySet<HtmlNodeId>? hoveredNodeIds,
+        HtmlNodeId? activeNodeId)
     {
-        var commit = builder.Build(parsed, width, height, viewportScale, hoveredDomNodeIds, activeDomNodeId);
+        frameDocumentCommitBuildCount++;
+        var commit = builder.Build(parsed, width, height, viewportScale, hoveredNodeIds, activeNodeId);
         frameBuildMetrics = builder.LastMetrics;
         frameStyleDamage = builder.LastDamage;
         cachedBaseFragmentTree = builder.LastFragmentTree;
         cachedSceneNodeDomIds = builder.LastSceneNodeDomIds;
-        (cachedDomNodeParentIds, cachedDomNodeDepths) = CreateDomNodeRelationshipMaps(parsed.RootElement);
+        UpdateDomSceneNodeMap(cachedSceneNodeDomIds);
+        UpdateDomNodeRelationshipMaps(parsed.RootElement);
         hitTestGeometryVersion++;
         return commit;
     }
 
-    private static (IReadOnlyDictionary<HtmlNodeId, HtmlNodeId> Parents, IReadOnlyDictionary<HtmlNodeId, int> Depths)
-        CreateDomNodeRelationshipMaps(HtmlDomElement root)
+    private void UpdateDomSceneNodeMap(IReadOnlyDictionary<SceneNodeId, HtmlNodeId> sceneNodeDomIds)
     {
-        var parents = new Dictionary<HtmlNodeId, HtmlNodeId>();
-        var depths = new Dictionary<HtmlNodeId, int>
+        cachedDomSceneNodeIds.Clear();
+        foreach (var pair in sceneNodeDomIds)
         {
-            [root.NodeId] = 0
-        };
-        AddChildren(root, depth: 0);
-        return (parents, depths);
+            if (!pair.Value.IsValid)
+                continue;
 
-        void AddChildren(HtmlDomElement parent, int depth)
-        {
-            foreach (var child in parent.Children)
+            if (!cachedDomSceneNodeIds.TryGetValue(pair.Value, out var sceneNodeIds))
             {
+                sceneNodeIds = [];
+                cachedDomSceneNodeIds[pair.Value] = sceneNodeIds;
+            }
+
+            sceneNodeIds.Add(pair.Key);
+        }
+    }
+
+    private void UpdateDomNodeRelationshipMaps(HtmlDomElement root)
+    {
+        if (cachedDomRelationshipCapacity == 0)
+            cachedDomRelationshipCapacity = CountElementNodes(root);
+        cachedDomNodeParentIds.Clear();
+        cachedDomNodeDepths.Clear();
+        cachedDomElements.Clear();
+        cachedDomNodeParentIds.EnsureCapacity(Math.Max(0, cachedDomRelationshipCapacity - 1));
+        cachedDomNodeDepths.EnsureCapacity(cachedDomRelationshipCapacity);
+        cachedDomElements.EnsureCapacity(cachedDomRelationshipCapacity);
+        cachedDomElements[root.NodeId] = root;
+        cachedDomNodeDepths[root.NodeId] = 0;
+        AddChildren(root, depth: 0, cachedDomNodeParentIds, cachedDomNodeDepths, cachedDomElements);
+
+        static int CountElementNodes(HtmlDomElement element)
+        {
+            var count = 1;
+            for (var index = 0; index < element.Children.Count; index++)
+            {
+                if (element.Children[index] is HtmlDomElement childElement)
+                    count += CountElementNodes(childElement);
+            }
+
+            return count;
+        }
+
+        static void AddChildren(
+            HtmlDomElement parent,
+            int depth,
+            Dictionary<HtmlNodeId, HtmlNodeId> parents,
+            Dictionary<HtmlNodeId, int> depths,
+            Dictionary<HtmlNodeId, HtmlDomElement> elements)
+        {
+            for (var index = 0; index < parent.Children.Count; index++)
+            {
+                var child = parent.Children[index];
                 if (child is not HtmlDomElement childElement)
                     continue;
 
                 parents[childElement.NodeId] = parent.NodeId;
                 depths[childElement.NodeId] = depth + 1;
-                AddChildren(childElement, depth + 1);
+                elements[childElement.NodeId] = childElement;
+                AddChildren(childElement, depth + 1, parents, depths, elements);
             }
         }
     }
@@ -156,7 +209,9 @@ internal enum HtmlPipelineInvalidation
     Interactive = 1 << 5,
     Scroll = 1 << 6,
     Viewport = 1 << 7,
-    HitTest = 1 << 8
+    HitTest = 1 << 8,
+    Hover = 1 << 9,
+    DynamicVisual = 1 << 10
 }
 
 [Flags]

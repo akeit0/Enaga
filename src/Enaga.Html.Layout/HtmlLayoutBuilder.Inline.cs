@@ -6,9 +6,9 @@ namespace Enaga.Html;
 internal sealed partial class HtmlLayoutBuilder
 {
     private bool TryLayoutInlineFormattingContext(
-        string parentId,
+        HtmlSceneNodeId parentId,
         HtmlComputedStyle parentStyle,
-        IReadOnlyList<HtmlSceneNode> children,
+        HtmlSceneNode[] children,
         float parentLeft,
         float parentTop,
         float parentWidth,
@@ -24,24 +24,24 @@ internal sealed partial class HtmlLayoutBuilder
         try
         {
             var lineLayout = CreateInlineLineLayout(parentStyle, children, contentWidth, contentHeight);
-            var childIds = new string[lineLayout.Items.Length];
+            var childIds = new HtmlSceneNodeId[lineLayout.Items.Length];
             for (var index = 0; index < lineLayout.Items.Length; index++)
             {
-                var item = lineLayout.Items[index];
+                ref readonly var item = ref lineLayout.Items[index];
                 var child = item.Node;
                 var frame = lineLayout.Frames[index] ?? new LayoutFrameData(parentStyle.PaddingLeft, parentStyle.PaddingTop, 0, 0);
                 if (item.TextFragment is null && TryResolveInlineTextFragmentFrame(child, frame, out var textFrame))
                     frame = textFrame;
                 var absLeft = parentLeft + frame.Left;
                 var absTop = parentTop + frame.Top;
-                var fragmentId = item.TextFragment is null ? null : $"{child.Id}:frag:{item.FragmentIndex}";
-                AddPlacedNode(child, parentId, absLeft, absTop, frame.Width, frame.Height, fragmentId, item.TextFragment);
-                childIds[index] = fragmentId ?? child.Id;
+                var fragmentIndex = item.TextFragment is null ? -1 : item.FragmentIndex;
+                AddPlacedNode(child, parentId, absLeft, absTop, frame.Width, frame.Height, fragmentIndex, item.TextFragment);
+                childIds[index] = fragmentIndex >= 0 ? HtmlSceneNodeId.Fragment(child.Id, fragmentIndex) : child.Id;
 
-                if (item.TextFragment is null && child.Children.Count > 0)
+                if (item.TextFragment is null && child.Children.Length > 0)
                     LayoutChildren(child.Id, child.Style, child.Children, absLeft, absTop, frame.Width, frame.Height, viewportScale);
                 else
-                    AddChildRelation(fragmentId ?? child.Id, []);
+                    AddChildRelation(childIds[index], []);
             }
 
             AddChildRelation(parentId, childIds);
@@ -66,13 +66,7 @@ internal sealed partial class HtmlLayoutBuilder
             return false;
         }
 
-        var textStyle = new SceneTextStyle(
-            child.Style.FontSize > 0 ? child.Style.FontSize : 16,
-            child.Style.Color,
-            TextAlign: child.Style.TextAlign,
-            WrapText: false,
-            Underline: child.Style.Underline,
-            Font: CreateSceneFont(child.Style, 16, 400));
+        var textStyle = textStyleCache.GetInlineMeasureStyle(child.Style);
         var measured = MeasureInlineText(child.TextContent, textStyle, child.Style.LineHeight);
         if (child.Style.Underline && frame.Width >= measured.Width)
             return false;
@@ -85,7 +79,7 @@ internal sealed partial class HtmlLayoutBuilder
 
     private InlineLineLayout CreateInlineLineLayout(
         HtmlComputedStyle parentStyle,
-        IReadOnlyList<HtmlSceneNode> children,
+        HtmlSceneNode[] children,
         float contentWidth,
         float contentHeight)
     {
@@ -103,7 +97,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         for (var index = 0; index < itemCount; index++)
         {
-            var item = items[index];
+            ref readonly var item = ref items[index];
             if (item.ForcedLineBreak)
             {
                 if (index > lineStart)
@@ -159,13 +153,13 @@ internal sealed partial class HtmlLayoutBuilder
     }
 
     private void CreateInlineLayoutItems(
-        IReadOnlyList<HtmlSceneNode> children,
+        HtmlSceneNode[] children,
         float contentWidth,
         float contentHeight,
         Span<InlineLayoutItem> items)
     {
         var itemIndex = 0;
-        for (var index = 0; index < children.Count; index++)
+        for (var index = 0; index < children.Length; index++)
         {
             var child = children[index];
             if (ShouldFragmentInlineText(child))
@@ -181,10 +175,10 @@ internal sealed partial class HtmlLayoutBuilder
             throw new InvalidOperationException("Inline layout item count changed while building the line layout.");
     }
 
-    private static int CountInlineLayoutItems(IReadOnlyList<HtmlSceneNode> children)
+    private static int CountInlineLayoutItems(HtmlSceneNode[] children)
     {
         var count = 0;
-        for (var index = 0; index < children.Count; index++)
+        for (var index = 0; index < children.Length; index++)
         {
             var child = children[index];
             count += ShouldFragmentInlineText(child) && child.TextContent is { } text
@@ -202,13 +196,7 @@ internal sealed partial class HtmlLayoutBuilder
             return;
 
         var style = child.Style;
-        var textStyle = new SceneTextStyle(
-            style.FontSize > 0 ? style.FontSize : 16,
-            style.Color,
-            TextAlign: style.TextAlign,
-            WrapText: false,
-            Underline: style.Underline,
-            Font: CreateSceneFont(style, 16, 400));
+        var textStyle = textStyleCache.GetInlineMeasureStyle(style);
         var font = textStyle.Font;
         var lineHeight = ResolveNormalLineHeight(font, style.LineHeight);
         var ascent = Math.Min(lineHeight, font.Size);
@@ -269,12 +257,12 @@ internal sealed partial class HtmlLayoutBuilder
 
         var width = LayoutValue.IsSet(request.Width) ? request.Width : 0;
         var height = LayoutValue.IsSet(request.Height) ? request.Height : 0;
-        if (child.Children.Count > 0 && height <= 0)
+        if (child.Children.Length > 0 && height <= 0)
             height = MeasureNodeLayoutHeight(child, Math.Max(width, contentWidth), contentHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row);
 
         if (child.NodeKind == SceneNodeKind.Text)
         {
-            var font = CreateSceneFont(child.Style, 16, 400);
+            var font = textStyleCache.GetFont(child.Style, 16, 400);
             var lineHeight = ResolveNormalLineHeight(font, child.Style.LineHeight);
             height = Math.Max(height, lineHeight);
             var ascent = Math.Min(height, font.Size);
@@ -315,7 +303,7 @@ internal sealed partial class HtmlLayoutBuilder
         for (var index = start; index < end; index++)
         {
             if (index > start)
-                lineWidth += ResolveInlineGap(parentStyle, items[index - 1], items[index]);
+                lineWidth += ResolveInlineGap(parentStyle, in items[index - 1], in items[index]);
             lineWidth += items[index].MarginLeft + items[index].Width + items[index].MarginRight;
         }
 
@@ -329,12 +317,12 @@ internal sealed partial class HtmlLayoutBuilder
         var baseline = lineTop + lineAscent;
         for (var index = start; index < end; index++)
         {
-            var item = items[index];
+            ref readonly var item = ref items[index];
             if (index > start)
             {
-                var gap = ResolveInlineGap(parentStyle, items[index - 1], item);
+                var gap = ResolveInlineGap(parentStyle, in items[index - 1], in item);
                 if (gap > 0 &&
-                    ShouldBridgeUnderlineGap(items[index - 1], item) &&
+                    ShouldBridgeUnderlineGap(in items[index - 1], in item) &&
                     frames[index - 1] is { } previousFrame)
                 {
                     frames[index - 1] = new LayoutFrameData(
@@ -354,7 +342,7 @@ internal sealed partial class HtmlLayoutBuilder
         }
     }
 
-    private static bool ShouldBridgeUnderlineGap(InlineLayoutItem previous, InlineLayoutItem current)
+    private static bool ShouldBridgeUnderlineGap(in InlineLayoutItem previous, in InlineLayoutItem current)
         => previous.Node.NodeKind == SceneNodeKind.Text &&
            current.Node.NodeKind == SceneNodeKind.Text &&
            previous.Node.Style.Underline &&
@@ -362,16 +350,16 @@ internal sealed partial class HtmlLayoutBuilder
            previous.TextFragment is null &&
            current.TextFragment is null;
 
-    private static bool IsInlineFormattingContext(HtmlComputedStyle parentStyle, IReadOnlyList<HtmlSceneNode> children)
+    private static bool IsInlineFormattingContext(HtmlComputedStyle parentStyle, HtmlSceneNode[] children)
     {
         if (parentStyle.Display != HtmlDisplay.Flex ||
             FlexLayout.ResolveAxis(parentStyle.FlexDirection) != LayoutAxis.Row ||
-            children.Count == 0)
+            children.Length == 0)
         {
             return false;
         }
 
-        for (var index = 0; index < children.Count; index++)
+        for (var index = 0; index < children.Length; index++)
         {
             var child = children[index];
             if (child.NodeKind is SceneNodeKind.Text or SceneNodeKind.Image)
@@ -386,7 +374,7 @@ internal sealed partial class HtmlLayoutBuilder
         return true;
     }
 
-    private static float ResolveInlineGap(HtmlComputedStyle parentStyle, InlineLayoutItem previous, InlineLayoutItem current)
+    private static float ResolveInlineGap(HtmlComputedStyle parentStyle, in InlineLayoutItem previous, in InlineLayoutItem current)
         => previous.SuppressTrailingInlineGap || current.SuppressLeadingInlineGap ? 0 : parentStyle.Gap;
 
     private static bool ShouldFragmentInlineText(HtmlSceneNode node)
@@ -396,7 +384,7 @@ internal sealed partial class HtmlLayoutBuilder
 
     private static bool IsInlineBreakNode(HtmlSceneNode node)
         => node.NodeKind == SceneNodeKind.View &&
-           node.Children.Count == 0 &&
+           node.Children.Length == 0 &&
            node.Style.Display == HtmlDisplay.Block &&
            node.Style.Height == 0 &&
            node.Style.IsWidthPercent &&

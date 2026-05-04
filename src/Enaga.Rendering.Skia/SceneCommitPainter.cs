@@ -8,25 +8,31 @@ namespace Enaga.Rendering.Skia;
 
 internal sealed class SceneCommitPainter : IDisposable
 {
-    private const int textBlobCacheLimit = 2048;
+    private const int textBlobCacheLimit = 512;
+    private const int textBlobCacheMaxRunLength = 256;
     private const int ellipsizedLineCacheLimit = 1024;
+    private const int fontMetricsCacheLimit = 1024;
     private const int scrollContentPictureCacheLimit = 128;
     private const float viewportScrollPictureThreshold = 2f;
     private const float smallDirtyRectCacheBypassAreaRatio = 0.25f;
+    private static readonly SceneTextStyle DefaultTextStyle = new(16, "#ffffff");
+    private static readonly SceneTextStyle DefaultTextInputStyle = new(16, "#f8fafc");
     private readonly Dictionary<string, SKColor> colorCache = new(StringComparer.Ordinal);
     private readonly Dictionary<string, RuntimeShaderTemplate?> runtimeShaderTemplateCache = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SKRuntimeEffect?> shaderEffectCache = new(StringComparer.Ordinal);
     private readonly Dictionary<float, SKMaskFilter> textShadowBlurFilterCache = new();
+    private readonly Dictionary<float, SKImageFilter> boxShadowBlurFilterCache = new();
     private readonly Dictionary<TextBlobCacheKey, SKTextBlob> textBlobCache = new();
     private readonly Queue<TextBlobCacheKey> textBlobCacheOrder = new();
     private readonly Dictionary<EllipsizedLineCacheKey, TextInputMetrics.TextLineSpan> ellipsizedLineCache = new();
     private readonly Queue<EllipsizedLineCacheKey> ellipsizedLineCacheOrder = new();
+    private readonly Dictionary<FontMetricsCacheKey, SKFontMetrics> fontMetricsCache = new();
     private readonly Dictionary<ScrollContentPictureCacheKey, SKPicture> scrollContentPictureCache = new();
     private readonly Queue<ScrollContentPictureCacheKey> scrollContentPictureCacheOrder = new();
-    private readonly Dictionary<string, ScrollContentPictureCacheKey> scrollContentPictureKeyByNode = new(StringComparer.Ordinal);
+    private readonly Dictionary<SceneNodeId, ScrollContentPictureCacheKey> scrollContentPictureKeyByNode = new();
     private readonly Dictionary<ScrollContentPictureCacheKey, SKImage> scrollContentRasterCache = new();
     private readonly Queue<ScrollContentPictureCacheKey> scrollContentRasterCacheOrder = new();
-    private readonly Dictionary<string, ScrollContentPictureCacheKey> scrollContentRasterKeyByNode = new(StringComparer.Ordinal);
+    private readonly Dictionary<SceneNodeId, ScrollContentPictureCacheKey> scrollContentRasterKeyByNode = new();
     private readonly SKPaint fillPaint = new()
     {
         IsAntialias = true,
@@ -44,6 +50,11 @@ internal sealed class SceneCommitPainter : IDisposable
     private readonly SKPaint textPaint = new()
     {
         IsAntialias = true
+    };
+    private readonly SKPaint shadowPaint = new()
+    {
+        IsAntialias = true,
+        Style = SKPaintStyle.Fill
     };
     private readonly TimeProvider timeProvider;
     private readonly SkiaTextResources textResources;
@@ -121,6 +132,7 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Clear(SKColors.Transparent);
             BeginRecordingStats();
             PaintNode(canvas, commit, commit.RootId);
+            PaintDynamicOverlayRoots(canvas, commit);
             CompleteRecordingStats();
             PaintAnimatedShaderNodes(canvas, commit, (float)elapsed.TotalSeconds);
         }
@@ -155,16 +167,20 @@ internal sealed class SceneCommitPainter : IDisposable
             effect?.Dispose();
         foreach (var filter in textShadowBlurFilterCache.Values)
             filter.Dispose();
+        foreach (var filter in boxShadowBlurFilterCache.Values)
+            filter.Dispose();
         fillPaint.Dispose();
         strokePaint.Dispose();
         clearPaint.Dispose();
         textPaint.Dispose();
+        shadowPaint.Dispose();
         if (ownsTextResources)
             textResources.Dispose();
         recordingContainsPendingImages = false;
         runtimeShaderTemplateCache.Clear();
         shaderEffectCache.Clear();
         textShadowBlurFilterCache.Clear();
+        boxShadowBlurFilterCache.Clear();
     }
 
     private void PaintDirtyRectsDirect(SKCanvas canvas, SceneLayoutCommit commit, TimeSpan elapsed, ReadOnlySpan<SceneDamageRect> dirtyRects)
@@ -182,6 +198,7 @@ internal sealed class SceneCommitPainter : IDisposable
                 canvas.ClipRect(clipRect);
                 canvas.DrawRect(clipRect, clearPaint);
                 PaintNode(canvas, commit, commit.RootId);
+                PaintDynamicOverlayRoots(canvas, commit);
                 PaintAnimatedShaderNodes(canvas, commit, (float)elapsed.TotalSeconds);
                 canvas.Restore();
             }
@@ -220,7 +237,7 @@ internal sealed class SceneCommitPainter : IDisposable
         LastCulledNodePaintCount = recordingCulledNodePaints;
     }
 
-    private void PaintNode(SKCanvas canvas, SceneLayoutCommit commit, string id)
+    private void PaintNode(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id)
     {
         if (!commit.Layout.TryGetValue(id, out var box) || !commit.Nodes.TryGetValue(id, out var node))
             return;
@@ -229,12 +246,13 @@ internal sealed class SceneCommitPainter : IDisposable
         if (IsHostAnimatedRuntimeShader(box))
             return;
 
+        var paintBox = ApplyPaintOverride(commit, id, box);
         var selfPaintRejected = ShouldCullSelfPaint(canvas, box);
         if (selfPaintRejected)
             recordingCulledNodePaints++;
 
         if (!selfPaintRejected)
-            DrawBox(canvas, box);
+            DrawBox(canvas, paintBox);
 
         var clipPushed = false;
         if (ShouldClipChildren(box))
@@ -249,15 +267,15 @@ internal sealed class SceneCommitPainter : IDisposable
 
         if (!selfPaintRejected)
         {
-            if (box.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(box.TextContent))
-                DrawText(canvas, box);
-            else if (box.NodeKind == SceneNodeKind.TextInput)
-                DrawTextInput(canvas, box);
-            else if (box.NodeKind == SceneNodeKind.Image)
+            if (box.Text is not null)
+                DrawText(canvas, paintBox);
+            else if (box.TextInput is not null)
+                DrawTextInput(canvas, paintBox);
+            else if (box.Image is not null)
                 DrawImage(canvas, box);
         }
 
-        if (box.NodeKind == SceneNodeKind.ScrollView)
+        if (box.Scroll is { IsScrollContainer: true })
         {
             PaintScrollViewChildren(canvas, commit, id, node, box);
             if (clipPushed)
@@ -276,7 +294,14 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Restore();
     }
 
-    private void PaintScrollViewChildren(SKCanvas canvas, SceneLayoutCommit commit, string id, SceneGraphNode node, SceneLayoutBox box)
+    private void PaintDynamicOverlayRoots(SKCanvas canvas, SceneLayoutCommit commit)
+    {
+        var overlayRootIds = commit.DynamicOverlayRootIds;
+        for (var index = 0; index < overlayRootIds.Length; index++)
+            PaintNode(canvas, commit, overlayRootIds[index]);
+    }
+
+    private void PaintScrollViewChildren(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, SceneGraphNode node, SceneLayoutBox box)
     {
         canvas.Save();
         canvas.Translate(-box.ScrollX, -box.ScrollY);
@@ -319,7 +344,7 @@ internal sealed class SceneCommitPainter : IDisposable
 
     private bool TryGetOrCreateScrollContentRasterTile(
         SceneLayoutCommit commit,
-        string id,
+        SceneNodeId id,
         SceneGraphNode node,
         SceneLayoutBox box,
         out SKImage image,
@@ -327,7 +352,7 @@ internal sealed class SceneCommitPainter : IDisposable
     {
         image = null!;
         destinationRect = default;
-        if (node.Children.Count == 0 || IsHostAnimatedRuntimeShader(box))
+        if (node.Children.Length == 0 || IsHostAnimatedRuntimeShader(box) || HasPositionedChild(commit, node))
             return false;
 
         var contentWidth = Math.Max(box.Width, box.ContentWidth);
@@ -396,9 +421,9 @@ internal sealed class SceneCommitPainter : IDisposable
             : SKSurface.Create(imageInfo);
     }
 
-    private SKPicture? GetOrCreateScrollContentPicture(SceneLayoutCommit commit, string id, SceneGraphNode node, SceneLayoutBox box)
+    private SKPicture? GetOrCreateScrollContentPicture(SceneLayoutCommit commit, SceneNodeId id, SceneGraphNode node, SceneLayoutBox box)
     {
-        if (node.Children.Count == 0 || IsHostAnimatedRuntimeShader(box))
+        if (node.Children.Length == 0 || IsHostAnimatedRuntimeShader(box) || HasPositionedChild(commit, node))
             return null;
 
         var contentWidth = Math.Max(box.Width, box.ContentWidth);
@@ -484,30 +509,32 @@ internal sealed class SceneCommitPainter : IDisposable
         return SKRect.Create(box.AbsLeft + contentLeft, box.AbsTop + contentTop, tileWidth, tileHeight);
     }
 
-    private static void AddNodeListToSignature(SceneLayoutCommit commit, IReadOnlyList<string> ids, ref HashCode hash)
+    private static void AddNodeListToSignature(SceneLayoutCommit commit, ReadOnlySpan<SceneNodeId> ids, ref HashCode hash)
     {
-        hash.Add(ids.Count);
-        for (var index = 0; index < ids.Count; index++)
+        hash.Add(ids.Length);
+        for (var index = 0; index < ids.Length; index++)
             AddNodeToSignature(commit, ids[index], ref hash);
     }
 
-    private static void AddNodeToSignature(SceneLayoutCommit commit, string id, ref HashCode hash)
+    private static void AddNodeToSignature(SceneLayoutCommit commit, SceneNodeId id, ref HashCode hash)
     {
-        hash.Add(id, StringComparer.Ordinal);
+        hash.Add(id);
         if (!commit.Nodes.TryGetValue(id, out var node) || !commit.Layout.TryGetValue(id, out var box))
             return;
 
         hash.Add(node);
         hash.Add(box);
+        if (commit.TryGetPaintOverride(id, out var paintOverride))
+            hash.Add(paintOverride);
         AddNodeListToSignature(commit, node.Children, ref hash);
     }
 
-    private void PaintChildren(SKCanvas canvas, SceneLayoutCommit commit, IReadOnlyList<string> childIds)
+    private void PaintChildren(SKCanvas canvas, SceneLayoutCommit commit, ReadOnlySpan<SceneNodeId> childIds)
         => PaintChildren(canvas, commit, childIds, null);
 
-    private void PaintChildren(SKCanvas canvas, SceneLayoutCommit commit, IReadOnlyList<string> childIds, SKRect? subtreeCullRect)
+    private void PaintChildren(SKCanvas canvas, SceneLayoutCommit commit, ReadOnlySpan<SceneNodeId> childIds, SKRect? subtreeCullRect)
     {
-        for (var index = 0; index < childIds.Count; index++)
+        for (var index = 0; index < childIds.Length; index++)
         {
             var childId = childIds[index];
             if (commit.Layout.TryGetValue(childId, out var childBox) && childBox.IsPositioned)
@@ -519,7 +546,7 @@ internal sealed class SceneCommitPainter : IDisposable
             PaintNode(canvas, commit, childId);
         }
 
-        for (var index = 0; index < childIds.Count; index++)
+        for (var index = 0; index < childIds.Length; index++)
         {
             var childId = childIds[index];
             if (!commit.Layout.TryGetValue(childId, out var childBox) || !childBox.IsPositioned)
@@ -532,7 +559,7 @@ internal sealed class SceneCommitPainter : IDisposable
         }
     }
 
-    private static bool ShouldCullChildSubtree(SceneLayoutCommit commit, string childId, SceneLayoutBox? childBox, SKRect? subtreeCullRect)
+    private static bool ShouldCullChildSubtree(SceneLayoutCommit commit, SceneNodeId childId, SceneLayoutBox? childBox, SKRect? subtreeCullRect)
     {
         if (childBox is null || subtreeCullRect is null || subtreeCullRect.Value.IsEmpty)
             return false;
@@ -540,7 +567,7 @@ internal sealed class SceneCommitPainter : IDisposable
         if (!commit.Nodes.TryGetValue(childId, out var node))
             return false;
 
-        if (node.Children.Count > 0 && !CanCullDescendantsByOwnBounds(commit, node))
+        if (node.Children.Length > 0 && !CanCullDescendantsByOwnBounds(commit, node))
             return false;
 
         return !ResolveSelfPaintCullRect(childBox).IntersectsWith(subtreeCullRect.Value);
@@ -548,7 +575,7 @@ internal sealed class SceneCommitPainter : IDisposable
 
     private static bool CanCullDescendantsByOwnBounds(SceneLayoutCommit commit, SceneGraphNode node)
     {
-        for (var index = 0; index < node.Children.Count; index++)
+        for (var index = 0; index < node.Children.Length; index++)
         {
             var childId = node.Children[index];
             if (commit.Layout.TryGetValue(childId, out var childBox) && childBox.IsPositioned)
@@ -556,6 +583,18 @@ internal sealed class SceneCommitPainter : IDisposable
         }
 
         return true;
+    }
+
+    private static bool HasPositionedChild(SceneLayoutCommit commit, SceneGraphNode node)
+    {
+        for (var index = 0; index < node.Children.Length; index++)
+        {
+            var childId = node.Children[index];
+            if (commit.Layout.TryGetValue(childId, out var childBox) && childBox.IsPositioned)
+                return true;
+        }
+
+        return false;
     }
 
     private void DrawBox(SKCanvas canvas, SceneLayoutBox box)
@@ -598,23 +637,40 @@ internal sealed class SceneCommitPainter : IDisposable
         DrawBorder(canvas, box, geometry.BorderRect, geometry.BorderRadius);
     }
 
+    private static SceneLayoutBox ApplyPaintOverride(SceneLayoutCommit commit, SceneNodeId id, SceneLayoutBox box)
+    {
+        if (!commit.TryGetPaintOverride(id, out var paintOverride))
+            return box;
+
+        var textStyle = box.TextStyle;
+        if (paintOverride.TextColor is not null && textStyle is not null)
+            textStyle = textStyle with { Color = paintOverride.TextColor };
+
+        return box with
+        {
+            BackgroundColor = paintOverride.BackgroundColor ?? box.BackgroundColor,
+            BorderColor = paintOverride.BorderColor ?? box.BorderColor,
+            TextStyle = textStyle
+        };
+    }
+
     private void PaintAnimatedShaderNodes(SKCanvas canvas, SceneLayoutCommit commit, float elapsedSeconds)
     {
         foreach (var id in commit.HostAnimatedShaderRootIds)
             PaintAnimatedShaderRoot(canvas, commit, id, elapsedSeconds);
     }
 
-    private void PaintAnimatedShaderRoot(SKCanvas canvas, SceneLayoutCommit commit, string id, float elapsedSeconds)
+    private void PaintAnimatedShaderRoot(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, float elapsedSeconds)
     {
         if (!commit.Nodes.TryGetValue(id, out var node))
             return;
 
-        var ancestorIds = new List<string>();
+        var ancestorIds = new List<SceneNodeId>();
         var parentId = node.ParentId;
-        while (parentId is not null)
+        while (parentId is { } resolvedParentId)
         {
-            ancestorIds.Add(parentId);
-            if (!commit.Nodes.TryGetValue(parentId, out var parentNode))
+            ancestorIds.Add(resolvedParentId);
+            if (!commit.Nodes.TryGetValue(resolvedParentId, out var parentNode))
                 break;
 
             parentId = parentNode.ParentId;
@@ -648,16 +704,17 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Restore();
     }
 
-    private void PaintAnimatedShaderSubtree(SKCanvas canvas, SceneLayoutCommit commit, string id, float elapsedSeconds)
+    private void PaintAnimatedShaderSubtree(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, float elapsedSeconds)
     {
         if (!commit.Layout.TryGetValue(id, out var box) || !commit.Nodes.TryGetValue(id, out var node))
             return;
 
+        var paintBox = ApplyPaintOverride(commit, id, box);
         var hostAnimatedShader = IsHostAnimatedRuntimeShader(box);
         if (hostAnimatedShader)
             DrawAnimatedShaderBox(canvas, box, elapsedSeconds);
         else
-            DrawBox(canvas, box);
+            DrawBox(canvas, paintBox);
 
         var clipPushed = false;
         if (ShouldClipChildren(box))
@@ -668,9 +725,9 @@ internal sealed class SceneCommitPainter : IDisposable
         }
 
         if (box.NodeKind == SceneNodeKind.Text && !string.IsNullOrEmpty(box.TextContent))
-            DrawText(canvas, box);
+            DrawText(canvas, paintBox);
         else if (box.NodeKind == SceneNodeKind.TextInput)
-            DrawTextInput(canvas, box);
+            DrawTextInput(canvas, paintBox);
         else if (box.NodeKind == SceneNodeKind.Image)
             DrawImage(canvas, box);
 
@@ -696,9 +753,9 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Restore();
     }
 
-    private void PaintAnimatedShaderChildren(SKCanvas canvas, SceneLayoutCommit commit, IReadOnlyList<string> childIds, float elapsedSeconds)
+    private void PaintAnimatedShaderChildren(SKCanvas canvas, SceneLayoutCommit commit, ReadOnlySpan<SceneNodeId> childIds, float elapsedSeconds)
     {
-        for (var index = 0; index < childIds.Count; index++)
+        for (var index = 0; index < childIds.Length; index++)
         {
             var childId = childIds[index];
             if (commit.Layout.TryGetValue(childId, out var childBox) && childBox.IsPositioned)
@@ -707,7 +764,7 @@ internal sealed class SceneCommitPainter : IDisposable
             PaintAnimatedShaderSubtree(canvas, commit, childId, elapsedSeconds);
         }
 
-        for (var index = 0; index < childIds.Count; index++)
+        for (var index = 0; index < childIds.Length; index++)
         {
             var childId = childIds[index];
             if (!commit.Layout.TryGetValue(childId, out var childBox) || !childBox.IsPositioned)
@@ -984,13 +1041,8 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Save();
             ClipShadowInnerBox(canvas, geometry);
 
-            using var shadowPaint = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Fill,
-                Color = ResolveColor(shadow.Color, new SKColor(15, 23, 42, 110)),
-                ImageFilter = shadow.Blur > 0 ? SKImageFilter.CreateBlur(shadow.Blur * 0.5f, shadow.Blur * 0.5f) : null
-            };
+            shadowPaint.Color = ResolveColor(shadow.Color, new SKColor(15, 23, 42, 110));
+            shadowPaint.ImageFilter = shadow.Blur > 0 ? GetBoxShadowBlurFilter(shadow.Blur) : null;
 
             var rect = geometry.BorderRect;
             rect.Offset(shadow.OffsetX, shadow.OffsetY);
@@ -1002,7 +1054,19 @@ internal sealed class SceneCommitPainter : IDisposable
                 canvas.DrawRect(rect, shadowPaint);
 
             canvas.Restore();
+            shadowPaint.ImageFilter = null;
         }
+    }
+
+    private SKImageFilter GetBoxShadowBlurFilter(float blur)
+    {
+        var sigma = MathF.Max(0.001f, blur * 0.5f);
+        if (boxShadowBlurFilterCache.TryGetValue(sigma, out var cached))
+            return cached;
+
+        var filter = SKImageFilter.CreateBlur(sigma, sigma);
+        boxShadowBlurFilterCache[sigma] = filter;
+        return filter;
     }
 
     private static void ClipShadowInnerBox(SKCanvas canvas, BoxPaintGeometry geometry)
@@ -1020,15 +1084,19 @@ internal sealed class SceneCommitPainter : IDisposable
 
     private void DrawText(SKCanvas canvas, SceneLayoutBox box)
     {
-        var textStyle = box.TextStyle ?? new SceneTextStyle(16, "#ffffff");
+        if (box.Text is not { } text)
+            return;
+
+        var geometry = box.Geometry;
+        var textStyle = text.TextStyle ?? DefaultTextStyle;
         textPaint.Color = ResolveColor(textStyle.Color, SKColors.White);
         var textAlign = MapTextAlign(textStyle.TextAlign);
-        var lineHeight = box.LineHeight > 0 ? box.LineHeight : textResources.TextMeasurer.MeasureLineHeight(textStyle.Font);
-        var textWidth = Math.Max(0, box.Width - box.PaddingLeft - box.PaddingRight);
-        var layout = textResources.InputMetrics.CreateLayout(textStyle, textPaint, box.TextContent ?? string.Empty, lineHeight, textWidth);
-        var contentTop = box.AbsTop + box.PaddingTop;
-        var contentBottom = box.AbsTop + box.Height - box.PaddingBottom;
-        var textX = box.AbsLeft + box.PaddingLeft;
+        var lineHeight = text.LineHeight > 0 ? text.LineHeight : textResources.TextMeasurer.MeasureLineHeight(textStyle.Font);
+        var textWidth = Math.Max(0, geometry.Width - geometry.PaddingLeft - geometry.PaddingRight);
+        var layout = textResources.InputMetrics.CreateLayout(textStyle, textPaint, text.TextContent, lineHeight, textWidth);
+        var contentTop = geometry.AbsTop + geometry.PaddingTop;
+        var contentBottom = geometry.AbsTop + geometry.Height - geometry.PaddingBottom;
+        var textX = geometry.AbsLeft + geometry.PaddingLeft;
 
         for (var lineIndex = 0; lineIndex < layout.Lines.Count; lineIndex++)
         {
@@ -1043,7 +1111,7 @@ internal sealed class SceneCommitPainter : IDisposable
             var underlineWidth = textStyle.Underline && !textStyle.WrapText
                 ? Math.Max(lineToDraw.Width, textWidth)
                 : lineToDraw.Width;
-            DrawTextLine(canvas, lineToDraw, drawX, box.AbsTop + box.PaddingTop + ResolveTextBaselineOffset(lineToDraw, textStyle, lineHeight) + lineIndex * lineHeight, textStyle, underlineWidth);
+            DrawTextLine(canvas, lineToDraw, drawX, geometry.AbsTop + geometry.PaddingTop + ResolveTextBaselineOffset(lineToDraw, textStyle, lineHeight) + lineIndex * lineHeight, textStyle, underlineWidth);
             if (textStyle.TextOverflowEllipsis && !textStyle.WrapText)
                 break;
         }
@@ -1088,7 +1156,7 @@ internal sealed class SceneCommitPainter : IDisposable
         return StoreEllipsizedLine(cacheKey, ellipsizedLine);
     }
 
-    private static float ResolveTextBaselineOffset(TextInputMetrics.TextLineSpan line, SceneTextStyle textStyle, float lineHeight)
+    private float ResolveTextBaselineOffset(TextInputMetrics.TextLineSpan line, SceneTextStyle textStyle, float lineHeight)
     {
         if (line.Runs.Count == 0)
             return textStyle.FontSize;
@@ -1097,8 +1165,7 @@ internal sealed class SceneCommitPainter : IDisposable
         var descent = 0f;
         for (var index = 0; index < line.Runs.Count; index++)
         {
-            using var font = SkiaFontSynthesis.CreateFont(line.Runs[index].Typeface, textStyle.Font);
-            var metrics = font.Metrics;
+            var metrics = GetFontMetrics(line.Runs[index].Typeface, textStyle.Font);
             if (!float.IsFinite(metrics.Ascent) || !float.IsFinite(metrics.Descent))
                 continue;
 
@@ -1147,31 +1214,37 @@ internal sealed class SceneCommitPainter : IDisposable
 
     private void DrawTextInput(SKCanvas canvas, SceneLayoutBox box)
     {
-        var textStyle = box.TextStyle ?? new SceneTextStyle(16, "#f8fafc");
-        var isSelect = box.ControlKind == SceneControlKind.Select;
-        var value = box.TextContent ?? string.Empty;
-        var compositionText = box.CompositionText ?? string.Empty;
+        if (box.TextInput is not { } input)
+            return;
+
+        var geometry = box.Geometry;
+        var paint = box.Paint;
+        var interaction = box.Interaction;
+        var textStyle = input.TextStyle ?? DefaultTextInputStyle;
+        var isSelect = interaction.ControlKind == SceneControlKind.Select;
+        var value = input.TextContent;
+        var compositionText = input.CompositionText;
         var hasComposition = compositionText.Length > 0;
         var composedValue = hasComposition
-            ? value.Insert(Math.Clamp(box.CompositionStart, 0, value.Length), compositionText)
+            ? value.Insert(Math.Clamp(input.CompositionStart, 0, value.Length), compositionText)
             : value;
-        var showPlaceholder = value.Length == 0 && !hasComposition && !string.IsNullOrEmpty(box.PlaceholderText);
-        var displayText = showPlaceholder ? box.PlaceholderText! : composedValue;
-        var lineHeight = box.LineHeight > 0 ? box.LineHeight : textStyle.FontSize * 1.35f;
+        var showPlaceholder = value.Length == 0 && !hasComposition && !string.IsNullOrEmpty(input.PlaceholderText);
+        var displayText = showPlaceholder ? input.PlaceholderText : composedValue;
+        var lineHeight = input.LineHeight > 0 ? input.LineHeight : textStyle.FontSize * 1.35f;
 
-        var resolvedInputTextColor = ResolveTextInputTextColor(showPlaceholder, box.PlaceholderColor, textStyle.Color, box.BackgroundColor);
+        var resolvedInputTextColor = ResolveTextInputTextColor(showPlaceholder, input.PlaceholderColor, textStyle.Color, paint.BackgroundColor);
         textPaint.Color = resolvedInputTextColor;
-        var textWidth = Math.Max(0, box.Width - box.PaddingLeft - box.PaddingRight);
+        var textWidth = Math.Max(0, geometry.Width - geometry.PaddingLeft - geometry.PaddingRight);
         var displayLayout = textResources.InputMetrics.CreateLayout(textStyle, textPaint, displayText, lineHeight, textWidth);
         var valueLayout = showPlaceholder ? null : textResources.InputMetrics.CreateLayout(textStyle, textPaint, value, lineHeight, textWidth);
 
-        var textX = box.AbsLeft + box.PaddingLeft;
-        var contentTop = box.AbsTop + box.PaddingTop;
-        var contentBottom = box.AbsTop + box.Height - box.PaddingBottom;
+        var textX = geometry.AbsLeft + geometry.PaddingLeft;
+        var contentTop = geometry.AbsTop + geometry.PaddingTop;
+        var contentBottom = geometry.AbsTop + geometry.Height - geometry.PaddingBottom;
         canvas.Save();
         ClipBox(canvas, box);
-        var selectionStart = Math.Clamp(Math.Min(box.SelectionStart, box.SelectionEnd), 0, value.Length);
-        var selectionEnd = Math.Clamp(Math.Max(box.SelectionStart, box.SelectionEnd), 0, value.Length);
+        var selectionStart = Math.Clamp(Math.Min(input.SelectionStart, input.SelectionEnd), 0, value.Length);
+        var selectionEnd = Math.Clamp(Math.Max(input.SelectionStart, input.SelectionEnd), 0, value.Length);
         if (!showPlaceholder && selectionStart != selectionEnd && valueLayout is not null)
         {
             fillPaint.Color = new SKColor(96, 165, 250, 96);
@@ -1179,7 +1252,7 @@ internal sealed class SceneCommitPainter : IDisposable
             {
                 canvas.DrawRect(
                     textX + rect.Left,
-                    box.AbsTop + box.PaddingTop + rect.Top,
+                    geometry.AbsTop + geometry.PaddingTop + rect.Top,
                     Math.Max(1, rect.Right - rect.Left),
                     Math.Max(textStyle.FontSize + 4, lineHeight),
                      fillPaint);
@@ -1188,30 +1261,30 @@ internal sealed class SceneCommitPainter : IDisposable
 
         if (!showPlaceholder && hasComposition)
         {
-            fillPaint.Color = ResolveColor(box.CompositionUnderlineColor, resolvedInputTextColor.WithAlpha(190));
-            var compositionStart = Math.Clamp(box.CompositionStart, 0, composedValue.Length);
-            var compositionEnd = Math.Clamp(box.CompositionStart + compositionText.Length, 0, composedValue.Length);
+            fillPaint.Color = ResolveColor(input.CompositionUnderlineColor, resolvedInputTextColor.WithAlpha(190));
+            var compositionStart = Math.Clamp(input.CompositionStart, 0, composedValue.Length);
+            var compositionEnd = Math.Clamp(input.CompositionStart + compositionText.Length, 0, composedValue.Length);
             foreach (var rect in textResources.InputMetrics.GetSelectionRects(
                          displayLayout,
                          compositionStart,
                          compositionEnd))
             {
-                var underlineY = box.AbsTop + box.PaddingTop + rect.Top + Math.Max(textStyle.FontSize + 4, lineHeight) - 3;
+                var underlineY = geometry.AbsTop + geometry.PaddingTop + rect.Top + Math.Max(textStyle.FontSize + 4, lineHeight) - 3;
                 DrawUnderline(canvas, textX + rect.Left, textX + rect.Right, underlineY, 1, fillPaint);
             }
 
-            var selectedStart = compositionStart + Math.Clamp(box.CompositionSelectionStart, 0, compositionText.Length);
+            var selectedStart = compositionStart + Math.Clamp(input.CompositionSelectionStart, 0, compositionText.Length);
             var selectedLength = Math.Clamp(
-                box.CompositionSelectionLength,
+                input.CompositionSelectionLength,
                 0,
-                compositionText.Length - Math.Clamp(box.CompositionSelectionStart, 0, compositionText.Length));
+                compositionText.Length - Math.Clamp(input.CompositionSelectionStart, 0, compositionText.Length));
             if (selectedLength > 0)
             {
                 var selectedEnd = Math.Clamp(selectedStart + selectedLength, compositionStart, compositionEnd);
-                fillPaint.Color = ResolveColor(box.CompositionSelectionUnderlineColor, resolvedInputTextColor);
+                fillPaint.Color = ResolveColor(input.CompositionSelectionUnderlineColor, resolvedInputTextColor);
                 foreach (var rect in textResources.InputMetrics.GetSelectionRects(displayLayout, selectedStart, selectedEnd))
                 {
-                    var underlineY = box.AbsTop + box.PaddingTop + rect.Top + Math.Max(textStyle.FontSize + 4, lineHeight) - 2;
+                    var underlineY = geometry.AbsTop + geometry.PaddingTop + rect.Top + Math.Max(textStyle.FontSize + 4, lineHeight) - 2;
                     DrawUnderline(canvas, textX + rect.Left, textX + rect.Right, underlineY, 2f, fillPaint);
                 }
             }
@@ -1219,17 +1292,17 @@ internal sealed class SceneCommitPainter : IDisposable
 
         for (var lineIndex = 0; lineIndex < displayLayout.Lines.Count; lineIndex++)
         {
-            if (!ShouldDrawTextLine(box.Multiline, contentTop, contentBottom, lineIndex, lineHeight))
+            if (!ShouldDrawTextLine(input.Multiline, contentTop, contentBottom, lineIndex, lineHeight))
                 break;
 
             var line = displayLayout.Lines[lineIndex];
-            DrawTextLine(canvas, line, textX, box.AbsTop + box.PaddingTop + textStyle.FontSize + lineIndex * lineHeight, textStyle, line.Width);
+            DrawTextLine(canvas, line, textX, geometry.AbsTop + geometry.PaddingTop + textStyle.FontSize + lineIndex * lineHeight, textStyle, line.Width);
         }
 
         if (isSelect)
             DrawSelectArrow(canvas, box, resolvedInputTextColor, textStyle.FontSize);
 
-        if (!box.IsFocused || isSelect)
+        if (!input.IsFocused || isSelect)
         {
             canvas.Restore();
             return;
@@ -1239,13 +1312,13 @@ internal sealed class SceneCommitPainter : IDisposable
             ? textResources.InputMetrics.CreateLayout(textStyle, textPaint, value, lineHeight, textWidth)
             : displayLayout;
         var caretIndex = hasComposition
-            ? Math.Clamp(box.CompositionStart + Math.Clamp(box.CompositionCursorOffset, 0, compositionText.Length), 0, composedValue.Length)
-            : box.CaretIndex;
-        if (!hasComposition || box.CompositionSelectionLength == 0)
+            ? Math.Clamp(input.CompositionStart + Math.Clamp(input.CompositionCursorOffset, 0, compositionText.Length), 0, composedValue.Length)
+            : input.CaretIndex;
+        if (!hasComposition || input.CompositionSelectionLength == 0)
         {
             var caret = textResources.InputMetrics.GetCaretPosition(caretLayout, caretIndex);
             fillPaint.Color = resolvedInputTextColor;
-            var caretTop = box.AbsTop + box.PaddingTop + caret.Y;
+            var caretTop = geometry.AbsTop + geometry.PaddingTop + caret.Y;
             var caretHeight = Math.Max(textStyle.FontSize + 4, lineHeight);
             if (ShouldDrawTextCaret(contentTop, contentBottom, caretTop, caretHeight))
                 canvas.DrawRect(textX + caret.X, caretTop, 1.5f, caretHeight, fillPaint);
@@ -1516,7 +1589,7 @@ internal sealed class SceneCommitPainter : IDisposable
         PaintTopLevelScrollBars(canvas, commit, commit.RootId, scale, presentationWidth, presentationHeight, hasScrollAncestor: false);
     }
 
-    private void PaintNestedScrollBars(SKCanvas canvas, SceneLayoutCommit commit, string id, bool hasScrollAncestor)
+    private void PaintNestedScrollBars(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, bool hasScrollAncestor)
     {
         if (!commit.Layout.TryGetValue(id, out var box) || !commit.Nodes.TryGetValue(id, out var node))
             return;
@@ -1526,8 +1599,8 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Save();
             ClipBox(canvas, box);
             canvas.Translate(-box.ScrollX, -box.ScrollY);
-            foreach (var childId in node.Children)
-                PaintNestedScrollBars(canvas, commit, childId, hasScrollAncestor: true);
+            for (var index = 0; index < node.Children.Length; index++)
+                PaintNestedScrollBars(canvas, commit, node.Children[index], hasScrollAncestor: true);
             canvas.Restore();
 
             if (hasScrollAncestor)
@@ -1539,11 +1612,11 @@ internal sealed class SceneCommitPainter : IDisposable
             return;
         }
 
-        foreach (var childId in node.Children)
-            PaintNestedScrollBars(canvas, commit, childId, hasScrollAncestor);
+        for (var index = 0; index < node.Children.Length; index++)
+            PaintNestedScrollBars(canvas, commit, node.Children[index], hasScrollAncestor);
     }
 
-    private void PaintTopLevelScrollBars(SKCanvas canvas, SceneLayoutCommit commit, string id, float viewportScale, int presentationWidth, int presentationHeight, bool hasScrollAncestor)
+    private void PaintTopLevelScrollBars(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, float viewportScale, int presentationWidth, int presentationHeight, bool hasScrollAncestor)
     {
         if (!commit.Layout.TryGetValue(id, out var box) || !commit.Nodes.TryGetValue(id, out var node))
             return;
@@ -1555,8 +1628,8 @@ internal sealed class SceneCommitPainter : IDisposable
             DrawPresentationHorizontalScrollBar(canvas, box, viewportScale, presentationWidth, presentationHeight);
         }
 
-        foreach (var childId in node.Children)
-            PaintTopLevelScrollBars(canvas, commit, childId, viewportScale, presentationWidth, presentationHeight, hasScrollAncestor || isScrollView);
+        for (var index = 0; index < node.Children.Length; index++)
+            PaintTopLevelScrollBars(canvas, commit, node.Children[index], viewportScale, presentationWidth, presentationHeight, hasScrollAncestor || isScrollView);
     }
 
     private void DrawPresentationVerticalScrollBar(SKCanvas canvas, SceneLayoutBox box, float viewportScale, int presentationWidth, int presentationHeight)
@@ -1857,9 +1930,17 @@ internal sealed class SceneCommitPainter : IDisposable
         var textColor = textPaint.Color;
         foreach (var run in line.Runs)
         {
-            var blob = GetOrCreateTextBlob(run, textStyle, textColor);
-            if (blob is not null)
-                canvas.DrawText(blob, cursorX, baselineY, textPaint);
+            var blob = GetOrCreateTextBlob(run, textStyle, textColor, out var disposeBlob);
+            try
+            {
+                if (blob is not null)
+                    canvas.DrawText(blob, cursorX, baselineY, textPaint);
+            }
+            finally
+            {
+                if (disposeBlob)
+                    blob?.Dispose();
+            }
 
             cursorX += run.Width;
         }
@@ -1876,7 +1957,7 @@ internal sealed class SceneCommitPainter : IDisposable
         }
     }
 
-    private static UnderlineStroke ResolveUnderlineStroke(TextInputMetrics.TextLineSpan line, SceneTextStyle textStyle)
+    private UnderlineStroke ResolveUnderlineStroke(TextInputMetrics.TextLineSpan line, SceneTextStyle textStyle)
     {
         var fallbackThickness = Math.Max(1, textStyle.FontSize / 16f);
         var fallbackOffset = Math.Max(2, textStyle.FontSize * 0.14f);
@@ -1885,8 +1966,7 @@ internal sealed class SceneCommitPainter : IDisposable
 
         foreach (var run in line.Runs)
         {
-            using var font = SkiaFontSynthesis.CreateFont(run.Typeface, textStyle.Font);
-            var metrics = font.Metrics;
+            var metrics = GetFontMetrics(run.Typeface, textStyle.Font);
             var runThickness = metrics.UnderlineThickness ?? 0f;
             var runOffset = metrics.UnderlinePosition ?? 0f;
             if (runThickness <= 0 || runOffset <= 0)
@@ -1899,6 +1979,26 @@ internal sealed class SceneCommitPainter : IDisposable
         return new UnderlineStroke(
             Math.Max(offset, fallbackOffset),
             Math.Max(thickness, fallbackThickness));
+    }
+
+    private SKFontMetrics GetFontMetrics(SKTypeface typeface, SceneFont font)
+    {
+        var key = new FontMetricsCacheKey(
+            textResources.FontCatalog.CurrentVersion,
+            typeface,
+            QuantizePixel(font.Size),
+            font.CacheIdentity,
+            font.Weight,
+            font.Italic);
+        if (fontMetricsCache.TryGetValue(key, out var cached))
+            return cached;
+
+        using var skFont = SkiaFontSynthesis.CreateFont(typeface, font);
+        var metrics = skFont.Metrics;
+        if (fontMetricsCache.Count >= fontMetricsCacheLimit)
+            fontMetricsCache.Clear();
+        fontMetricsCache[key] = metrics;
+        return metrics;
     }
 
     private void DrawTextLineShadows(SKCanvas canvas, TextInputMetrics.TextLineSpan line, float x, float baselineY, SceneTextStyle textStyle, SceneBoxShadow[] shadows)
@@ -1915,9 +2015,17 @@ internal sealed class SceneCommitPainter : IDisposable
             var shadowBaselineY = baselineY + shadow.OffsetY;
             foreach (var run in line.Runs)
             {
-                var blob = GetOrCreateTextBlob(run, textStyle, textPaint.Color);
-                if (blob is not null)
-                    canvas.DrawText(blob, cursorX, shadowBaselineY, textPaint);
+                var blob = GetOrCreateTextBlob(run, textStyle, textPaint.Color, out var disposeBlob);
+                try
+                {
+                    if (blob is not null)
+                        canvas.DrawText(blob, cursorX, shadowBaselineY, textPaint);
+                }
+                finally
+                {
+                    if (disposeBlob)
+                        blob?.Dispose();
+                }
 
                 cursorX += run.Width;
             }
@@ -1938,10 +2046,18 @@ internal sealed class SceneCommitPainter : IDisposable
         return filter;
     }
 
-    private SKTextBlob? GetOrCreateTextBlob(TextInputMetrics.TextRunSpan run, SceneTextStyle textStyle, SKColor textColor)
+    private SKTextBlob? GetOrCreateTextBlob(TextInputMetrics.TextRunSpan run, SceneTextStyle textStyle, SKColor textColor, out bool disposeBlob)
     {
+        disposeBlob = false;
         if (string.IsNullOrEmpty(run.Text))
             return null;
+
+        if (run.Text.Length > textBlobCacheMaxRunLength)
+        {
+            using var uncachedFont = SkiaFontSynthesis.CreateFont(run.Typeface, textStyle.Font);
+            disposeBlob = true;
+            return SKTextBlob.Create(run.Text, uncachedFont, SKPoint.Empty);
+        }
 
         var key = CreateTextBlobCacheKey(run, textStyle, textColor);
         if (textBlobCache.TryGetValue(key, out var cached))
@@ -1998,6 +2114,7 @@ internal sealed class SceneCommitPainter : IDisposable
     {
         ellipsizedLineCache.Clear();
         ellipsizedLineCacheOrder.Clear();
+        fontMetricsCache.Clear();
     }
 
     private void TrimScrollContentPictureCache()
@@ -2054,7 +2171,7 @@ internal sealed class SceneCommitPainter : IDisposable
             scrollContentRasterCacheOrder.Enqueue(key);
     }
 
-    private void RemoveScrollContentPictureForNode(string nodeId)
+    private void RemoveScrollContentPictureForNode(SceneNodeId nodeId)
     {
         if (!scrollContentPictureKeyByNode.Remove(nodeId, out var oldKey))
             return;
@@ -2063,7 +2180,7 @@ internal sealed class SceneCommitPainter : IDisposable
             oldPicture.Dispose();
     }
 
-    private void RemoveScrollContentRasterForNode(string nodeId)
+    private void RemoveScrollContentRasterForNode(SceneNodeId nodeId)
     {
         if (!scrollContentRasterKeyByNode.Remove(nodeId, out var oldKey))
             return;
@@ -2209,62 +2326,84 @@ internal sealed class SceneCommitPainter : IDisposable
     private static bool TryParseRgbFunction(string color, out SKColor parsed)
     {
         parsed = default;
-        if (!TryParseFunctionArguments(color, "rgb", 3, out var components))
+        Span<Range> components = stackalloc Range[3];
+        if (!TryParseFunctionArguments(color, "rgb", components, out var arguments))
             return false;
 
-        return TryParseColorByte(components[0], out var red) &&
-               TryParseColorByte(components[1], out var green) &&
-               TryParseColorByte(components[2], out var blue) &&
+        return TryParseColorByte(arguments[components[0]], out var red) &&
+               TryParseColorByte(arguments[components[1]], out var green) &&
+               TryParseColorByte(arguments[components[2]], out var blue) &&
                CreateColor(red, green, blue, 255, out parsed);
     }
 
     private static bool TryParseRgbaFunction(string color, out SKColor parsed)
     {
         parsed = default;
-        if (!TryParseFunctionArguments(color, "rgba", 4, out var components))
+        Span<Range> components = stackalloc Range[4];
+        if (!TryParseFunctionArguments(color, "rgba", components, out var arguments))
             return false;
 
-        return TryParseColorByte(components[0], out var red) &&
-               TryParseColorByte(components[1], out var green) &&
-               TryParseColorByte(components[2], out var blue) &&
-               TryParseAlphaByte(components[3], out var alpha) &&
+        return TryParseColorByte(arguments[components[0]], out var red) &&
+               TryParseColorByte(arguments[components[1]], out var green) &&
+               TryParseColorByte(arguments[components[2]], out var blue) &&
+               TryParseAlphaByte(arguments[components[3]], out var alpha) &&
                CreateColor(red, green, blue, alpha, out parsed);
     }
 
     private static bool TryParseArgbFunction(string color, out SKColor parsed)
     {
         parsed = default;
-        if (!TryParseFunctionArguments(color, "argb", 4, out var components))
+        Span<Range> components = stackalloc Range[4];
+        if (!TryParseFunctionArguments(color, "argb", components, out var arguments))
             return false;
 
-        return TryParseAlphaByte(components[0], out var alpha) &&
-               TryParseColorByte(components[1], out var red) &&
-               TryParseColorByte(components[2], out var green) &&
-               TryParseColorByte(components[3], out var blue) &&
+        return TryParseAlphaByte(arguments[components[0]], out var alpha) &&
+               TryParseColorByte(arguments[components[1]], out var red) &&
+               TryParseColorByte(arguments[components[2]], out var green) &&
+               TryParseColorByte(arguments[components[3]], out var blue) &&
                CreateColor(red, green, blue, alpha, out parsed);
     }
 
-    private static bool TryParseFunctionArguments(string color, string functionName, int expectedCount, out string[] components)
+    private static bool TryParseFunctionArguments(string color, string functionName, Span<Range> components, out ReadOnlySpan<char> arguments)
     {
-        components = [];
+        arguments = default;
         var prefixLength = functionName.Length + 1;
         if (!color.EndsWith(')') || color.Length <= prefixLength)
             return false;
 
-        var args = color.Substring(prefixLength, color.Length - prefixLength - 1)
-            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        if (args.Length != expectedCount)
-            return false;
+        arguments = color.AsSpan(prefixLength, color.Length - prefixLength - 1);
+        var componentCount = 0;
+        var componentStart = 0;
+        for (var index = 0; index <= arguments.Length; index++)
+        {
+            if (index < arguments.Length && arguments[index] != ',')
+                continue;
 
-        components = args;
-        return true;
+            if (componentCount >= components.Length)
+                return false;
+
+            var start = componentStart;
+            var end = index;
+            while (start < end && char.IsWhiteSpace(arguments[start]))
+                start++;
+            while (end > start && char.IsWhiteSpace(arguments[end - 1]))
+                end--;
+            if (start == end)
+                return false;
+
+            components[componentCount++] = start..end;
+            componentStart = index + 1;
+        }
+
+        return componentCount == components.Length;
     }
 
-    private static bool TryParseColorByte(string component, out byte value)
+    private static bool TryParseColorByte(ReadOnlySpan<char> component, out byte value)
     {
         value = 0;
-        if (component.EndsWith('%') &&
-            float.TryParse(component.AsSpan(0, component.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+        if (component.Length > 0 &&
+            component[^1] == '%' &&
+            float.TryParse(component[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
         {
             percent = Math.Clamp(percent, 0f, 100f);
             value = (byte)Math.Round(percent * 255f / 100f);
@@ -2279,11 +2418,12 @@ internal sealed class SceneCommitPainter : IDisposable
         return true;
     }
 
-    private static bool TryParseAlphaByte(string component, out byte value)
+    private static bool TryParseAlphaByte(ReadOnlySpan<char> component, out byte value)
     {
         value = 255;
-        if (component.EndsWith('%') &&
-            float.TryParse(component.AsSpan(0, component.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+        if (component.Length > 0 &&
+            component[^1] == '%' &&
+            float.TryParse(component[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
         {
             percent = Math.Clamp(percent, 0f, 100f);
             value = (byte)Math.Round(percent * 255f / 100f);
@@ -2549,8 +2689,16 @@ internal sealed class SceneCommitPainter : IDisposable
         int FontWeight,
         bool Italic);
 
+    private readonly record struct FontMetricsCacheKey(
+        int FontCatalogVersion,
+        SKTypeface Typeface,
+        int FontSizeQuarterPx,
+        string FontIdentity,
+        int FontWeight,
+        bool Italic);
+
     private readonly record struct ScrollContentPictureCacheKey(
-        string NodeId,
+        SceneNodeId NodeId,
         int ContentSignature,
         int ViewportLeftQuarterPx,
         int ViewportTopQuarterPx,

@@ -28,7 +28,7 @@ public sealed class HtmlDocumentParser
         {
             if (string.Equals(element.LocalName, "style", StringComparison.OrdinalIgnoreCase))
             {
-                styles.Add(element.TextContent ?? string.Empty);
+                styles.Add(GetDirectTextContent(element));
                 continue;
             }
 
@@ -51,7 +51,7 @@ public sealed class HtmlDocumentParser
         foreach (var element in document.QuerySelectorAll("script"))
         {
             scripts.Add(new HtmlDomScript(
-                element.TextContent ?? string.Empty,
+                GetDirectTextContent(element),
                 element.GetAttribute("src"),
                 element.GetAttribute("type")));
         }
@@ -124,9 +124,10 @@ public sealed class HtmlDocumentParser
     private static HtmlDomElement ConvertElement(IElement element, HtmlDomNodeIdGenerator idGenerator)
     {
         var nodeId = idGenerator.Next();
-        var children = new List<HtmlDomNode>();
-        foreach (var child in element.ChildNodes)
+        var children = new List<HtmlDomNode>(element.ChildNodes.Length);
+        for (var index = 0; index < element.ChildNodes.Length; index++)
         {
+            var child = element.ChildNodes[index];
             switch (child)
             {
                 case IElement childElement:
@@ -138,9 +139,15 @@ public sealed class HtmlDocumentParser
             }
         }
 
-        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var attribute in element.Attributes)
+        var attributes = new Dictionary<string, string>(element.Attributes.Length, StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < element.Attributes.Length; index++)
+        {
+            var attribute = element.Attributes[index];
+            if (attribute is null)
+                continue;
+
             attributes[attribute.Name] = attribute.Value;
+        }
 
         return new HtmlDomElement(
             nodeId,
@@ -148,43 +155,53 @@ public sealed class HtmlDocumentParser
             string.IsNullOrWhiteSpace(element.Id) ? null : element.Id,
             element.GetAttribute("class"),
             attributes,
-            children,
-            element.TextContent ?? string.Empty,
-            ResolveInnerText(element, children));
+            children);
     }
-
-    private static string ResolveInnerText(IElement element, IReadOnlyList<HtmlDomNode> children)
-    {
-        if (IsNonRenderedTextElement(element))
-            return string.Empty;
-
-        var parts = new List<string>();
-        CollectInnerText(children, parts);
-        return string.Concat(parts);
-    }
-
-    private static void CollectInnerText(IEnumerable<HtmlDomNode> nodes, List<string> parts)
-    {
-        foreach (var node in nodes)
-        {
-            switch (node)
-            {
-                case HtmlDomText text:
-                    parts.Add(text.Text);
-                    break;
-                case HtmlDomElement element when !IsNonRenderedTextElement(element.LocalName):
-                    parts.Add(element.InnerText);
-                    break;
-            }
-        }
-    }
-
-    private static bool IsNonRenderedTextElement(IElement element)
-        => IsNonRenderedTextElement(element.LocalName);
 
     private static bool IsNonRenderedTextElement(string localName)
         => string.Equals(localName, "script", StringComparison.OrdinalIgnoreCase) ||
            string.Equals(localName, "style", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetDirectTextContent(IElement element)
+    {
+        if (element.ChildNodes.Length == 0)
+            return string.Empty;
+
+        string? textContent = null;
+        System.Text.StringBuilder? builder = null;
+        for (var index = 0; index < element.ChildNodes.Length; index++)
+        {
+            if (element.ChildNodes[index] is not IText text)
+                continue;
+
+            AppendText(text.Data, ref textContent, ref builder);
+        }
+
+        return builder?.ToString() ?? textContent ?? string.Empty;
+    }
+
+    private static void AppendText(string text, ref string? textContent, ref System.Text.StringBuilder? builder)
+    {
+        if (text.Length == 0)
+            return;
+
+        if (builder is not null)
+        {
+            builder.Append(text);
+            return;
+        }
+
+        if (textContent is null)
+        {
+            textContent = text;
+            return;
+        }
+
+        builder = new System.Text.StringBuilder(textContent.Length + text.Length);
+        builder.Append(textContent);
+        builder.Append(text);
+        textContent = null;
+    }
 
     private sealed class HtmlDomNodeIdGenerator
     {

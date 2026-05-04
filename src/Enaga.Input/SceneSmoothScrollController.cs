@@ -57,16 +57,17 @@ public static class SceneSmoothScrollController
         state.TargetScrollY = SceneScrollMetrics.ClampScrollY(box, state.TargetScrollY);
         var dx = state.TargetScrollX - state.ScrollX;
         var dy = state.TargetScrollY - state.ScrollY;
-        if (Math.Abs(dx) <= 0.5f && Math.Abs(dy) <= 0.5f)
+        // NOTE: comment out because smooth scroll is not working well. smoothed only after scroll end. 
+        //if (Math.Abs(dx) <= 0.5f && Math.Abs(dy) <= 0.5f)
         {
             state.ScrollX = state.TargetScrollX;
             state.ScrollY = state.TargetScrollY;
             return false;
         }
 
-        var alpha = (float)(1 - Math.Exp(-Math.Max(deltaSeconds, 1.0 / 60.0) * response));
-        state.ScrollX = SceneScrollMetrics.ClampScrollX(box, state.ScrollX + dx * alpha);
-        state.ScrollY = SceneScrollMetrics.ClampScrollY(box, state.ScrollY + dy * alpha);
-        return true;
+        // var alpha = (float)(1 - Math.Exp(-Math.Max(deltaSeconds, 1.0 / 60.0) * response));
+        // state.ScrollX = SceneScrollMetrics.ClampScrollX(box, state.ScrollX + dx * alpha);
+        // state.ScrollY = SceneScrollMetrics.ClampScrollY(box, state.ScrollY + dy * alpha);
+        // return true;
     }
 }

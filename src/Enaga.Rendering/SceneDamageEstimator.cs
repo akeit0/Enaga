@@ -3,7 +3,7 @@ using Enaga.Scene;
 
 namespace Enaga.Rendering;
 
-internal static class SceneDamageEstimator
+public static class SceneDamageEstimator
 {
     private const float ShadowPadding = 24f;
     private const float BorderPadding = 4f;
@@ -52,7 +52,7 @@ internal static class SceneDamageEstimator
 
     public static SceneDamageRect? GetBoxDamageRect(
         SceneLayoutCommit commit,
-        string id,
+        SceneNodeId id,
         int viewportWidth,
         int viewportHeight)
     {
@@ -82,6 +82,57 @@ internal static class SceneDamageEstimator
             viewportHeight);
     }
 
+    public static void AddPaintOverrideDirtyRects(
+        SceneLayoutCommit previousCommit,
+        SceneLayoutCommit nextCommit,
+        int viewportWidth,
+        int viewportHeight,
+        ICollection<SceneDamageRect> dirtyRects)
+    {
+        if (PaintOverrideMapsEqual(previousCommit.PaintOverrides, nextCommit.PaintOverrides))
+            return;
+
+        var ids = new HashSet<SceneNodeId>();
+        ids.EnsureCapacity(previousCommit.PaintOverrides.Count + nextCommit.PaintOverrides.Count);
+        AddKeys(ids, previousCommit.PaintOverrides.Keys);
+        AddKeys(ids, nextCommit.PaintOverrides.Keys);
+
+        foreach (var id in ids)
+        {
+            var previousHasOverride = previousCommit.TryGetPaintOverride(id, out var previousOverride);
+            var nextHasOverride = nextCommit.TryGetPaintOverride(id, out var nextOverride);
+            if (previousHasOverride == nextHasOverride &&
+                (!previousHasOverride || previousOverride == nextOverride))
+            {
+                continue;
+            }
+
+            if (previousCommit.Layout.TryGetValue(id, out _))
+                AddDirtyRect(dirtyRects, GetBoxDamageRect(previousCommit, id, viewportWidth, viewportHeight));
+            if (nextCommit.Layout.TryGetValue(id, out _))
+                AddDirtyRect(dirtyRects, GetBoxDamageRect(nextCommit, id, viewportWidth, viewportHeight));
+        }
+    }
+
+    public static bool PaintOverrideMapsEqual(
+        IReadOnlyDictionary<SceneNodeId, ScenePaintOverride> previous,
+        IReadOnlyDictionary<SceneNodeId, ScenePaintOverride> next)
+    {
+        if (previous.Count != next.Count)
+            return false;
+
+        foreach (var pair in previous)
+        {
+            if (!next.TryGetValue(pair.Key, out var nextOverride) ||
+                pair.Value != nextOverride)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool RequiresFullFrame(SceneDamageReason damageReasons)
     => (damageReasons & (SceneDamageReason.Resize | SceneDamageReason.RuntimeReload | SceneDamageReason.ErrorOverlay | SceneDamageReason.FontCatalogChanged)) != 0;
 
@@ -93,31 +144,40 @@ internal static class SceneDamageEstimator
         SceneDamageRectBufferWriter dirtyRects)
     {
         dirtyRects.Clear();
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        ids.EnsureCapacity(previousCommit.Layout.Count + nextCommit.Layout.Count + previousCommit.Nodes.Count + nextCommit.Nodes.Count);
+        var ids = new HashSet<SceneNodeId>();
+        ids.EnsureCapacity(
+            previousCommit.Layout.Count +
+            nextCommit.Layout.Count +
+            previousCommit.Nodes.Count +
+            nextCommit.Nodes.Count +
+            previousCommit.PaintOverrides.Count +
+            nextCommit.PaintOverrides.Count);
         AddKeys(ids, previousCommit.Layout.Keys);
         AddKeys(ids, nextCommit.Layout.Keys);
         AddKeys(ids, previousCommit.Nodes.Keys);
         AddKeys(ids, nextCommit.Nodes.Keys);
+        AddKeys(ids, previousCommit.PaintOverrides.Keys);
+        AddKeys(ids, nextCommit.PaintOverrides.Keys);
 
         foreach (var id in ids)
         {
             previousCommit.Layout.TryGetValue(id, out var previousBox);
             nextCommit.Layout.TryGetValue(id, out var nextBox);
-            previousCommit.Nodes.TryGetValue(id, out var previousNode);
-            nextCommit.Nodes.TryGetValue(id, out var nextNode);
+            var hasPreviousNode = previousCommit.Nodes.TryGetValue(id, out var previousNode);
+            var hasNextNode = nextCommit.Nodes.TryGetValue(id, out var nextNode);
 
             if (previousBox is not null && nextBox is not null &&
-                previousNode is not null && nextNode is not null &&
+                hasPreviousNode && hasNextNode &&
                 previousBox == nextBox &&
-                NodesEqual(previousNode, nextNode))
+                NodesEqual(previousNode, nextNode) &&
+                PaintOverridesEqual(previousCommit, nextCommit, id))
             {
                 continue;
             }
 
             if (previousBox is not null && nextBox is not null &&
-                previousNode is not null && nextNode is not null &&
-                CanSkipOpaqueContainerDamage(previousNode, nextNode, previousBox, nextBox))
+                hasPreviousNode && hasNextNode &&
+                CanSkipOpaqueContainerDamage(previousCommit, nextCommit, previousNode, nextNode, previousBox, nextBox))
             {
                 continue;
             }
@@ -131,17 +191,24 @@ internal static class SceneDamageEstimator
         return FinalizeDirtyRects(dirtyRects, viewportWidth, viewportHeight);
     }
 
+    private static bool PaintOverridesEqual(SceneLayoutCommit previousCommit, SceneLayoutCommit nextCommit, SceneNodeId id)
+    {
+        var hasPrevious = previousCommit.TryGetPaintOverride(id, out var previous);
+        var hasNext = nextCommit.TryGetPaintOverride(id, out var next);
+        return hasPrevious == hasNext && (!hasPrevious || previous == next);
+    }
+
     private static bool NodesEqual(SceneGraphNode previousNode, SceneGraphNode nextNode)
     {
         if (!NodesEqualIgnoringChildren(previousNode, nextNode) ||
-            previousNode.Children.Count != nextNode.Children.Count)
+            previousNode.Children.Length != nextNode.Children.Length)
         {
             return false;
         }
 
-        for (var index = 0; index < previousNode.Children.Count; index++)
+        for (var index = 0; index < previousNode.Children.Length; index++)
         {
-            if (!string.Equals(previousNode.Children[index], nextNode.Children[index], StringComparison.Ordinal))
+            if (previousNode.Children[index] != nextNode.Children[index])
                 return false;
         }
 
@@ -151,11 +218,13 @@ internal static class SceneDamageEstimator
     private static bool NodesEqualIgnoringChildren(SceneGraphNode previousNode, SceneGraphNode nextNode)
     {
         return previousNode.NodeKind == nextNode.NodeKind &&
-               string.Equals(previousNode.ParentId, nextNode.ParentId, StringComparison.Ordinal) &&
+               previousNode.ParentId == nextNode.ParentId &&
                string.Equals(previousNode.Label, nextNode.Label, StringComparison.Ordinal);
     }
 
     private static bool CanSkipOpaqueContainerDamage(
+        SceneLayoutCommit previousCommit,
+        SceneLayoutCommit nextCommit,
         SceneGraphNode previousNode,
         SceneGraphNode nextNode,
         SceneLayoutBox previousBox,
@@ -164,7 +233,48 @@ internal static class SceneDamageEstimator
         return previousBox == nextBox &&
                NodesEqualIgnoringChildren(previousNode, nextNode) &&
                IsOpaquePaintBlocker(previousBox) &&
+               !HasPositionedChildMutation(previousCommit, nextCommit, previousNode.Children, nextNode.Children) &&
                HasInsertionRemovalOnlyChildMutation(previousNode.Children, nextNode.Children);
+    }
+
+    private static bool HasPositionedChildMutation(
+        SceneLayoutCommit previousCommit,
+        SceneLayoutCommit nextCommit,
+        ReadOnlySpan<SceneNodeId> previousChildren,
+        ReadOnlySpan<SceneNodeId> nextChildren)
+    {
+        for (var index = 0; index < previousChildren.Length; index++)
+        {
+            var childId = previousChildren[index];
+            if (!Contains(nextChildren, childId) &&
+                previousCommit.Layout.TryGetValue(childId, out var previousBox) &&
+                previousBox.IsPositioned)
+            {
+                return true;
+            }
+        }
+
+        for (var index = 0; index < nextChildren.Length; index++)
+        {
+            var childId = nextChildren[index];
+            if (!Contains(previousChildren, childId) &&
+                nextCommit.Layout.TryGetValue(childId, out var nextBox) &&
+                nextBox.IsPositioned)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool Contains(ReadOnlySpan<SceneNodeId> ids, SceneNodeId id)
+    {
+        for (var index = 0; index < ids.Length; index++)
+            if (ids[index] == id)
+                return true;
+
+        return false;
     }
 
     private static bool IsOpaquePaintBlocker(SceneLayoutBox box)
@@ -175,14 +285,14 @@ internal static class SceneDamageEstimator
                box.BackgroundShader is not null;
     }
 
-    private static bool HasInsertionRemovalOnlyChildMutation(IReadOnlyList<string> previousChildren, IReadOnlyList<string> nextChildren)
+    private static bool HasInsertionRemovalOnlyChildMutation(ReadOnlySpan<SceneNodeId> previousChildren, ReadOnlySpan<SceneNodeId> nextChildren)
     {
-        if (previousChildren.Count == nextChildren.Count)
+        if (previousChildren.Length == nextChildren.Length)
         {
             var identical = true;
-            for (var index = 0; index < previousChildren.Count; index++)
+            for (var index = 0; index < previousChildren.Length; index++)
             {
-                if (string.Equals(previousChildren[index], nextChildren[index], StringComparison.Ordinal))
+                if (previousChildren[index] == nextChildren[index])
                     continue;
 
                 identical = false;
@@ -193,14 +303,15 @@ internal static class SceneDamageEstimator
                 return false;
         }
 
-        var nextPositions = new Dictionary<string, int>(nextChildren.Count, StringComparer.Ordinal);
-        for (var index = 0; index < nextChildren.Count; index++)
+        var nextPositions = new Dictionary<SceneNodeId, int>(nextChildren.Length);
+        for (var index = 0; index < nextChildren.Length; index++)
             nextPositions[nextChildren[index]] = index;
 
         var lastMatchedIndex = -1;
         var matchedAny = false;
-        foreach (var childId in previousChildren)
+        for (var index = 0; index < previousChildren.Length; index++)
         {
+            var childId = previousChildren[index];
             if (!nextPositions.TryGetValue(childId, out var nextIndex))
                 continue;
 
@@ -211,10 +322,10 @@ internal static class SceneDamageEstimator
             matchedAny = true;
         }
 
-        return matchedAny || previousChildren.Count != nextChildren.Count;
+        return matchedAny || previousChildren.Length != nextChildren.Length;
     }
 
-    private static void AddKeys(HashSet<string> ids, IEnumerable<string> keys)
+    private static void AddKeys(HashSet<SceneNodeId> ids, IEnumerable<SceneNodeId> keys)
     {
         foreach (var key in keys)
             ids.Add(key);
@@ -226,10 +337,16 @@ internal static class SceneDamageEstimator
             dirtyRects.Add(normalized);
     }
 
+    private static void AddDirtyRect(ICollection<SceneDamageRect> dirtyRects, SceneDamageRect? rect)
+    {
+        if (rect is { } normalized)
+            dirtyRects.Add(normalized);
+    }
+
     private static void AddBoxRect(
         SceneDamageRectBufferWriter dirtyRects,
         SceneLayoutCommit commit,
-        string id,
+        SceneNodeId id,
         SceneLayoutBox box,
         int viewportWidth,
         int viewportHeight)
@@ -237,7 +354,7 @@ internal static class SceneDamageEstimator
         AddDirtyRect(dirtyRects, GetBoxDamageRect(commit, id, viewportWidth, viewportHeight));
     }
 
-    private static float GetAncestorScrollOffsetY(SceneLayoutCommit commit, string id)
+    private static float GetAncestorScrollOffsetY(SceneLayoutCommit commit, SceneNodeId id)
     {
         var offsetY = 0f;
         var currentId = id;
@@ -255,7 +372,7 @@ internal static class SceneDamageEstimator
         return offsetY;
     }
 
-    private static float GetAncestorScrollOffsetX(SceneLayoutCommit commit, string id)
+    private static float GetAncestorScrollOffsetX(SceneLayoutCommit commit, SceneNodeId id)
     {
         var offsetX = 0f;
         var currentId = id;
@@ -275,7 +392,7 @@ internal static class SceneDamageEstimator
 
     private static ScreenRect? IntersectWithClippingAncestorViewports(
         SceneLayoutCommit commit,
-        string id,
+        SceneNodeId id,
         float left,
         float top,
         float right,

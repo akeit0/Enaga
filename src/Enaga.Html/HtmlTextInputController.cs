@@ -7,7 +7,7 @@ public sealed class HtmlTextInputController(
     IRuntimeTextServices textServices,
     Action requestUpdate,
     Func<bool, bool> moveFocus,
-    Action<string?> setFocus)
+    Action<SceneNodeId?> setFocus)
 {
     private const int ShiftModifier = 1;
     private const int ControlModifier = 2;

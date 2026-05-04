@@ -3,11 +3,41 @@ using Enaga.Html.Dom;
 
 namespace Enaga.Html;
 
+internal readonly record struct HtmlSceneNodeId(int Value, int FragmentIndex = 0)
+{
+    public static HtmlSceneNodeId Root { get; } = new(1);
+
+    public bool IsFragment => FragmentIndex > 0;
+
+    public static HtmlSceneNodeId Fragment(HtmlSceneNodeId source, int fragmentIndex)
+        => new(source.Value, fragmentIndex + 1);
+
+    public override string ToString()
+        => IsFragment
+            ? string.Concat(Value.ToString(System.Globalization.CultureInfo.InvariantCulture), ":frag:", (FragmentIndex - 1).ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+}
+
+internal enum HtmlSceneNodeRole : byte
+{
+    Normal,
+    Table,
+    TableSection,
+    TableRow,
+    TableCell,
+    ListItem,
+    ListMarker,
+    ListContent,
+    InlineRun,
+    Text,
+    InputText
+}
+
 internal sealed record HtmlSceneNode(
-    string Id,
+    HtmlSceneNodeId Id,
     SceneNodeKind NodeKind,
     HtmlComputedStyle Style,
-    IReadOnlyList<HtmlSceneNode> Children,
+    HtmlSceneNode[] Children,
     string? TextContent,
     string? PlaceholderText,
     string? ImageSource,
@@ -16,47 +46,50 @@ internal sealed record HtmlSceneNode(
     HtmlNodeId DomNodeId = default,
     int RowSpan = 1,
     int ColSpan = 1,
-    SceneControlKind ControlKind = SceneControlKind.None)
+    SceneControlKind ControlKind = SceneControlKind.None,
+    HtmlSceneNodeRole Role = HtmlSceneNodeRole.Normal)
 {
-    public uint StyleVersion { get; init; } = 1;
+    public HtmlSceneNodeId Id { get; set; } = Id;
 
-    public uint LayoutVersion { get; init; } = 1;
+    public HtmlComputedStyle Style { get; set; } = Style;
+
+    public string? TextContent { get; set; } = TextContent;
+
+    public string? Label { get; set; } = Label;
+
+    public HtmlNodeId DomNodeId { get; set; } = DomNodeId;
+
+    public uint StyleVersion { get; set; } = 1;
+
+    public uint LayoutVersion { get; set; } = 1;
 }
 
 internal sealed record HtmlStyledSceneTree(
     HtmlComputedStyle RootStyle,
-    IReadOnlyList<HtmlSceneNode> RootChildren,
+    HtmlSceneNode[] RootChildren,
     uint StyleStoreGeneration,
     HtmlNodeId RootDomNodeId);
 
 internal readonly record struct HtmlPlacedNode(
     HtmlSceneNode Node,
-    string? ParentId,
+    HtmlSceneNodeId? ParentId,
     float AbsLeft,
     float AbsTop,
     float Width,
     float Height,
-    string? FragmentId = null,
+    int FragmentIndex = -1,
     string? TextContentOverride = null)
 {
-    public string Id => FragmentId ?? Node.Id;
+    public HtmlSceneNodeId Id => FragmentIndex >= 0 ? HtmlSceneNodeId.Fragment(Node.Id, FragmentIndex) : Node.Id;
 
     public string? TextContent => TextContentOverride ?? Node.TextContent;
 }
 
-internal readonly record struct HtmlChildRelation(string ParentId, string[] ChildIds);
+internal readonly record struct HtmlChildRelation(HtmlSceneNodeId ParentId, HtmlSceneNodeId[] ChildIds);
 
 internal sealed class HtmlNodeIdGenerator
 {
-    private int nextId;
+    private int nextId = HtmlSceneNodeId.Root.Value;
 
-    public string Next(string prefix)
-    {
-        nextId += 1;
-        Span<char> buffer = stackalloc char[@prefix.Length + 10];
-        prefix.AsSpan().CopyTo(buffer);
-        buffer[prefix.Length] = '-';
-        nextId.TryFormat(buffer[(prefix.Length + 1)..], out var charsWritten);
-        return buffer[..(prefix.Length + 1 + charsWritten)].ToString();
-    }
+    public HtmlSceneNodeId Next() => new(++nextId);
 }

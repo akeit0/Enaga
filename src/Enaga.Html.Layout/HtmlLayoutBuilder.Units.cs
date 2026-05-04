@@ -4,13 +4,13 @@ namespace Enaga.Html;
 
 internal sealed partial class HtmlLayoutBuilder
 {
-    private static IReadOnlyList<HtmlSceneNode> ResolveViewportUnits(IReadOnlyList<HtmlSceneNode> nodes, float viewportWidth, float viewportHeight)
+    private static HtmlSceneNode[] ResolveViewportUnits(HtmlSceneNode[] nodes, float viewportWidth, float viewportHeight)
     {
-        if (nodes.Count == 0)
+        if (nodes.Length == 0)
             return nodes;
 
         HtmlSceneNode[]? resolved = null;
-        for (var index = 0; index < nodes.Count; index++)
+        for (var index = 0; index < nodes.Length; index++)
         {
             var node = nodes[index];
             var style = node.Style.CloneWithResolvedViewportUnits(viewportWidth, viewportHeight);
@@ -25,7 +25,7 @@ internal sealed partial class HtmlLayoutBuilder
 
             if (resolved is null)
             {
-                resolved = new HtmlSceneNode[nodes.Count];
+                resolved = new HtmlSceneNode[nodes.Length];
                 for (var copyIndex = 0; copyIndex < index; copyIndex++)
                     resolved[copyIndex] = nodes[copyIndex];
             }
@@ -40,9 +40,9 @@ internal sealed partial class HtmlLayoutBuilder
         return resolved ?? nodes;
     }
 
-    private IReadOnlyList<HtmlSceneNode> ResolveContainerPercentUnits(IReadOnlyList<HtmlSceneNode> nodes, float containerWidth)
+    private HtmlSceneNode[] ResolveContainerPercentUnits(HtmlSceneNode[] nodes, float containerWidth)
     {
-        if (nodes.Count == 0)
+        if (nodes.Length == 0)
             return nodes;
 
         var cacheKey = new ContainerPercentResolveKey(nodes, QuantizeMeasureKey(containerWidth));
@@ -50,7 +50,7 @@ internal sealed partial class HtmlLayoutBuilder
             return cached;
 
         HtmlSceneNode[]? resolved = null;
-        for (var index = 0; index < nodes.Count; index++)
+        for (var index = 0; index < nodes.Length; index++)
         {
             var node = nodes[index];
             var style = node.Style.CloneWithResolvedContainerPercentUnits(
@@ -65,7 +65,7 @@ internal sealed partial class HtmlLayoutBuilder
 
             if (resolved is null)
             {
-                resolved = new HtmlSceneNode[nodes.Count];
+                resolved = new HtmlSceneNode[nodes.Length];
                 for (var copyIndex = 0; copyIndex < index; copyIndex++)
                     resolved[copyIndex] = nodes[copyIndex];
             }

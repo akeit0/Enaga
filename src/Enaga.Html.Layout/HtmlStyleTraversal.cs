@@ -11,7 +11,12 @@ internal sealed record HtmlComputedStyleTree(
 
 internal sealed class HtmlStyleTraversal
 {
+    private const int MaxResolvedStyleCacheEntries = 262_144;
     private readonly HtmlStyleResolver resolver;
+    private readonly HtmlComputedStyleInterner styleInterner = new();
+    private readonly Dictionary<ResolvedStyleCacheKey, HtmlComputedStyle> resolvedStyleCache = new();
+    private HtmlParsedDocument? cachedDocument;
+    private bool cachedResolveHadPseudoState;
 
     public HtmlStyleTraversal(HtmlOptions options, LayoutEngineConfig layoutConfig)
     {
@@ -22,12 +27,31 @@ internal sealed class HtmlStyleTraversal
         HtmlParsedDocument document,
         int viewportWidth,
         int viewportHeight,
-        Func<HtmlDomElement, bool>? isHovered = null,
-        Func<HtmlDomElement, bool>? isActive = null)
+        IReadOnlySet<HtmlNodeId>? hoveredNodeIds = null,
+        HtmlNodeId? activeNodeId = null)
     {
         ArgumentNullException.ThrowIfNull(document);
 
+        styleInterner.Clear();
+        var hasPseudoState = hoveredNodeIds is { Count: > 0 } || activeNodeId is not null;
+        if (!ReferenceEquals(cachedDocument, document) ||
+            hasPseudoState ||
+            cachedResolveHadPseudoState ||
+            resolvedStyleCache.Count > MaxResolvedStyleCacheEntries)
+        {
+            resolvedStyleCache.Clear();
+            cachedDocument = document;
+        }
+        cachedResolveHadPseudoState = hasPseudoState;
+
         var styles = new Dictionary<HtmlNodeId, HtmlComputedStyle>(CountElements(document.RootElement));
+        HashSet<HtmlNodeId>? hoveredSubtreeNodeIds = null;
+        if (hoveredNodeIds is { Count: > 0 })
+        {
+            hoveredSubtreeNodeIds = new HashSet<HtmlNodeId>();
+            MarkHoveredSubtreeNodes(document.RootElement, hoveredNodeIds, hoveredSubtreeNodeIds);
+        }
+
         var ancestors = new List<HtmlDomElement>();
         var ancestorHoverStates = new List<bool>();
         var versionHash = new HashCode();
@@ -38,8 +62,8 @@ internal sealed class HtmlStyleTraversal
             document.BasePath,
             Math.Max(1, viewportWidth),
             Math.Max(1, viewportHeight),
-            isHovered,
-            isActive,
+            hoveredSubtreeNodeIds,
+            activeNodeId,
             ancestors,
             ancestorHoverStates,
             styles,
@@ -55,34 +79,48 @@ internal sealed class HtmlStyleTraversal
         string? basePath,
         int viewportWidth,
         int viewportHeight,
-        Func<HtmlDomElement, bool>? isHovered,
-        Func<HtmlDomElement, bool>? isActive,
+        HashSet<HtmlNodeId>? hoveredSubtreeNodeIds,
+        HtmlNodeId? activeNodeId,
         List<HtmlDomElement> ancestors,
         List<bool> ancestorHoverStates,
         Dictionary<HtmlNodeId, HtmlComputedStyle> styles,
         ref HashCode versionHash)
     {
-        var elementHovered = isHovered?.Invoke(element) == true ||
-            HasHoveredDescendant(element, isHovered);
-        var style = resolver.Resolve(
+        var elementHovered = hoveredSubtreeNodeIds?.Contains(element.NodeId) == true;
+        var isActive = activeNodeId == element.NodeId;
+        var styleCacheKey = CreateResolvedStyleCacheKey(
             element,
             inherited,
             ancestors,
             ancestorHoverStates,
-            styleSheet,
             elementHovered,
-            isActive?.Invoke(element) == true,
+            isActive,
             viewportWidth,
-            viewportHeight,
-            basePath);
-        if (string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrWhiteSpace(element.GetAttribute("href")))
+            viewportHeight);
+        if (!resolvedStyleCache.TryGetValue(styleCacheKey, out var style))
         {
-            style.ApplyAnchorDefaults();
-        }
+            style = resolver.Resolve(
+                element,
+                inherited,
+                ancestors,
+                ancestorHoverStates,
+                styleSheet,
+                elementHovered,
+                isActive,
+                viewportWidth,
+                viewportHeight,
+                basePath);
+            if (string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(element.GetAttribute("href")))
+            {
+                style.ApplyAnchorDefaults();
+            }
 
-        if (IsInlineStyleElement(element))
-            style.ApplyInlineElementDefaults(element.LocalName);
+            if (IsInlineStyleElement(element))
+                style.ApplyInlineElementDefaults(element.LocalName);
+            style = styleInterner.Intern(style);
+            resolvedStyleCache[styleCacheKey] = style;
+        }
         styles[element.NodeId] = style;
         AddStyleVersionHash(ref versionHash, element.NodeId, style);
 
@@ -90,8 +128,9 @@ internal sealed class HtmlStyleTraversal
         ancestorHoverStates.Add(elementHovered);
         try
         {
-            foreach (var child in element.Children)
+            for (var index = 0; index < element.Children.Count; index++)
             {
+                var child = element.Children[index];
                 if (child is HtmlDomElement childElement)
                 {
                     ResolveElement(
@@ -101,8 +140,8 @@ internal sealed class HtmlStyleTraversal
                         basePath,
                         viewportWidth,
                         viewportHeight,
-                        isHovered,
-                        isActive,
+                        hoveredSubtreeNodeIds,
+                        activeNodeId,
                         ancestors,
                         ancestorHoverStates,
                         styles,
@@ -120,8 +159,9 @@ internal sealed class HtmlStyleTraversal
     private static int CountElements(HtmlDomElement root)
     {
         var count = 1;
-        foreach (var child in root.Children)
+        for (var index = 0; index < root.Children.Count; index++)
         {
+            var child = root.Children[index];
             if (child is HtmlDomElement childElement)
                 count += CountElements(childElement);
         }
@@ -167,20 +207,146 @@ internal sealed class HtmlStyleTraversal
     private static bool IsInlineStyleElement(HtmlDomElement element)
         => element.LocalName is "a" or "span" or "strong" or "b" or "em" or "i" or "u" or "small" or "font" or "br";
 
-    private static bool HasHoveredDescendant(HtmlDomElement element, Func<HtmlDomElement, bool>? isHovered)
+    private static ResolvedStyleCacheKey CreateResolvedStyleCacheKey(
+        HtmlDomElement element,
+        HtmlComputedStyle? inherited,
+        IReadOnlyList<HtmlDomElement> ancestors,
+        IReadOnlyList<bool> ancestorHoverStates,
+        bool isHovered,
+        bool isActive,
+        int viewportWidth,
+        int viewportHeight)
+        => new(
+            element.LocalName,
+            element.Id,
+            element.ClassName,
+            inherited,
+            HashAttributes(element),
+            HashAncestors(ancestors, ancestorHoverStates),
+            IsFirstElementChild(element, ancestors.Count > 0 ? ancestors[^1] : null),
+            isHovered,
+            isActive,
+            viewportWidth,
+            viewportHeight);
+
+    private static int HashAncestors(
+        IReadOnlyList<HtmlDomElement> ancestors,
+        IReadOnlyList<bool> ancestorHoverStates)
     {
-        if (isHovered is null)
+        var hash = new HashCode();
+        hash.Add(ancestors.Count);
+        for (var index = 0; index < ancestors.Count; index++)
+        {
+            var ancestor = ancestors[index];
+            hash.Add(ancestor.LocalName);
+            hash.Add(ancestor.Id);
+            hash.Add(ancestor.ClassName);
+            hash.Add(HashAttributes(ancestor));
+            hash.Add(index < ancestorHoverStates.Count && ancestorHoverStates[index]);
+            hash.Add(IsFirstElementChild(ancestor, index > 0 ? ancestors[index - 1] : null));
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private static int HashAttributes(HtmlDomElement element)
+    {
+        var hash = new HashCode();
+        hash.Add(element.Attributes.Count);
+        if (element.Attributes is Dictionary<string, string> dictionary)
+        {
+            foreach (var (name, value) in dictionary)
+            {
+                hash.Add(name, StringComparer.OrdinalIgnoreCase);
+                hash.Add(value);
+            }
+
+            return hash.ToHashCode();
+        }
+
+        foreach (var pair in element.Attributes)
+        {
+            hash.Add(pair.Key, StringComparer.OrdinalIgnoreCase);
+            hash.Add(pair.Value);
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private static bool IsFirstElementChild(HtmlDomElement element, HtmlDomElement? parent)
+    {
+        if (parent is null)
             return false;
 
-        foreach (var child in element.Children)
+        for (var index = 0; index < parent.Children.Count; index++)
         {
-            if (child is not HtmlDomElement childElement)
+            if (parent.Children[index] is not HtmlDomElement childElement)
                 continue;
 
-            if (isHovered(childElement) || HasHoveredDescendant(childElement, isHovered))
-                return true;
+            return ReferenceEquals(childElement, element) || childElement == element;
         }
 
         return false;
     }
+
+    private static bool MarkHoveredSubtreeNodes(HtmlDomElement element, IReadOnlySet<HtmlNodeId> hoveredNodeIds, HashSet<HtmlNodeId> hoveredSubtreeNodeIds)
+    {
+        var containsHoveredNode = hoveredNodeIds.Contains(element.NodeId);
+
+        for (var index = 0; index < element.Children.Count; index++)
+        {
+            var child = element.Children[index];
+            if (child is not HtmlDomElement childElement)
+                continue;
+
+            containsHoveredNode |= MarkHoveredSubtreeNodes(childElement, hoveredNodeIds, hoveredSubtreeNodeIds);
+        }
+
+        if (containsHoveredNode)
+            hoveredSubtreeNodeIds.Add(element.NodeId);
+
+        return containsHoveredNode;
+    }
+
+    private sealed class HtmlComputedStyleInterner
+    {
+        private readonly Dictionary<int, List<HtmlComputedStyle>> stylesByHash = new();
+
+        public void Clear() => stylesByHash.Clear();
+
+        public HtmlComputedStyle Intern(HtmlComputedStyle style)
+        {
+            var hash = style.GetStyleSharingHash();
+            if (!stylesByHash.TryGetValue(hash, out var candidates))
+            {
+                candidates = new List<HtmlComputedStyle>(1);
+                stylesByHash[hash] = candidates;
+                candidates.Add(style);
+                return style;
+            }
+
+            for (var index = 0; index < candidates.Count; index++)
+            {
+                var candidate = candidates[index];
+                if (HtmlComputedStyle.HasSameStyleSharingIdentity(candidate, style))
+                    return candidate;
+            }
+
+            candidates.Add(style);
+            return style;
+        }
+    }
+
+    private readonly record struct ResolvedStyleCacheKey(
+        string LocalName,
+        string? Id,
+        string? ClassName,
+        HtmlComputedStyle? Inherited,
+        int AttributeHash,
+        int AncestorHash,
+        bool IsFirstElementChild,
+        bool IsHovered,
+        bool IsActive,
+        int ViewportWidth,
+        int ViewportHeight);
 }

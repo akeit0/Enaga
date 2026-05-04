@@ -7,6 +7,10 @@ namespace Enaga.Tests;
 
 public sealed class SceneCommitPainterScrollBarTests
 {
+    private static readonly SceneNodeId Root = new(1);
+    private static readonly SceneNodeId Body = new(2);
+    private static readonly SceneNodeId Pane = new(3);
+
     [Fact]
     public void ResolveVerticalScrollBar_ReturnsNullWhenContentFitsViewport()
     {
@@ -191,17 +195,17 @@ public sealed class SceneCommitPainterScrollBarTests
         using var canvas = new SkiaSharp.SKCanvas(bitmap);
         using var painter = new SceneCommitPainter();
         canvas.Clear(SkiaSharp.SKColors.White);
-        var nodes = new Dictionary<string, SceneGraphNode>(StringComparer.Ordinal)
+        var nodes = new Dictionary<SceneNodeId, SceneGraphNode>
         {
-            ["root"] = new(SceneNodeKind.View, null, ["body"]),
-            ["body"] = new(SceneNodeKind.ScrollView, null, []),
+            [Root] = new(SceneNodeKind.View, null, [Body]),
+            [Body] = new(SceneNodeKind.ScrollView, null, []),
         };
-        var layout = new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal)
+        var layout = new Dictionary<SceneNodeId, SceneLayoutBox>
         {
-            ["root"] = new(SceneNodeKind.View, 0, 0, 100, 100),
-            ["body"] = new(SceneNodeKind.ScrollView, 0, 0, 93, 100, ScrollBarWidth: 12, ContentHeight: 300, ScrollBarTrackColor: "#1f1f1f"),
+            [Root] = new(SceneNodeKind.View, 0, 0, 100, 100),
+            [Body] = new(SceneNodeKind.ScrollView, 0, 0, 93, 100, ScrollBarWidth: 12, ContentHeight: 300, ScrollBarTrackColor: "#1f1f1f"),
         };
-        var commit = new SceneLayoutCommit("root", new SceneViewport(140, 180), nodes, layout, []);
+        var commit = new SceneLayoutCommit(Root, new SceneViewport(140, 180), nodes, layout, []);
 
         painter.PaintScrollBars(canvas, commit, 1, 140, 180);
 
@@ -217,19 +221,19 @@ public sealed class SceneCommitPainterScrollBarTests
         using var canvas = new SkiaSharp.SKCanvas(bitmap);
         using var painter = new SceneCommitPainter();
         canvas.Clear(SkiaSharp.SKColors.White);
-        var nodes = new Dictionary<string, SceneGraphNode>(StringComparer.Ordinal)
+        var nodes = new Dictionary<SceneNodeId, SceneGraphNode>
         {
-            ["root"] = new(SceneNodeKind.View, null, ["body"]),
-            ["body"] = new(SceneNodeKind.ScrollView, "root", ["pane"]),
-            ["pane"] = new(SceneNodeKind.ScrollView, "body", []),
+            [Root] = new(SceneNodeKind.View, null, [Body]),
+            [Body] = new(SceneNodeKind.ScrollView, Root, [Pane]),
+            [Pane] = new(SceneNodeKind.ScrollView, Body, []),
         };
-        var layout = new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal)
+        var layout = new Dictionary<SceneNodeId, SceneLayoutBox>
         {
-            ["root"] = new(SceneNodeKind.View, 0, 0, 100, 100),
-            ["body"] = new(SceneNodeKind.ScrollView, 0, 0, 100, 100, ScrollY: 40, ContentHeight: 240, ScrollBarTrackColor: "#1f1f1f"),
-            ["pane"] = new(SceneNodeKind.ScrollView, 10, 80, 50, 40, ContentHeight: 120, ScrollBarWidth: 10, ScrollBarTrackColor: "#ff0000"),
+            [Root] = new(SceneNodeKind.View, 0, 0, 100, 100),
+            [Body] = new(SceneNodeKind.ScrollView, 0, 0, 100, 100, ScrollY: 40, ContentHeight: 240, ScrollBarTrackColor: "#1f1f1f"),
+            [Pane] = new(SceneNodeKind.ScrollView, 10, 80, 50, 40, ContentHeight: 120, ScrollBarWidth: 10, ScrollBarTrackColor: "#ff0000"),
         };
-        var commit = new SceneLayoutCommit("root", new SceneViewport(120, 120), nodes, layout, []);
+        var commit = new SceneLayoutCommit(Root, new SceneViewport(120, 120), nodes, layout, []);
 
         painter.PaintScrollBars(canvas, commit, 1, 120, 120);
 

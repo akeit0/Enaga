@@ -6,11 +6,11 @@ namespace Enaga.Html;
 
 internal sealed class HtmlSceneVersionStore
 {
-    private static readonly HtmlSceneVersionAdapter Adapter = new();
     private readonly DomElementStyleStore<HtmlComputedStyle> domStore = new();
     private readonly Dictionary<HtmlNodeId, HtmlSceneNode> domLayoutIdentities = new();
-    private readonly ElementStyleLayoutStore<string, HtmlComputedStyle, HtmlSceneNode> generatedStore = new(StringComparer.Ordinal);
+    private readonly Dictionary<HtmlSceneNodeId, GeneratedSceneEntry> generatedEntries = new();
     private readonly HtmlLayoutDirtySet layoutDirtyNodes = new();
+    private uint generatedGeneration;
 
     public RestyleHint LastInvalidationHints { get; private set; }
 
@@ -29,7 +29,7 @@ internal sealed class HtmlSceneVersionStore
         layoutDirtyNodes.Clear();
     }
 
-    public IReadOnlyList<HtmlSceneNode> AssignVersions(IReadOnlyList<HtmlSceneNode> nodes)
+    public HtmlSceneNode[] AssignVersions(HtmlSceneNode[] nodes)
     {
         LastInvalidationHints = RestyleHint.None;
         LastDamage = Enaga.Html.Style.RenderDamage.None;
@@ -101,15 +101,28 @@ internal sealed class HtmlSceneVersionStore
             newState));
     }
 
-    private IReadOnlyList<HtmlSceneNode> AssignVersionsCore(IReadOnlyList<HtmlSceneNode> nodes)
+    private HtmlSceneNode[] AssignVersionsCore(HtmlSceneNode[] nodes)
     {
-        if (nodes.Count == 0)
+        if (nodes.Length == 0)
             return nodes;
 
-        var versioned = new HtmlSceneNode[nodes.Count];
-        for (var index = 0; index < nodes.Count; index++)
-            versioned[index] = AssignVersionsCore(nodes[index]);
-        return versioned;
+        HtmlSceneNode[]? versioned = null;
+        for (var index = 0; index < nodes.Length; index++)
+        {
+            var node = nodes[index];
+            var next = AssignVersionsCore(node);
+            if (versioned is null && !ReferenceEquals(next, node))
+            {
+                versioned = new HtmlSceneNode[nodes.Length];
+                for (var copyIndex = 0; copyIndex < index; copyIndex++)
+                    versioned[copyIndex] = nodes[copyIndex];
+            }
+
+            if (versioned is not null)
+                versioned[index] = next;
+        }
+
+        return versioned ?? nodes;
     }
 
     private HtmlSceneNode AssignVersionsCore(HtmlSceneNode node)
@@ -120,29 +133,34 @@ internal sealed class HtmlSceneVersionStore
             : node with { Children = children };
         if (!candidate.DomNodeId.IsValid)
         {
-            var result = generatedStore.AssignVersions([candidate], Adapter);
-            LastInvalidationHints |= result.InvalidationHints;
-            LastDamage |= result.Damage;
-            Generation = Math.Max(Generation, result.Generation);
-            AddLayoutDirtyNode(candidate, previous: null, result.Damage);
-            return result.Nodes[0];
+            var versioned = AssignGeneratedVersion(
+                candidate,
+                out var invalidation,
+                out var damage,
+                out var generation);
+            LastInvalidationHints |= invalidation;
+            LastDamage |= damage;
+            Generation = Math.Max(Generation, generation);
+            AddLayoutDirtyNode(candidate, previous: null, damage);
+            return versioned;
         }
 
         domLayoutIdentities.TryGetValue(candidate.DomNodeId, out var previous);
         var layoutIdentityChanged =
             previous is null ||
-            !Adapter.HasSameNodeLayoutIdentity(previous, candidate);
+            !HasSameNodeLayoutIdentity(previous, candidate);
         var versions = domStore.AssignVersions(
             candidate.DomNodeId,
             candidate.Style,
             HtmlComputedStyle.HasSameLayoutIdentity,
             layoutIdentityChanged);
-        domLayoutIdentities[candidate.DomNodeId] = candidate;
         LastInvalidationHints |= versions.InvalidationHints;
         LastDamage |= versions.Damage;
         Generation = Math.Max(Generation, versions.Generation);
         AddLayoutDirtyNode(candidate, previous, versions.Damage);
-        return candidate with { StyleVersion = versions.StyleVersion, LayoutVersion = versions.LayoutVersion };
+        ApplyVersions(candidate, versions.StyleVersion, versions.LayoutVersion);
+        domLayoutIdentities[candidate.DomNodeId] = candidate;
+        return candidate;
     }
 
     private void AddLayoutDirtyNode(HtmlSceneNode node, HtmlSceneNode? previous, Enaga.Html.Style.RenderDamage damage)
@@ -189,72 +207,114 @@ internal sealed class HtmlSceneVersionStore
         PendingInvalidations.Clear();
     }
 
-    private sealed class HtmlSceneVersionAdapter : IStyleLayoutVersionAdapter<HtmlSceneNode, HtmlComputedStyle, string>
+    private HtmlSceneNode AssignGeneratedVersion(
+        HtmlSceneNode candidate,
+        out RestyleHint invalidation,
+        out Enaga.Html.Style.RenderDamage damage,
+        out uint generation)
     {
-        public HtmlNodeId GetNodeId(HtmlSceneNode node) => node.DomNodeId;
-
-        public string GetKey(HtmlSceneNode node) => node.Id;
-
-        public HtmlComputedStyle GetStyle(HtmlSceneNode node) => node.Style;
-
-        public IReadOnlyList<HtmlSceneNode> GetChildren(HtmlSceneNode node) => node.Children;
-
-        public HtmlSceneNode WithChildren(HtmlSceneNode node, IReadOnlyList<HtmlSceneNode> children)
-            => node with { Children = children };
-
-        public HtmlSceneNode WithVersions(HtmlSceneNode node, uint styleVersion, uint layoutVersion)
-            => node with { StyleVersion = styleVersion, LayoutVersion = layoutVersion };
-
-        public bool HasSameStyleLayoutIdentity(HtmlComputedStyle previous, HtmlComputedStyle next)
-            => HtmlComputedStyle.HasSameLayoutIdentity(previous, next);
-
-        public bool HasSameNodeLayoutIdentity(HtmlSceneNode previous, HtmlSceneNode next)
+        invalidation = RestyleHint.None;
+        damage = Enaga.Html.Style.RenderDamage.None;
+        if (!generatedEntries.TryGetValue(candidate.Id, out var entry))
         {
-            if (previous.NodeKind != next.NodeKind ||
-                previous.RowSpan != next.RowSpan ||
-                previous.ColSpan != next.ColSpan ||
-                !string.Equals(previous.TextContent, next.TextContent, StringComparison.Ordinal) ||
-                !string.Equals(previous.PlaceholderText, next.PlaceholderText, StringComparison.Ordinal) ||
-                !string.Equals(previous.ImageSource, next.ImageSource, StringComparison.Ordinal) ||
-                !string.Equals(previous.LinkHref, next.LinkHref, StringComparison.Ordinal) ||
-                !string.Equals(previous.Label, next.Label, StringComparison.Ordinal) ||
-                previous.Children.Count != next.Children.Count)
+            entry = new GeneratedSceneEntry(candidate.Style, candidate, styleVersion: 1, layoutVersion: 1);
+            generatedEntries[candidate.Id] = entry;
+            generatedGeneration++;
+            generation = generatedGeneration;
+            invalidation = RestyleHint.MatchSelf | RestyleHint.CascadeSelf | RestyleHint.RebuildFormattingTree;
+            damage = Enaga.Html.Style.RenderDamage.RebuildStyle |
+                     Enaga.Html.Style.RenderDamage.RebuildLayoutTree |
+                     Enaga.Html.Style.RenderDamage.Relayout |
+                     Enaga.Html.Style.RenderDamage.Refragment |
+                     Enaga.Html.Style.RenderDamage.Repaint |
+                     Enaga.Html.Style.RenderDamage.RebuildHitTest;
+            ApplyVersions(candidate, entry.StyleVersion, entry.LayoutVersion);
+            entry.Node = candidate;
+            return candidate;
+        }
+
+        var styleChanged = !HtmlComputedStyle.HasSameLayoutIdentity(entry.Style, candidate.Style);
+        if (styleChanged)
+        {
+            entry.Style = candidate.Style;
+            entry.StyleVersion++;
+            entry.LayoutVersion++;
+            generatedGeneration++;
+            invalidation |= RestyleHint.CascadeSelf;
+            damage |= Enaga.Html.Style.RenderDamage.RebuildStyle |
+                      Enaga.Html.Style.RenderDamage.Relayout |
+                      Enaga.Html.Style.RenderDamage.Refragment |
+                      Enaga.Html.Style.RenderDamage.Repaint;
+        }
+
+        if (styleChanged || !HasSameNodeLayoutIdentity(entry.Node, candidate))
+        {
+            entry.Node = candidate;
+            entry.LayoutVersion++;
+            generatedGeneration++;
+            invalidation |= RestyleHint.RebuildFormattingTree;
+            damage |= Enaga.Html.Style.RenderDamage.RebuildLayoutTree |
+                      Enaga.Html.Style.RenderDamage.Relayout |
+                      Enaga.Html.Style.RenderDamage.Refragment |
+                      Enaga.Html.Style.RenderDamage.Repaint |
+                      Enaga.Html.Style.RenderDamage.RebuildHitTest;
+        }
+
+        generation = generatedGeneration;
+        ApplyVersions(candidate, entry.StyleVersion, entry.LayoutVersion);
+        entry.Node = candidate;
+        return candidate;
+    }
+
+    private static void ApplyVersions(HtmlSceneNode node, uint styleVersion, uint layoutVersion)
+    {
+        node.StyleVersion = styleVersion;
+        node.LayoutVersion = layoutVersion;
+    }
+
+    private static bool HasSameNodeLayoutIdentity(HtmlSceneNode previous, HtmlSceneNode next)
+    {
+        if (previous.NodeKind != next.NodeKind ||
+            previous.RowSpan != next.RowSpan ||
+            previous.ColSpan != next.ColSpan ||
+            !string.Equals(previous.TextContent, next.TextContent, StringComparison.Ordinal) ||
+            !string.Equals(previous.PlaceholderText, next.PlaceholderText, StringComparison.Ordinal) ||
+            !string.Equals(previous.ImageSource, next.ImageSource, StringComparison.Ordinal) ||
+            !string.Equals(previous.LinkHref, next.LinkHref, StringComparison.Ordinal) ||
+            !string.Equals(previous.Label, next.Label, StringComparison.Ordinal) ||
+            previous.Children.Length != next.Children.Length)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < previous.Children.Length; index++)
+        {
+            var previousChild = previous.Children[index];
+            var nextChild = next.Children[index];
+            if (previousChild.Id != nextChild.Id ||
+                previousChild.StyleVersion != nextChild.StyleVersion ||
+                previousChild.LayoutVersion != nextChild.LayoutVersion)
             {
                 return false;
             }
-
-            for (var index = 0; index < previous.Children.Count; index++)
-            {
-                var previousChild = previous.Children[index];
-                var nextChild = next.Children[index];
-                if (!string.Equals(previousChild.Id, nextChild.Id, StringComparison.Ordinal) ||
-                    previousChild.StyleVersion != nextChild.StyleVersion ||
-                    previousChild.LayoutVersion != nextChild.LayoutVersion)
-                {
-                    return false;
-                }
-            }
-
-            return true;
         }
+
+        return true;
+    }
+
+    private sealed class GeneratedSceneEntry(HtmlComputedStyle style, HtmlSceneNode node, uint styleVersion, uint layoutVersion)
+    {
+        public HtmlComputedStyle Style { get; set; } = style;
+        public HtmlSceneNode Node { get; set; } = node;
+        public uint StyleVersion { get; set; } = styleVersion;
+        public uint LayoutVersion { get; set; } = layoutVersion;
     }
 }
 
 internal static class HtmlLayoutVersion
 {
-    public static LayoutNodeId ToLayoutNodeId(string nodeId)
-    {
-        const uint offset = 2166136261;
-        const uint prime = 16777619;
-        var hash = offset;
-        foreach (var ch in nodeId.AsSpan())
-        {
-            hash ^= ch;
-            hash *= prime;
-        }
-
-        return new LayoutNodeId(unchecked((int)hash));
-    }
+    public static LayoutNodeId ToLayoutNodeId(HtmlSceneNodeId nodeId)
+        => new(HashCode.Combine(nodeId.Value, nodeId.FragmentIndex));
 }
 
 [Flags]

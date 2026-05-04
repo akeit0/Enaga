@@ -55,14 +55,15 @@ internal sealed class SampleBrowserDiagnosticsFrameSource :
         var viewportChanged = width != lastWidth || height != lastHeight;
         var scrollChanged = float.IsNaN(lastRootScrollY) || Math.Abs(rootScrollY - lastRootScrollY) > 0.001f;
 
-        if (viewportChanged || scrollChanged || pendingInputLog)
+        var dynamicOverlayCount = result.Commit.DynamicOverlayRootIds.Length;
+        if (viewportChanged || scrollChanged || pendingInputLog || dynamicOverlayCount > 0)
         {
             Write(
                 "frame " +
                 $"viewport={width}x{height} scale={Format(ViewportScale)} " +
                 $"rootScroll=({Format(RootBoxOrDefault(result.Commit).ScrollX)},{Format(rootScrollY)}) " +
                 $"mouse=({Format(pointerX)},{Format(pointerY)}) buttons={pointerButtons} " +
-                $"damage={result.DamageReasons} dirty={result.DirtyRects.Length}");
+                $"damage={result.DamageReasons} dirty={result.DirtyRects.Length} overlays={dynamicOverlayCount}");
             WriteHitCandidates(result.Commit, pointerX, pointerY);
         }
 
@@ -191,9 +192,9 @@ internal sealed class SampleBrowserDiagnosticsFrameSource :
                 continue;
             }
 
-            commit.Nodes.TryGetValue(id, out var node);
+            var label = commit.Nodes.TryGetValue(id, out var node) ? node.Label : null;
             hits.Add(
-                $"{id} label={node?.Label ?? "-"} kind={box.NodeKind} " +
+                $"{id} label={label ?? "-"} kind={box.NodeKind} " +
                 $"rect=({Format(screenBox.AbsLeft)},{Format(screenBox.AbsTop)},{Format(screenBox.Width)},{Format(screenBox.Height)}) " +
                 $"scroll=({Format(screenBox.ScrollX)},{Format(screenBox.ScrollY)}) " +
                 $"bg={box.BackgroundColor ?? "-"} text={Trim(box.TextContent)} link={(string.IsNullOrWhiteSpace(box.LinkHref) ? "-" : "yes")}");

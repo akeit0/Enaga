@@ -17,6 +17,14 @@ internal sealed class SampleBrowserToolbarSource : ISceneFrameSource, IInputSink
     private const string RefreshId = "toolbar-refresh";
     private const string RefreshIconId = "toolbar-refresh-icon";
     private const string UrlInputId = "toolbar-url";
+    private static readonly SceneNodeId RootSceneId = new(1);
+    private static readonly SceneNodeId BackSceneId = new(2);
+    private static readonly SceneNodeId BackIconSceneId = new(3);
+    private static readonly SceneNodeId ForwardSceneId = new(4);
+    private static readonly SceneNodeId ForwardIconSceneId = new(5);
+    private static readonly SceneNodeId RefreshSceneId = new(6);
+    private static readonly SceneNodeId RefreshIconSceneId = new(7);
+    private static readonly SceneNodeId UrlInputSceneId = new(8);
     private const int LeftMouseButtonMask = 1;
     private const double DoubleClickThresholdMs = 150;
     private const float DoubleClickThresholdPx = 8;
@@ -340,43 +348,43 @@ internal sealed class SampleBrowserToolbarSource : ISceneFrameSource, IInputSink
     {
         var toolbarLayout = ResolveToolbarLayout(width);
         SyncInputLayout(toolbarLayout.InputLeft, toolbarLayout.InputWidth);
-        var children = new List<string>();
-        var nodes = new Dictionary<string, SceneGraphNode>(StringComparer.Ordinal);
-        var layout = new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal)
+        var children = new List<SceneNodeId>();
+        var nodes = new SceneNodeMap<SceneGraphNode>(8);
+        var layout = new SceneNodeMap<SceneLayoutBox>(8)
         {
-            [RootId] = new(SceneNodeKind.View, 0, 0, width, Height, BackgroundColor: "#f8fafc", BorderColor: "#d6dbe6", BorderWidth: 1)
+            [RootSceneId] = new(SceneNodeKind.View, 0, 0, width, Height, BackgroundColor: "#f8fafc", BorderColor: "#d6dbe6", BorderWidth: 1)
         };
 
 
         {
-            children.Add(BackId);
-            children.Add(BackIconId);
-            nodes[BackId] = new(SceneNodeKind.View, RootId, [], "Back");
-            nodes[BackIconId] = new(SceneNodeKind.Image, RootId, [], "Back icon");
-            layout[BackId] = CreateButtonBox(toolbarLayout.BackLeft, canGoBack ? "#e2e8f0" : "#f0f0f0");
-            layout[BackIconId] = CreateIconBox(toolbarLayout.BackLeft + 4, canGoBack ? "arrow_back_black64.png" : "arrow_back_disabled64.png");
+            children.Add(BackSceneId);
+            children.Add(BackIconSceneId);
+            nodes[BackSceneId] = new(SceneNodeKind.View, RootSceneId, [], "Back");
+            nodes[BackIconSceneId] = new(SceneNodeKind.Image, RootSceneId, [], "Back icon");
+            layout[BackSceneId] = CreateButtonBox(toolbarLayout.BackLeft, canGoBack ? "#e2e8f0" : "#f0f0f0");
+            layout[BackIconSceneId] = CreateIconBox(toolbarLayout.BackLeft + 4, canGoBack ? "arrow_back_black64.png" : "arrow_back_disabled64.png");
         }
 
         if (canGoForward)
         {
-            children.Add(ForwardId);
-            children.Add(ForwardIconId);
-            nodes[ForwardId] = new(SceneNodeKind.View, RootId, [], "Next");
-            nodes[ForwardIconId] = new(SceneNodeKind.Image, RootId, [], "Next icon");
-            layout[ForwardId] = CreateButtonBox(toolbarLayout.ForwardLeft);
-            layout[ForwardIconId] = CreateIconBox(toolbarLayout.ForwardLeft + 4, "arrow_forward_black64.png");
+            children.Add(ForwardSceneId);
+            children.Add(ForwardIconSceneId);
+            nodes[ForwardSceneId] = new(SceneNodeKind.View, RootSceneId, [], "Next");
+            nodes[ForwardIconSceneId] = new(SceneNodeKind.Image, RootSceneId, [], "Next icon");
+            layout[ForwardSceneId] = CreateButtonBox(toolbarLayout.ForwardLeft);
+            layout[ForwardIconSceneId] = CreateIconBox(toolbarLayout.ForwardLeft + 4, "arrow_forward_black64.png");
         }
 
-        children.Add(RefreshId);
-        children.Add(RefreshIconId);
-        children.Add(UrlInputId);
-        nodes[RefreshId] = new(SceneNodeKind.View, RootId, [], "Refresh");
-        nodes[RefreshIconId] = new(SceneNodeKind.Image, RootId, [], "Refresh icon");
-        nodes[UrlInputId] = new(SceneNodeKind.TextInput, RootId, [], "URL");
-        nodes[RootId] = new(SceneNodeKind.View, null, children);
-        layout[RefreshId] = CreateButtonBox(toolbarLayout.RefreshLeft);
-        layout[RefreshIconId] = CreateIconBox(toolbarLayout.RefreshLeft + 4, "refresh_black64.png");
-        layout[UrlInputId] = new(
+        children.Add(RefreshSceneId);
+        children.Add(RefreshIconSceneId);
+        children.Add(UrlInputSceneId);
+        nodes[RefreshSceneId] = new(SceneNodeKind.View, RootSceneId, [], "Refresh");
+        nodes[RefreshIconSceneId] = new(SceneNodeKind.Image, RootSceneId, [], "Refresh icon");
+        nodes[UrlInputSceneId] = new(SceneNodeKind.TextInput, RootSceneId, [], "URL");
+        nodes[RootSceneId] = new(SceneNodeKind.View, null, [.. children]);
+        layout[RefreshSceneId] = CreateButtonBox(toolbarLayout.RefreshLeft);
+        layout[RefreshIconSceneId] = CreateIconBox(toolbarLayout.RefreshLeft + 4, "refresh_black64.png");
+        layout[UrlInputSceneId] = new(
                 SceneNodeKind.TextInput,
                 toolbarLayout.InputLeft,
                 3,
@@ -407,7 +415,7 @@ internal sealed class SampleBrowserToolbarSource : ISceneFrameSource, IInputSink
                 ImeOpen: urlInputState.ImeOpen,
                 ImeIndicator: urlInputState.ImeIndicator);
 
-        return SceneLayoutCommitFactory.Create(RootId, new SceneViewport(width, Height), nodes, layout);
+        return SceneLayoutCommitFactory.Create(RootSceneId, new SceneViewport(width, Height), nodes, layout);
     }
 
     private void SyncInputLayout(float inputLeft, float inputWidth)
@@ -520,8 +528,8 @@ internal sealed class SampleBrowserToolbarSource : ISceneFrameSource, IInputSink
         return true;
     }
 
-    private void SetFocus(string? inputId)
-        => SetFocused(string.Equals(inputId, UrlInputId, StringComparison.Ordinal));
+    private void SetFocus(SceneNodeId? inputId)
+        => SetFocused(inputId == UrlInputSceneId);
 
     private void SetFocused(bool focused)
     {

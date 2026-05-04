@@ -7,6 +7,8 @@ using Enaga.Rendering;
 
 internal sealed class HtmlStyleResolver(HtmlOptions options, LayoutEngineConfig layoutConfig)
 {
+    private readonly List<HtmlCssRule> matchingRules = new();
+
     public HtmlComputedStyle Resolve(
         HtmlDomElement element,
         HtmlComputedStyle? inherited,
@@ -26,8 +28,17 @@ internal sealed class HtmlStyleResolver(HtmlOptions options, LayoutEngineConfig 
         style.ApplyElementDefaults(element.LocalName, layoutConfig);
         style.ApplyElementAttributes(element);
 
-        foreach (var rule in styleSheet.Match(element, ancestors, ancestorHoverStates, isHovered, viewportWidth, viewportHeight))
-            style.Apply(rule.Declarations);
+        matchingRules.Clear();
+        styleSheet.AddMatchingRules(
+            element,
+            ancestors,
+            ancestorHoverStates,
+            isHovered,
+            viewportWidth,
+            viewportHeight,
+            matchingRules);
+        for (var index = 0; index < matchingRules.Count; index++)
+            style.Apply(matchingRules[index].Declarations);
 
         var inlineStyle = element.GetAttribute("style");
         if (!string.IsNullOrWhiteSpace(inlineStyle))

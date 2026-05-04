@@ -6,49 +6,56 @@ namespace Enaga.Html;
 internal static class HtmlFragmentTreeFactory
 {
     public static HtmlFragmentTree Create(
-        string rootId,
+        HtmlSceneNodeId rootId,
+        SceneNodeIdentityMap<HtmlSceneNodeId> sceneNodeIds,
         float rootWidth,
         float rootHeight,
-        IReadOnlyList<HtmlPlacedNode> placedNodes,
-        IReadOnlyDictionary<string, SceneLayoutBox>? layout = null)
+        List<HtmlPlacedNode> placedNodes,
+        SceneNodeMap<SceneLayoutBox>? layout = null,
+        HtmlFragmentTree? previousTree = null)
     {
         var rootFragmentId = CreateFragmentId(rootId);
-        var fragments = new List<HtmlFragment>(placedNodes.Count + 5)
-        {
-            new(
-                rootFragmentId,
-                CreateFormattingNodeId(rootId),
-                ParentId: null,
-                Children: [],
-                HtmlFragmentKind.BlockBox,
-                new HtmlLayoutRect(0, 0, rootWidth, rootHeight),
-                new HtmlLayoutRect(0, 0, rootWidth, rootHeight),
-                PaintVersion: 1,
-                SceneNodeId: rootId,
-                SourceSceneNodeId: rootId)
-        };
-        if (layout is not null && layout.TryGetValue(rootId, out var rootBox))
-            AddScrollBarFragments(fragments, rootId, rootId, rootFragmentId, rootBox);
+        var rootSceneNodeId = sceneNodeIds.GetOrCreate(rootId);
+        var fragments = new List<HtmlFragment>(placedNodes.Count + 5);
+        var rootRect = new HtmlLayoutRect(0, 0, rootWidth, rootHeight);
+        fragments.Add(CreateOrReuseFragment(
+            previousTree,
+            rootFragmentId,
+            CreateFormattingNodeId(rootId),
+            ParentId: null,
+            Children: [],
+            HtmlFragmentKind.BlockBox,
+            rootRect,
+            rootRect,
+            PaintVersion: 1,
+            rootSceneNodeId,
+            rootId,
+            HtmlGeneratedFragmentRole.None));
+        if (layout is not null && layout.TryGetValue(rootSceneNodeId, out var rootBox))
+            AddScrollBarFragments(fragments, previousTree, rootId, rootId, rootFragmentId, rootBox);
 
         for (var index = 0; index < placedNodes.Count; index++)
         {
             var placed = placedNodes[index];
             var id = placed.Id;
+            var sceneNodeId = sceneNodeIds.GetOrCreate(id);
             var kind = ResolveFragmentKind(placed.Node);
             var rect = new HtmlLayoutRect(placed.AbsLeft, placed.AbsTop, placed.Width, placed.Height);
-            fragments.Add(new HtmlFragment(
+            fragments.Add(CreateOrReuseFragment(
+                previousTree,
                 CreateFragmentId(id),
                 CreateFormattingNodeId(placed.Node.Id),
-                ParentId: string.IsNullOrWhiteSpace(placed.ParentId) ? rootFragmentId : CreateFragmentId(placed.ParentId),
+                ParentId: placed.ParentId is null ? rootFragmentId : CreateFragmentId(placed.ParentId.Value),
                 Children: [],
                 kind,
-                BorderBox: rect,
-                VisualOverflow: ResolveVisualOverflow(placed, rect),
+                borderBox: rect,
+                visualOverflow: ResolveVisualOverflow(placed, rect),
                 PaintVersion: ResolvePaintVersion(placed),
-                SceneNodeId: id,
-                SourceSceneNodeId: placed.Node.Id));
-            if (layout is not null && layout.TryGetValue(id, out var box))
-                AddScrollBarFragments(fragments, id, placed.Node.Id, CreateFragmentId(id), box);
+                sceneNodeId,
+                placed.Node.Id,
+                HtmlGeneratedFragmentRole.None));
+            if (layout is not null && layout.TryGetValue(sceneNodeId, out var box))
+                AddScrollBarFragments(fragments, previousTree, id, placed.Node.Id, CreateFragmentId(id), box);
         }
 
         return new HtmlFragmentTree(rootFragmentId, fragments);
@@ -59,10 +66,9 @@ internal static class HtmlFragmentTreeFactory
 
     private static HtmlFragmentKind ResolveFragmentKind(HtmlSceneNode node)
     {
-        if (node.Id.StartsWith("marker-", StringComparison.Ordinal))
+        if (node.Role == HtmlSceneNodeRole.ListMarker)
             return HtmlFragmentKind.ListMarker;
-        if (node.Id.StartsWith("td-", StringComparison.Ordinal) ||
-            node.Id.StartsWith("th-", StringComparison.Ordinal))
+        if (node.Role == HtmlSceneNodeRole.TableCell)
             return HtmlFragmentKind.TableCell;
 
         return node.NodeKind switch
@@ -76,8 +82,9 @@ internal static class HtmlFragmentTreeFactory
 
     private static void AddScrollBarFragments(
         List<HtmlFragment> fragments,
-        string sceneNodeId,
-        string sourceSceneNodeId,
+        HtmlFragmentTree? previousTree,
+        HtmlSceneNodeId sceneNodeId,
+        HtmlSceneNodeId sourceSceneNodeId,
         HtmlFragmentId parentId,
         SceneLayoutBox box)
     {
@@ -90,6 +97,7 @@ internal static class HtmlFragmentTreeFactory
             var gutterWidth = Math.Max(0, box.ScrollBarWidth);
             AddGeneratedFragment(
                 fragments,
+                previousTree,
                 sceneNodeId,
                 sourceSceneNodeId,
                 parentId,
@@ -98,6 +106,7 @@ internal static class HtmlFragmentTreeFactory
                 paintVersion);
             AddGeneratedFragment(
                 fragments,
+                previousTree,
                 sceneNodeId,
                 sourceSceneNodeId,
                 parentId,
@@ -111,6 +120,7 @@ internal static class HtmlFragmentTreeFactory
             var gutterHeight = Math.Max(0, box.ScrollBarWidth);
             AddGeneratedFragment(
                 fragments,
+                previousTree,
                 sceneNodeId,
                 sourceSceneNodeId,
                 parentId,
@@ -119,6 +129,7 @@ internal static class HtmlFragmentTreeFactory
                 paintVersion);
             AddGeneratedFragment(
                 fragments,
+                previousTree,
                 sceneNodeId,
                 sourceSceneNodeId,
                 parentId,
@@ -130,8 +141,9 @@ internal static class HtmlFragmentTreeFactory
 
     private static void AddGeneratedFragment(
         List<HtmlFragment> fragments,
-        string sceneNodeId,
-        string sourceSceneNodeId,
+        HtmlFragmentTree? previousTree,
+        HtmlSceneNodeId sceneNodeId,
+        HtmlSceneNodeId sourceSceneNodeId,
         HtmlFragmentId parentId,
         HtmlGeneratedFragmentRole role,
         HtmlLayoutRect rect,
@@ -140,7 +152,8 @@ internal static class HtmlFragmentTreeFactory
         if (rect.IsEmpty)
             return;
 
-        fragments.Add(new HtmlFragment(
+        fragments.Add(CreateOrReuseFragment(
+            previousTree,
             CreateGeneratedFragmentId(sceneNodeId, role),
             CreateFormattingNodeId(sourceSceneNodeId),
             parentId,
@@ -149,9 +162,53 @@ internal static class HtmlFragmentTreeFactory
             rect,
             rect,
             paintVersion,
-            SceneNodeId: "",
-            SourceSceneNodeId: sourceSceneNodeId,
-            GeneratedRole: role));
+            SceneNodeId: default,
+            sourceSceneNodeId,
+            role));
+    }
+
+    private static HtmlFragment CreateOrReuseFragment(
+        HtmlFragmentTree? previousTree,
+        HtmlFragmentId id,
+        HtmlFormattingNodeId sourceNodeId,
+        HtmlFragmentId? ParentId,
+        IReadOnlyList<HtmlFragmentId> Children,
+        HtmlFragmentKind kind,
+        HtmlLayoutRect borderBox,
+        HtmlLayoutRect visualOverflow,
+        uint PaintVersion,
+        SceneNodeId SceneNodeId,
+        HtmlSceneNodeId SourceSceneNodeId,
+        HtmlGeneratedFragmentRole GeneratedRole)
+    {
+        if (previousTree is not null &&
+            previousTree.TryGetFragment(id, out var previous) &&
+            previous.SourceNodeId == sourceNodeId &&
+            previous.ParentId == ParentId &&
+            previous.Children.Count == Children.Count &&
+            previous.Kind == kind &&
+            previous.BorderBox == borderBox &&
+            previous.VisualOverflow == visualOverflow &&
+            previous.PaintVersion == PaintVersion &&
+            previous.SceneNodeId == SceneNodeId &&
+            previous.SourceSceneNodeId == SourceSceneNodeId &&
+            previous.GeneratedRole == GeneratedRole)
+        {
+            return previous;
+        }
+
+        return new HtmlFragment(
+            id,
+            sourceNodeId,
+            ParentId,
+            Children,
+            kind,
+            borderBox,
+            visualOverflow,
+            PaintVersion,
+            SceneNodeId,
+            SourceSceneNodeId,
+            GeneratedRole);
     }
 
     private static HtmlLayoutRect ToLayoutRect(SceneScrollBarLayout.ScrollBarRect rect)
@@ -227,32 +284,24 @@ internal static class HtmlFragmentTreeFactory
         return unchecked((uint)hash.ToHashCode());
     }
 
-    private static HtmlFragmentId CreateFragmentId(string id)
+    private static HtmlFragmentId CreateFragmentId(HtmlSceneNodeId id)
         => new(StableHash(id));
 
-    private static HtmlFragmentId CreateGeneratedFragmentId(string id, HtmlGeneratedFragmentRole role)
+    private static HtmlFragmentId CreateGeneratedFragmentId(HtmlSceneNodeId id, HtmlGeneratedFragmentRole role)
         => new(StableHash(id, (int)role));
 
-    private static HtmlFormattingNodeId CreateFormattingNodeId(string id)
+    private static HtmlFormattingNodeId CreateFormattingNodeId(HtmlSceneNodeId id)
         => new(StableHash(id));
 
-    private static int StableHash(string value)
-        => StableHash(value, 0);
+    private static int StableHash(HtmlSceneNodeId id)
+        => StableHash(id, 0);
 
-    private static int StableHash(string value, int discriminator)
+    private static int StableHash(HtmlSceneNodeId id, int discriminator)
     {
-        unchecked
-        {
-            var hash = 2166136261u;
-            for (var index = 0; index < value.Length; index++)
-            {
-                hash ^= value[index];
-                hash *= 16777619u;
-            }
-
-            hash ^= (uint)discriminator;
-            hash *= 16777619u;
-            return (int)(hash & 0x7fffffffu);
-        }
+        var hash = new HashCode();
+        hash.Add(id.Value);
+        hash.Add(id.FragmentIndex);
+        hash.Add(discriminator);
+        return hash.ToHashCode() & 0x7fffffff;
     }
 }

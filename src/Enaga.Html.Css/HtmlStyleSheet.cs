@@ -7,11 +7,13 @@ internal sealed class HtmlStyleSheet
     private readonly HtmlCssRule[] rules;
     private readonly HtmlRuleIndex ruleIndex;
     private readonly Dictionary<HtmlRuleCandidateKey, int[]> candidateIndexCache = new();
+    private readonly HtmlCssRule[] hoverDependentRules;
 
     private HtmlStyleSheet(HtmlCssRule[] rules)
     {
         this.rules = rules;
         ruleIndex = HtmlRuleIndex.Create(rules);
+        hoverDependentRules = FilterHoverDependentRules(rules);
     }
 
     public static HtmlStyleSheet Parse(IReadOnlyList<string> authorStyleTexts, string? extraCss)
@@ -30,20 +32,116 @@ internal sealed class HtmlStyleSheet
         return new HtmlStyleSheet([.. rules]);
     }
 
-    public IEnumerable<HtmlCssRule> Match(
+    public bool CanHoverAffectElement(HtmlDomElement element)
+    {
+        for (var index = 0; index < hoverDependentRules.Length; index++)
+        {
+            if (hoverDependentRules[index].HasHoverDependencyOn(element))
+                return true;
+        }
+
+        return false;
+    }
+
+    public bool HasHoverDependencies => hoverDependentRules.Length > 0;
+
+    public bool TryResolvePaintOnlyHoveredTextColor(
+        HtmlDomElement element,
+        IReadOnlyList<HtmlDomElement> ancestors,
+        IReadOnlyList<bool> ancestorHoverStates,
+        int viewportWidth,
+        int viewportHeight,
+        out string? color)
+    {
+        var supported = TryResolvePaintOnlyHoveredProperty(
+            element,
+            ancestors,
+            ancestorHoverStates,
+            isHovered: true,
+            viewportWidth,
+            viewportHeight,
+            CssPropertyId.Color,
+            out var matched,
+            out color);
+        return supported && matched && !string.IsNullOrWhiteSpace(color);
+    }
+
+    public bool TryResolvePaintOnlyHoveredBackgroundColor(
         HtmlDomElement element,
         IReadOnlyList<HtmlDomElement> ancestors,
         IReadOnlyList<bool> ancestorHoverStates,
         bool isHovered,
         int viewportWidth,
-        int viewportHeight)
+        int viewportHeight,
+        out bool matched,
+        out string? color)
+        => TryResolvePaintOnlyHoveredProperty(
+            element,
+            ancestors,
+            ancestorHoverStates,
+            isHovered,
+            viewportWidth,
+            viewportHeight,
+            CssPropertyId.Background,
+            out matched,
+            out color);
+
+    private bool TryResolvePaintOnlyHoveredProperty(
+        HtmlDomElement element,
+        IReadOnlyList<HtmlDomElement> ancestors,
+        IReadOnlyList<bool> ancestorHoverStates,
+        bool isHovered,
+        int viewportWidth,
+        int viewportHeight,
+        CssPropertyId property,
+        out bool matched,
+        out string? value)
+    {
+        value = null;
+        matched = false;
+        var candidates = GetCandidateIndices(element);
+        for (var index = 0; index < candidates.Length; index++)
+        {
+            var rule = rules[candidates[index]];
+            if (!rule.HasHoverDependency ||
+                !rule.Matches(element, ancestors, ancestorHoverStates, isHovered, viewportWidth, viewportHeight))
+            {
+                continue;
+            }
+
+            var declarations = rule.Declarations.AsSpan();
+            for (var declarationIndex = 0; declarationIndex < declarations.Length; declarationIndex++)
+            {
+                var declaration = declarations[declarationIndex];
+                if (declaration.Property is not (CssPropertyId.Color or CssPropertyId.Background))
+                    return false;
+
+                if (declaration.Property == property)
+                {
+                    matched = true;
+                    value = declaration.Value;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    public void AddMatchingRules(
+        HtmlDomElement element,
+        IReadOnlyList<HtmlDomElement> ancestors,
+        IReadOnlyList<bool> ancestorHoverStates,
+        bool isHovered,
+        int viewportWidth,
+        int viewportHeight,
+        List<HtmlCssRule> matches)
     {
         var candidates = GetCandidateIndices(element);
         for (var index = 0; index < candidates.Length; index++)
         {
             var rule = rules[candidates[index]];
             if (rule.Matches(element, ancestors, ancestorHoverStates, isHovered, viewportWidth, viewportHeight))
-                yield return rule;
+                matches.Add(rule);
         }
     }
 
@@ -57,6 +155,21 @@ internal sealed class HtmlStyleSheet
         var result = candidates.Count == 0 ? [] : candidates.ToArray();
         candidateIndexCache[key] = result;
         return result;
+    }
+
+    private static HtmlCssRule[] FilterHoverDependentRules(HtmlCssRule[] rules)
+    {
+        List<HtmlCssRule>? hoverRules = null;
+        for (var index = 0; index < rules.Length; index++)
+        {
+            if (!rules[index].HasHoverDependency)
+                continue;
+
+            hoverRules ??= new List<HtmlCssRule>();
+            hoverRules.Add(rules[index]);
+        }
+
+        return hoverRules is null ? [] : [.. hoverRules];
     }
 }
 
@@ -194,6 +307,11 @@ internal sealed record HtmlCssRule(
         => Selector.CanMatchRightmost(element);
 
     public HtmlSelectorPart RightmostPart => Selector.RightmostPart;
+
+    public bool HasHoverDependency => Selector.HasHoverDependency;
+
+    public bool HasHoverDependencyOn(HtmlDomElement element)
+        => Selector.HasHoverDependencyOn(element);
 }
 
 internal sealed class HtmlSelector
@@ -211,6 +329,18 @@ internal sealed class HtmlSelector
     }
 
     public int Specificity { get; }
+
+    public bool HasHoverDependency
+    {
+        get
+        {
+            for (var index = 0; index < parts.Length; index++)
+                if (parts[index].RequiresHover)
+                    return true;
+
+            return false;
+        }
+    }
 
     public static bool TryParse(ReadOnlySpan<char> selectorText, out HtmlSelector selector)
     {
@@ -629,6 +759,20 @@ internal sealed class HtmlSelector
         => parts.Length > 0 && parts[^1].CanMatchElementIdentity(element);
 
     public HtmlSelectorPart RightmostPart => parts[^1];
+
+    public bool HasHoverDependencyOn(HtmlDomElement element)
+    {
+        for (var index = 0; index < parts.Length; index++)
+        {
+            if (parts[index].RequiresHover &&
+                parts[index].CanMatchElementIdentity(element))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static bool PartMatches(HtmlSelectorPart part, HtmlDomElement element, HtmlDomElement? parent, bool isHovered)
         => part.Matches(element, isHovered) &&

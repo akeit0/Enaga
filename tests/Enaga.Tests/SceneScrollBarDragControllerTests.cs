@@ -33,8 +33,8 @@ public sealed class SceneScrollBarDragControllerTests
         var vertical = SceneScrollBarLayout.ResolveVerticalScrollBar(box);
         Assert.NotNull(vertical);
 
-        var drag = new SceneScrollBarDragState();
-        drag.Begin("scroll", SceneScrollBarDragAxis.Vertical, 0);
+        var drag = new SceneScrollBarDragState<SceneNodeId>();
+        drag.Begin(new SceneNodeId(1), SceneScrollBarDragAxis.Vertical, 0);
         var state = new TestScrollState();
 
         var changed = SceneScrollBarDragController.TryUpdate(

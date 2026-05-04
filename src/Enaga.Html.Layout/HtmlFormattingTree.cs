@@ -146,37 +146,30 @@ internal sealed record HtmlFragment(
     HtmlLayoutRect BorderBox,
     HtmlLayoutRect VisualOverflow,
     uint PaintVersion,
-    string SceneNodeId = "",
-    string SourceSceneNodeId = "",
+    Enaga.Scene.SceneNodeId SceneNodeId = default,
+    HtmlSceneNodeId SourceSceneNodeId = default,
     HtmlGeneratedFragmentRole GeneratedRole = HtmlGeneratedFragmentRole.None);
 
 internal sealed class HtmlFragmentTree
 {
-    private readonly Dictionary<HtmlFragmentId, HtmlFragment> fragments;
     private readonly IReadOnlyList<HtmlFragment> orderedFragments;
+    private Dictionary<HtmlFragmentId, HtmlFragment>? fragments;
     private Dictionary<HtmlFormattingNodeId, List<HtmlFragmentId>>? fragmentsBySource;
 
     public HtmlFragmentTree(HtmlFragmentId rootId, IReadOnlyList<HtmlFragment> fragments)
     {
         RootId = rootId;
         orderedFragments = fragments;
-        this.fragments = new Dictionary<HtmlFragmentId, HtmlFragment>(fragments.Count);
-
-        for (var index = 0; index < fragments.Count; index++)
-        {
-            var fragment = fragments[index];
-            this.fragments[fragment.Id] = fragment;
-        }
     }
 
     public HtmlFragmentId RootId { get; }
 
-    public IReadOnlyDictionary<HtmlFragmentId, HtmlFragment> Fragments => fragments;
+    public IReadOnlyDictionary<HtmlFragmentId, HtmlFragment> Fragments => fragments ??= BuildFragmentsById();
 
     public IReadOnlyList<HtmlFragment> OrderedFragments => orderedFragments;
 
     public bool TryGetFragment(HtmlFragmentId id, out HtmlFragment fragment)
-        => fragments.TryGetValue(id, out fragment!);
+        => (fragments ??= BuildFragmentsById()).TryGetValue(id, out fragment!);
 
     public IReadOnlyList<HtmlFragmentId> GetFragmentsForSource(HtmlFormattingNodeId sourceNodeId)
     {
@@ -200,5 +193,17 @@ internal sealed class HtmlFragmentTree
         }
 
         return bySource;
+    }
+
+    private Dictionary<HtmlFragmentId, HtmlFragment> BuildFragmentsById()
+    {
+        var byId = new Dictionary<HtmlFragmentId, HtmlFragment>(orderedFragments.Count);
+        for (var index = 0; index < orderedFragments.Count; index++)
+        {
+            var fragment = orderedFragments[index];
+            byId[fragment.Id] = fragment;
+        }
+
+        return byId;
     }
 }

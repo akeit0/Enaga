@@ -18,7 +18,7 @@
     <ProjectReference Include="..\..\src\Enaga.Layout\Enaga.Layout.csproj" />
     <ProjectReference Include="..\..\src\Enaga.Rendering\Enaga.Rendering.csproj" />
     <ProjectReference Include="..\..\src\Enaga.Rendering.Skia\Enaga.Rendering.Skia.csproj" />
-    <ProjectReference Include="..\..\okojo\src\Okojo\Okojo.csproj" />
+    <Reference Include="Okojo" HintPath="..\..\okojo\src\Okojo\bin\Release\net10.0\Okojo.dll" />
   </ItemGroup>
 
   <ItemGroup>

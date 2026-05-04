@@ -28,14 +28,20 @@ internal sealed class HtmlLayoutOutputStore
         propagationBoundaries.Clear();
     }
 
-    public void UpdateLayoutTree(string rootId, IReadOnlyList<HtmlSceneNode> rootChildren)
+    public void UpdateLayoutTree(HtmlSceneNodeId rootId, HtmlSceneNode[] rootChildren)
     {
+        var nodeCount = CountNodes(rootChildren) + 1;
+        childrenByNode.EnsureCapacity(nodeCount);
+        parentByNode.EnsureCapacity(Math.Max(0, nodeCount - 1));
+        propagationBoundaries.EnsureCapacity(nodeCount);
+        Outputs.EnsureCapacity(nodeCount, nodeCount * 4);
+
         ClearChildLists();
         parentByNode.Clear();
         propagationBoundaries.Clear();
         var rootNodeId = HtmlLayoutVersion.ToLayoutNodeId(rootId);
-        var rootChildIds = GetChildList(rootNodeId, rootChildren.Count);
-        for (var index = 0; index < rootChildren.Count; index++)
+        var rootChildIds = GetChildList(rootNodeId, rootChildren.Length);
+        for (var index = 0; index < rootChildren.Length; index++)
         {
             var child = rootChildren[index];
             var childId = HtmlLayoutVersion.ToLayoutNodeId(child.Id);
@@ -60,11 +66,23 @@ internal sealed class HtmlLayoutOutputStore
         }
     }
 
+    private static int CountNodes(HtmlSceneNode[] nodes)
+    {
+        var count = 0;
+        for (var index = 0; index < nodes.Length; index++)
+        {
+            count++;
+            count += CountNodes(nodes[index].Children);
+        }
+
+        return count;
+    }
+
     private void AddChildren(HtmlSceneNode node)
     {
         var nodeId = HtmlLayoutVersion.ToLayoutNodeId(node.Id);
-        var childIds = GetChildList(nodeId, node.Children.Count);
-        for (var index = 0; index < node.Children.Count; index++)
+        var childIds = GetChildList(nodeId, node.Children.Length);
+        for (var index = 0; index < node.Children.Length; index++)
         {
             var child = node.Children[index];
             var childId = HtmlLayoutVersion.ToLayoutNodeId(child.Id);

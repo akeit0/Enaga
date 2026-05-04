@@ -9,32 +9,37 @@ public enum SceneScrollBarDragAxis
     Vertical
 }
 
-public sealed class SceneScrollBarDragState
+public sealed class SceneScrollBarDragState<T>
+    where T : notnull
 {
-    public string? ScrollViewId { get; private set; }
+    public T ScrollViewId { get; private set; } = default!;
+
+    public bool HasScrollViewId { get; private set; }
 
     public SceneScrollBarDragAxis Axis { get; private set; }
 
     public float ThumbOffset { get; private set; }
 
-    public bool IsActive => ScrollViewId is not null && Axis != SceneScrollBarDragAxis.None;
+    public bool IsActive => HasScrollViewId && Axis != SceneScrollBarDragAxis.None;
 
-    public void Begin(string scrollViewId, SceneScrollBarDragAxis axis, float thumbOffset)
+    public void Begin(T scrollViewId, SceneScrollBarDragAxis axis, float thumbOffset)
     {
         if (axis == SceneScrollBarDragAxis.None)
             throw new ArgumentException("A scrollbar drag must have an axis.", nameof(axis));
 
         ScrollViewId = scrollViewId;
+        HasScrollViewId = true;
         Axis = axis;
         ThumbOffset = thumbOffset;
     }
 
     public bool Clear()
     {
-        if (ScrollViewId is null && Axis == SceneScrollBarDragAxis.None && ThumbOffset == 0)
+        if (!HasScrollViewId && Axis == SceneScrollBarDragAxis.None && ThumbOffset == 0)
             return false;
 
-        ScrollViewId = null;
+        ScrollViewId = default!;
+        HasScrollViewId = false;
         Axis = SceneScrollBarDragAxis.None;
         ThumbOffset = 0;
         return true;
@@ -69,12 +74,13 @@ public static class SceneScrollBarDragController
         return false;
     }
 
-    public static bool TryUpdate(
-        SceneScrollBarDragState drag,
+    public static bool TryUpdate<T>(
+        SceneScrollBarDragState<T> drag,
         SceneLayoutBox box,
         ISceneScrollOffsetState state,
         float pointerX,
         float pointerY)
+        where T : notnull
     {
         if (!drag.IsActive)
             return false;

@@ -353,35 +353,87 @@ public interface ILayoutCache
 public sealed class LayoutOutputCache : ILayoutCache
 {
     private const int MaxEntriesPerNode = 24;
-    private readonly Dictionary<LayoutCacheKey, LayoutOutput> entries = [];
-    private readonly Dictionary<LayoutNodeId, List<LayoutCacheKey>> entriesByNode = [];
+    private readonly Dictionary<LayoutNodeId, NodeEntryList> entriesByNode = [];
+    private LayoutCacheKey[] nodeEntryKeys = [];
+    private LayoutOutput[] nodeEntryOutputs = [];
+    private int[] nodeEntryNext = [];
+    private int nodeEntryCount;
+    private int freeNodeEntry = -1;
 
     public bool TryGet(in LayoutCacheKey key, out LayoutOutput output)
-        => entries.TryGetValue(key, out output);
+    {
+        if (!entriesByNode.TryGetValue(key.NodeId, out var nodeEntries))
+        {
+            output = default;
+            return false;
+        }
+
+        if (key.Input.PerformsLayout &&
+            nodeEntries.HasFinalLayout &&
+            nodeEntries.FinalLayoutKey.Equals(key))
+        {
+            output = nodeEntries.FinalLayoutOutput;
+            return true;
+        }
+
+        var slot = nodeEntries.Head;
+        while (slot >= 0)
+        {
+            if (nodeEntryKeys[slot].Equals(key))
+            {
+                output = nodeEntryOutputs[slot];
+                return true;
+            }
+
+            slot = nodeEntryNext[slot];
+        }
+
+        output = default;
+        return false;
+    }
+
+    public void EnsureCapacity(int nodeCount, int estimatedEntryCount)
+    {
+        if (nodeCount > entriesByNode.Count)
+            entriesByNode.EnsureCapacity(nodeCount);
+        EnsureNodeEntrySlotCapacity(Math.Min(estimatedEntryCount, nodeCount));
+    }
 
     public void Store(in LayoutCacheKey key, in LayoutOutput output)
     {
-        if (entries.ContainsKey(key))
+        if (!entriesByNode.TryGetValue(key.NodeId, out var nodeEntries))
         {
-            entries[key] = output;
+            nodeEntries = NodeEntryList.Empty;
+            entriesByNode[key.NodeId] = nodeEntries;
+        }
+        else if (key.Input.PerformsLayout &&
+                 nodeEntries.HasFinalLayout &&
+                 nodeEntries.FinalLayoutKey.Equals(key))
+        {
+            nodeEntries.FinalLayoutOutput = output;
+            entriesByNode[key.NodeId] = nodeEntries;
+            return;
+        }
+        else if (TryUpdateNodeEntry(nodeEntries, key, output))
+        {
             return;
         }
 
-        entries[key] = output;
-        if (!entriesByNode.TryGetValue(key.NodeId, out var nodeEntries))
+        if (nodeEntries.TotalCount >= MaxEntriesPerNode)
+            RemoveOldestEntry(ref nodeEntries);
+
+        if (key.Input.PerformsLayout &&
+            !nodeEntries.HasFinalLayout)
         {
-            nodeEntries = [];
+            nodeEntries.FinalLayoutKey = key;
+            nodeEntries.FinalLayoutOutput = output;
+            nodeEntries.HasFinalLayout = true;
             entriesByNode[key.NodeId] = nodeEntries;
+            return;
         }
 
-        if (nodeEntries.Count >= MaxEntriesPerNode)
-        {
-            var evicted = nodeEntries[0];
-            nodeEntries.RemoveAt(0);
-            entries.Remove(evicted);
-        }
-
-        nodeEntries.Add(key);
+        AddNodeEntry(ref nodeEntries, key, output);
+        entriesByNode[key.NodeId] = nodeEntries;
     }
 
     public void InvalidateNode(LayoutNodeId nodeId)
@@ -389,8 +441,7 @@ public sealed class LayoutOutputCache : ILayoutCache
         if (!entriesByNode.Remove(nodeId, out var nodeEntries))
             return;
 
-        foreach (var key in nodeEntries)
-            entries.Remove(key);
+        FreeEntries(nodeEntries);
     }
 
     public void InvalidateNodes(IReadOnlySet<LayoutNodeId> nodeIds)
@@ -401,8 +452,136 @@ public sealed class LayoutOutputCache : ILayoutCache
 
     public void Clear()
     {
-        entries.Clear();
         entriesByNode.Clear();
+        Array.Clear(nodeEntryKeys, 0, nodeEntryCount);
+        Array.Clear(nodeEntryOutputs, 0, nodeEntryCount);
+        Array.Clear(nodeEntryNext, 0, nodeEntryCount);
+        nodeEntryCount = 0;
+        freeNodeEntry = -1;
+    }
+
+    private bool TryUpdateNodeEntry(NodeEntryList nodeEntries, LayoutCacheKey key, LayoutOutput output)
+    {
+        var slot = nodeEntries.Head;
+        while (slot >= 0)
+        {
+            if (nodeEntryKeys[slot].Equals(key))
+            {
+                nodeEntryOutputs[slot] = output;
+                return true;
+            }
+
+            slot = nodeEntryNext[slot];
+        }
+
+        return false;
+    }
+
+    private void AddNodeEntry(ref NodeEntryList nodeEntries, LayoutCacheKey key, LayoutOutput output)
+    {
+        var slot = AllocateNodeEntrySlot();
+        nodeEntryKeys[slot] = key;
+        nodeEntryOutputs[slot] = output;
+        nodeEntryNext[slot] = -1;
+
+        if (nodeEntries.Head < 0)
+        {
+            nodeEntries.Head = slot;
+            nodeEntries.Tail = slot;
+        }
+        else
+        {
+            nodeEntryNext[nodeEntries.Tail] = slot;
+            nodeEntries.Tail = slot;
+        }
+
+        nodeEntries.Count++;
+    }
+
+    private void RemoveOldestEntry(ref NodeEntryList nodeEntries)
+    {
+        if (nodeEntries.HasFinalLayout)
+        {
+            nodeEntries.FinalLayoutKey = default;
+            nodeEntries.FinalLayoutOutput = default;
+            nodeEntries.HasFinalLayout = false;
+            return;
+        }
+
+        RemoveOldestSlot(ref nodeEntries);
+    }
+
+    private void RemoveOldestSlot(ref NodeEntryList nodeEntries)
+    {
+        if (nodeEntries.Head < 0)
+            throw new InvalidOperationException("The layout cache node entry list is empty.");
+
+        var slot = nodeEntries.Head;
+        nodeEntries.Head = nodeEntryNext[slot];
+        if (nodeEntries.Head < 0)
+            nodeEntries.Tail = -1;
+        nodeEntries.Count--;
+        FreeNodeEntrySlot(slot);
+    }
+
+    private void FreeEntries(NodeEntryList nodeEntries)
+    {
+        var slot = nodeEntries.Head;
+        while (slot >= 0)
+        {
+            var next = nodeEntryNext[slot];
+            FreeNodeEntrySlot(slot);
+            slot = next;
+        }
+    }
+
+    private int AllocateNodeEntrySlot()
+    {
+        if (freeNodeEntry >= 0)
+        {
+            var slot = freeNodeEntry;
+            freeNodeEntry = nodeEntryNext[slot];
+            return slot;
+        }
+
+        EnsureNodeEntrySlotCapacity(nodeEntryCount + 1);
+        return nodeEntryCount++;
+    }
+
+    private void FreeNodeEntrySlot(int slot)
+    {
+        nodeEntryKeys[slot] = default;
+        nodeEntryOutputs[slot] = default;
+        nodeEntryNext[slot] = freeNodeEntry;
+        freeNodeEntry = slot;
+    }
+
+    private void EnsureNodeEntrySlotCapacity(int capacity)
+    {
+        if (nodeEntryKeys.Length >= capacity)
+            return;
+
+        var nextCapacity = nodeEntryKeys.Length == 0 ? 64 : nodeEntryKeys.Length * 2;
+        while (nextCapacity < capacity)
+            nextCapacity *= 2;
+
+        Array.Resize(ref nodeEntryKeys, nextCapacity);
+        Array.Resize(ref nodeEntryOutputs, nextCapacity);
+        Array.Resize(ref nodeEntryNext, nextCapacity);
+        Array.Fill(nodeEntryNext, -1, nodeEntryCount, nextCapacity - nodeEntryCount);
+    }
+
+    private struct NodeEntryList
+    {
+        public static NodeEntryList Empty => new() { Head = -1, Tail = -1 };
+
+        public LayoutCacheKey FinalLayoutKey;
+        public LayoutOutput FinalLayoutOutput;
+        public int Head;
+        public int Tail;
+        public int Count;
+        public bool HasFinalLayout;
+        public int TotalCount => Count + (HasFinalLayout ? 1 : 0);
     }
 }
 

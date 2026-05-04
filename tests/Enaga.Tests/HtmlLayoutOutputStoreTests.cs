@@ -14,7 +14,7 @@ public sealed class HtmlLayoutOutputStoreTests
     {
         var store = CreateStore(out var parentKey, out var childKey, out var siblingKey);
         var dirty = new HtmlLayoutDirtySet();
-        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId("parent"), HtmlLayoutDirtyBits.Self);
+        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId(Id("parent")), HtmlLayoutDirtyBits.Self);
 
         store.InvalidateNodes(dirty);
 
@@ -28,7 +28,7 @@ public sealed class HtmlLayoutOutputStoreTests
     {
         var store = CreateStore(out var parentKey, out var childKey, out var siblingKey);
         var dirty = new HtmlLayoutDirtySet();
-        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId("parent"), HtmlLayoutDirtyBits.Self | HtmlLayoutDirtyBits.Subtree);
+        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId(Id("parent")), HtmlLayoutDirtyBits.Self | HtmlLayoutDirtyBits.Subtree);
 
         store.InvalidateNodes(dirty);
 
@@ -42,7 +42,7 @@ public sealed class HtmlLayoutOutputStoreTests
     {
         var store = CreateStore(out var parentKey, out var childKey, out var siblingKey);
         var dirty = new HtmlLayoutDirtySet();
-        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId("child"), HtmlLayoutDirtyBits.Self | HtmlLayoutDirtyBits.Ancestors);
+        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId(Id("child")), HtmlLayoutDirtyBits.Self | HtmlLayoutDirtyBits.Ancestors);
 
         store.InvalidateNodes(dirty);
 
@@ -59,7 +59,7 @@ public sealed class HtmlLayoutOutputStoreTests
         var containedStyle = Style("contain: size; width: 100px; height: 40px; overflow: hidden;");
         var child = Node("child", normalStyle, []);
         var boundary = Node("boundary", containedStyle, [child]);
-        store.UpdateLayoutTree("root", [boundary]);
+        store.UpdateLayoutTree(Id("root"), [boundary]);
         var rootKey = Key("root");
         var boundaryKey = Key("boundary");
         var childKey = Key("child");
@@ -67,7 +67,7 @@ public sealed class HtmlLayoutOutputStoreTests
         store.Outputs.Store(boundaryKey, Output(100, 40));
         store.Outputs.Store(childKey, Output(80, 20));
         var dirty = new HtmlLayoutDirtySet();
-        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId("child"), HtmlLayoutDirtyBits.Self | HtmlLayoutDirtyBits.Ancestors);
+        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId(Id("child")), HtmlLayoutDirtyBits.Self | HtmlLayoutDirtyBits.Ancestors);
 
         store.InvalidateNodes(dirty);
 
@@ -82,13 +82,13 @@ public sealed class HtmlLayoutOutputStoreTests
         var store = new HtmlLayoutOutputStore();
         var containedStyle = Style("contain: size; width: 100px; height: 40px; overflow: hidden;");
         var boundary = Node("boundary", containedStyle, []);
-        store.UpdateLayoutTree("root", [boundary]);
+        store.UpdateLayoutTree(Id("root"), [boundary]);
         var rootKey = Key("root");
         var boundaryKey = Key("boundary");
         store.Outputs.Store(rootKey, Output(200, 120));
         store.Outputs.Store(boundaryKey, Output(100, 40));
         var dirty = new HtmlLayoutDirtySet();
-        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId("boundary"), HtmlLayoutDirtyBits.Self | HtmlLayoutDirtyBits.Ancestors);
+        dirty.Add(HtmlLayoutVersion.ToLayoutNodeId(Id("boundary")), HtmlLayoutDirtyBits.Self | HtmlLayoutDirtyBits.Ancestors);
 
         store.InvalidateNodes(dirty);
 
@@ -117,7 +117,8 @@ public sealed class HtmlLayoutOutputStoreTests
             table.initial td a { display: block; padding: 18px 8px; background: #eee; }
             """));
         var builder = new HtmlDocumentSceneBuilder(
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
+            new SceneNodeIdAllocator());
 
         var first = builder.Build(parsed, 240, 200, viewportScale: 1);
         var second = builder.Build(parsed, 240, 200, viewportScale: 1);
@@ -139,7 +140,7 @@ public sealed class HtmlLayoutOutputStoreTests
         var child = Node("child", style, []);
         var parent = Node("parent", style, [child]);
         var sibling = Node("sibling", style, []);
-        store.UpdateLayoutTree("root", [parent, sibling]);
+        store.UpdateLayoutTree(Id("root"), [parent, sibling]);
 
         parentKey = Key("parent");
         childKey = Key("child");
@@ -150,9 +151,9 @@ public sealed class HtmlLayoutOutputStoreTests
         return store;
     }
 
-    private static HtmlSceneNode Node(string id, HtmlComputedStyle style, IReadOnlyList<HtmlSceneNode> children)
+    private static HtmlSceneNode Node(string id, HtmlComputedStyle style, HtmlSceneNode[] children)
         => new(
-            id,
+            Id(id),
             SceneNodeKind.View,
             style,
             children,
@@ -194,7 +195,7 @@ public sealed class HtmlLayoutOutputStoreTests
 
     private static LayoutCacheKey Key(string id)
         => new(
-            HtmlLayoutVersion.ToLayoutNodeId(id),
+            HtmlLayoutVersion.ToLayoutNodeId(Id(id)),
             StyleVersion: 1,
             LayoutVersion: 1,
             LayoutInput.Definite(100, 40),
@@ -206,12 +207,12 @@ public sealed class HtmlLayoutOutputStoreTests
             new LayoutSize(width, height),
             new LayoutRect(0, 0, width, height));
 
-    private static string FindAncestorId(SceneLayoutCommit commit, string startId, string prefix)
+    private static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
     {
         var currentId = startId;
         while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
         {
-            if (parentId.StartsWith(prefix, StringComparison.Ordinal))
+            if (commit.Layout.TryGetValue(parentId, out var box) && box.NodeKind == SceneNodeKind.View)
                 return parentId;
 
             currentId = parentId;
@@ -219,4 +220,15 @@ public sealed class HtmlLayoutOutputStoreTests
 
         throw new InvalidOperationException($"No ancestor with prefix {prefix} for {startId}.");
     }
+
+    private static HtmlSceneNodeId Id(string id)
+        => id switch
+        {
+            "root" => HtmlSceneNodeId.Root,
+            "parent" => new HtmlSceneNodeId(2),
+            "child" => new HtmlSceneNodeId(3),
+            "sibling" => new HtmlSceneNodeId(4),
+            "boundary" => new HtmlSceneNodeId(5),
+            _ => throw new ArgumentOutOfRangeException(nameof(id), id, null)
+        };
 }

@@ -145,6 +145,20 @@ public sealed class SceneRenderRootViewportScaleTests
         Assert.False(root.HitTestOverlayInput(250, 20));
     }
 
+    [Fact]
+    public void InputForwarding_RequestsRenderWakeAfterSourceMutation()
+    {
+        var source = new TestViewportScaleFrameSource();
+        using var root = new SceneRenderRoot(source);
+        var wakeCount = 0;
+        root.RenderWakeRequested += () => wakeCount++;
+
+        root.PointerDown(0, 1, synthetic: false);
+
+        Assert.Equal(1, source.PointerDownCount);
+        Assert.Equal(1, wakeCount);
+    }
+
     private sealed class TestViewportScaleFrameSource : ISceneFrameSource, IRenderViewportScaleController, IInputSink
     {
         private bool rendered;
@@ -158,6 +172,8 @@ public sealed class SceneRenderRootViewportScaleTests
         public float ViewportScale => Scale;
 
         public int PointerMoveCount { get; private set; }
+
+        public int PointerDownCount { get; private set; }
 
         public bool TryStepViewportScale(int direction)
         {
@@ -197,6 +213,7 @@ public sealed class SceneRenderRootViewportScaleTests
 
         public void PointerDown(int button, int buttons, bool synthetic)
         {
+            PointerDownCount++;
         }
 
         public void PointerUp(int button, int buttons, bool synthetic)
@@ -225,16 +242,17 @@ public sealed class SceneRenderRootViewportScaleTests
 
         private static SceneLayoutCommit CreateCommit(int width, int height)
         {
-            var nodes = new Dictionary<string, SceneGraphNode>(StringComparer.Ordinal)
+            var root = new SceneNodeId(1);
+            var nodes = new Dictionary<SceneNodeId, SceneGraphNode>
             {
-                ["root"] = new(SceneNodeKind.View, null, []),
+                [root] = new(SceneNodeKind.View, null, []),
             };
-            var layout = new Dictionary<string, SceneLayoutBox>(StringComparer.Ordinal)
+            var layout = new Dictionary<SceneNodeId, SceneLayoutBox>
             {
-                ["root"] = new(SceneNodeKind.View, 0, 0, width, height, "#000000"),
+                [root] = new(SceneNodeKind.View, 0, 0, width, height, "#000000"),
             };
 
-            return new SceneLayoutCommit("root", new SceneViewport(width, height), nodes, layout, []);
+            return new SceneLayoutCommit(root, new SceneViewport(width, height), nodes, layout, []);
         }
     }
 

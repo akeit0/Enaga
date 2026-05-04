@@ -27,7 +27,8 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
     private readonly HostPump hostPump;
     private readonly JsRealm realm;
     private readonly JsRuntime runtime;
-    private readonly SceneStore sceneStore = new("root", new SceneViewport(1280, 800));
+    private readonly SceneNodeIdentityMap<string> sceneNodeIds = new("root", StringComparer.Ordinal);
+    private readonly SceneStore sceneStore;
     private readonly ConcurrentQueue<HostInputEvent> inputEvents = new();
     private readonly string scriptFilePath;
     private JsFunction? pointerDownFunction;
@@ -47,6 +48,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
 
     public OkojoSceneScriptHost(string scriptFilePath, RuntimeBackendServices? backendServices = null)
     {
+        sceneStore = new SceneStore(sceneNodeIds.RootId, new SceneViewport(1280, 800));
         this.scriptFilePath = scriptFilePath;
         this.backendServices = backendServices ?? RuntimeBackendServices.Missing;
         hostTaskScheduler = new RenderInvalidatingHostTaskScheduler(() => InvalidateRender(SceneDamageReason.FullFrameFallback));
@@ -145,7 +147,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
 
         var damageReasons = ConsumeFrameDamageReasons();
 
-        sceneStore.Reset("root", new SceneViewport(Width, Height));
+        sceneStore.Reset(sceneNodeIds.RootId, new SceneViewport(Width, Height));
         ApplyRootLayout("#0b1020");
 
         try
@@ -266,7 +268,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
 
     private void ApplyRootLayout(string color)
     {
-        sceneStore.SetLayout("root", new SceneLayoutBox(SceneNodeKind.View, 0, 0, Width, Height, color));
+        sceneStore.SetLayout(sceneNodeIds.RootId, new SceneLayoutBox(SceneNodeKind.View, 0, 0, Width, Height, color));
     }
 
     private void DrainInputQueue()
@@ -352,7 +354,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
         setupRan = false;
         FrameCount = 0;
         LastError = null;
-        sceneStore.Reset("root", new SceneViewport(Width, Height));
+        sceneStore.Reset(sceneNodeIds.RootId, new SceneViewport(Width, Height));
 
         var source = File.ReadAllText(scriptFilePath);
         _ = realm.Eval(source);

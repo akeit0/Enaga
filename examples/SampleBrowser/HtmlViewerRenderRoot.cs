@@ -18,10 +18,10 @@ internal sealed class SampleBrowserRenderRoot : IRenderRoot, IRenderGpuContextSi
 
     public SampleBrowserRenderRoot(ISceneFrameSource contentSource, SampleBrowserToolbarSource? toolbarSource)
     {
-        contentRoot = new SceneRenderRoot(contentSource);
+        contentRoot = new SceneRenderRoot(contentSource, requiresFullFramePresentation: true);
         this.toolbarSource = toolbarSource;
         if (toolbarSource is not null)
-            toolbarRoot = new SceneRenderRoot(toolbarSource);
+            toolbarRoot = new SceneRenderRoot(toolbarSource, requiresFullFramePresentation: true);
     }
 
     private int ToolbarHeight => toolbarRoot is null ? 0 : SampleBrowserToolbarSource.Height;

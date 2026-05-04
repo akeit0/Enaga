@@ -52,7 +52,7 @@ internal sealed partial class HtmlLayoutBuilder
     private sealed class HtmlLayoutMeasurementCache(HtmlPipelineMetrics metrics)
     {
         private readonly Dictionary<InlineTextMeasureKey, InlineTextMeasure> inlineText = new();
-        private readonly Dictionary<ContainerPercentResolveKey, IReadOnlyList<HtmlSceneNode>> containerPercentNodes = new();
+        private readonly Dictionary<ContainerPercentResolveKey, HtmlSceneNode[]> containerPercentNodes = new();
         private LayoutOutputCache? layoutOutputs;
 
         public void BeginLayoutPass(LayoutOutputCache nextLayoutOutputs)
@@ -111,10 +111,10 @@ internal sealed partial class HtmlLayoutBuilder
                     new LayoutSize(0, height),
                     new LayoutRect(0, 0, 0, height)));
 
-        public bool TryGetContainerPercentNodes(ContainerPercentResolveKey key, out IReadOnlyList<HtmlSceneNode> nodes)
+        public bool TryGetContainerPercentNodes(ContainerPercentResolveKey key, out HtmlSceneNode[] nodes)
             => containerPercentNodes.TryGetValue(key, out nodes!);
 
-        public void SetContainerPercentNodes(ContainerPercentResolveKey key, IReadOnlyList<HtmlSceneNode> nodes)
+        public void SetContainerPercentNodes(ContainerPercentResolveKey key, HtmlSceneNode[] nodes)
             => containerPercentNodes[key] = nodes;
     }
 
@@ -128,7 +128,7 @@ internal sealed partial class HtmlLayoutBuilder
         bool TextOverflowEllipsis,
         float LineHeight);
 
-    private readonly record struct ContainerPercentResolveKey(IReadOnlyList<HtmlSceneNode> Nodes, int QuantizedContainerWidth);
+    private readonly record struct ContainerPercentResolveKey(HtmlSceneNode[] Nodes, int QuantizedContainerWidth);
 
     private readonly record struct InlineTextMeasure(float Width, float Height);
 

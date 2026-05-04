@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using Enaga.Layout;
 using Enaga.Rendering;
 using Enaga.Scene;
@@ -7,9 +8,10 @@ namespace Enaga.Html;
 
 internal sealed partial class HtmlLayoutBuilder
 {
-    private sealed class TableGridLayout(IReadOnlyList<TableCellPlacement> Cells, float[] ColumnWidths, float[] RowHeights, float ColumnGap, float RowGap)
+    private sealed class TableGridLayout(List<TableCellPlacement> Cells, float[] ColumnWidths, float[] RowHeights, float ColumnGap, float RowGap)
     {
-        public IReadOnlyList<TableCellPlacement> Cells { get; } = Cells;
+        public List<TableCellPlacement> Cells { get; } = Cells;
+        public ReadOnlySpan<TableCellPlacement> CellSpan => CollectionsMarshal.AsSpan(Cells);
         public float[] ColumnWidths { get; } = ColumnWidths;
         public float[] RowHeights { get; } = RowHeights;
         public float ColumnGap { get; } = ColumnGap;
@@ -33,15 +35,17 @@ internal sealed partial class HtmlLayoutBuilder
         private LayoutChildRequest[] requestBuffer = [];
         private LayoutFrameData?[] frameBuffer = [];
         private float[] floatBuffer = [];
+        private FloatPlacement[] floatPlacementBuffer = [];
         private InlineLayoutItem[] inlineItemBuffer = [];
-        private List<string>[] rowChildBuffer = [];
+        private List<HtmlSceneNodeId>[] rowChildBuffer = [];
         private int requestOffset;
         private int frameOffset;
         private int floatOffset;
+        private int floatPlacementOffset;
         private int inlineItemOffset;
         private int rowChildOffset;
 
-        public ScratchMark Mark() => new(requestOffset, frameOffset, floatOffset, inlineItemOffset, rowChildOffset);
+        public ScratchMark Mark() => new(requestOffset, frameOffset, floatOffset, floatPlacementOffset, inlineItemOffset, rowChildOffset);
 
         public Span<LayoutChildRequest> AllocateRequests(int length)
         {
@@ -80,6 +84,17 @@ internal sealed partial class HtmlLayoutBuilder
             return values;
         }
 
+        public Span<FloatPlacement> AllocateFloatPlacements(int length)
+        {
+            if (length <= 0)
+                return [];
+
+            EnsureFloatPlacementCapacity(floatPlacementOffset + length);
+            var start = floatPlacementOffset;
+            floatPlacementOffset += length;
+            return floatPlacementBuffer.AsSpan(start, length);
+        }
+
         public Span<InlineLayoutItem> AllocateInlineItems(int length)
         {
             if (length <= 0)
@@ -91,7 +106,7 @@ internal sealed partial class HtmlLayoutBuilder
             return inlineItemBuffer.AsSpan(start, length);
         }
 
-        public Span<List<string>> AllocateRowChildBuffers(int length)
+        public Span<List<HtmlSceneNodeId>> AllocateRowChildBuffers(int length)
         {
             if (length <= 0)
                 return [];
@@ -122,6 +137,7 @@ internal sealed partial class HtmlLayoutBuilder
             requestOffset = mark.RequestOffset;
             frameOffset = mark.FrameOffset;
             floatOffset = mark.FloatOffset;
+            floatPlacementOffset = mark.FloatPlacementOffset;
             inlineItemOffset = mark.InlineItemOffset;
             rowChildOffset = mark.RowChildOffset;
         }
@@ -150,6 +166,14 @@ internal sealed partial class HtmlLayoutBuilder
             Array.Resize(ref floatBuffer, Math.Max(requiredLength, Math.Max(16, floatBuffer.Length * 2)));
         }
 
+        private void EnsureFloatPlacementCapacity(int requiredLength)
+        {
+            if (floatPlacementBuffer.Length >= requiredLength)
+                return;
+
+            Array.Resize(ref floatPlacementBuffer, Math.Max(requiredLength, Math.Max(16, floatPlacementBuffer.Length * 2)));
+        }
+
         private void EnsureRowChildCapacity(int requiredLength)
         {
             if (rowChildBuffer.Length >= requiredLength)
@@ -170,6 +194,7 @@ internal sealed partial class HtmlLayoutBuilder
             int RequestOffset,
             int FrameOffset,
             int FloatOffset,
+            int FloatPlacementOffset,
             int InlineItemOffset,
             int RowChildOffset);
     }
