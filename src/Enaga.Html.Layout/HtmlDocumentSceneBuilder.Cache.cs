@@ -43,4 +43,10 @@ internal sealed class HtmlStyledSceneTreeCache
         tree = nextTree;
         return nextTree;
     }
+
+    public void Clear()
+    {
+        document = null;
+        tree = null;
+    }
 }

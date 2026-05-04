@@ -36,6 +36,9 @@ internal sealed class HtmlDocumentSceneBuilder
     public IReadOnlyDictionary<SceneNodeId, HtmlNodeId> LastSceneNodeDomIds { get; private set; } =
         new Dictionary<SceneNodeId, HtmlNodeId>();
 
+    public void InvalidateResourceDependentLayout()
+        => sceneTreeBuilder.InvalidateResourceDependentLayout();
+
     public void ApplyHoverSnapshot(IReadOnlySet<HtmlNodeId>? oldHoveredNodeIds, IReadOnlySet<HtmlNodeId>? newHoveredNodeIds)
         => sceneTreeBuilder.ApplyHoverSnapshot(oldHoveredNodeIds, newHoveredNodeIds);
 

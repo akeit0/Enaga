@@ -1087,6 +1087,15 @@ internal sealed partial class HtmlComputedStyle
             Width = Height * intrinsicWidth / intrinsicHeight;
     }
 
+    internal void ApplyDefaultImageSize()
+    {
+        if (LayoutValue.IsSet(Width) || LayoutValue.IsSet(Height))
+            return;
+
+        Width = 300;
+        Height = 150;
+    }
+
     private void ApplyLegacyCommonAttributes(HtmlDomElement element)
     {
         if (!LayoutValue.IsSet(Width))

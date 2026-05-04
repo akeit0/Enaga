@@ -1,5 +1,8 @@
 using Enaga.Rendering;
 using Enaga.Rendering.Skia;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using SkiaSharp;
 using Xunit;
 
@@ -106,6 +109,50 @@ public sealed class SkiaImageAssetLoaderTests
     }
 
     [Fact]
+    public void Resolve_RemoteSvg_SendsBrowserHeadersAndDecodesImage()
+    {
+        var userAgents = new List<string>();
+        using var server = new TestHttpServer(request =>
+        {
+            if (request.Headers.TryGetValue("User-Agent", out var userAgent))
+                userAgents.Add(userAgent);
+
+            if (userAgent?.Contains("Mozilla/5.0", StringComparison.Ordinal) != true)
+                return TestHttpResponse.Forbidden("Status 403 Forbidden: User-Agent required.");
+
+            return TestHttpResponse.Ok("""
+                <svg xmlns="http://www.w3.org/2000/svg" width="234px" height="72px" viewBox="0 0 468 144">
+                  <linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#0673BA"/><stop offset="1" stop-color="#11A14E"/></linearGradient>
+                  <rect width="468" height="144" fill="url(#g)" />
+                </svg>
+                """);
+        });
+
+        var source = server.Url($"/iana-logo-header-{Guid.NewGuid():N}.svg");
+        var first = WebImageCache.Resolve(source);
+        Assert.Equal(WebImageCacheState.Pending, first.State);
+
+        var downloaded = SpinWait.SpinUntil(
+            () => WebImageCache.Resolve(source).State != WebImageCacheState.Pending,
+            TimeSpan.FromSeconds(5));
+
+        Assert.True(downloaded);
+        var image = WebImageCache.Resolve(source);
+        Assert.Equal(WebImageCacheState.Ready, image.State);
+        Assert.NotNull(image.LocalPath);
+        Assert.Contains(userAgents, value => value.Contains("Mozilla/5.0", StringComparison.Ordinal));
+
+        var decoded = SpinWait.SpinUntil(
+            () => SkiaImageAssetCache.Resolve(image.LocalPath).State != SkiaImageAssetState.Pending,
+            TimeSpan.FromSeconds(5));
+
+        Assert.True(decoded);
+        var asset = SkiaImageAssetCache.Resolve(image.LocalPath);
+        Assert.Equal(SkiaImageAssetState.Ready, asset.State);
+        Assert.NotNull(asset.Asset?.VectorPicture);
+    }
+
+    [Fact]
     public void AssetCache_ResolvesRasterImageAsynchronously()
     {
         var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
@@ -137,5 +184,102 @@ public sealed class SkiaImageAssetLoaderTests
         {
             File.Delete(filePath);
         }
+    }
+
+    private sealed class TestHttpServer : IDisposable
+    {
+        private readonly Func<TestHttpRequest, TestHttpResponse> respond;
+        private readonly TcpListener listener;
+        private readonly CancellationTokenSource cancellation = new();
+        private readonly Task serverTask;
+
+        public TestHttpServer(Func<TestHttpRequest, TestHttpResponse> respond)
+        {
+            this.respond = respond;
+            listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            serverTask = Task.Run(RunAsync);
+        }
+
+        public string Url(string path)
+        {
+            var endpoint = (IPEndPoint)listener.LocalEndpoint;
+            return $"http://127.0.0.1:{endpoint.Port}{path}";
+        }
+
+        public void Dispose()
+        {
+            cancellation.Cancel();
+            listener.Stop();
+            serverTask.Wait(TimeSpan.FromSeconds(2));
+            cancellation.Dispose();
+        }
+
+        private async Task RunAsync()
+        {
+            while (!cancellation.IsCancellationRequested)
+            {
+                TcpClient client;
+                try
+                {
+                    client = await listener.AcceptTcpClientAsync(cancellation.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (SocketException) when (cancellation.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                _ = Task.Run(() => HandleClientAsync(client), cancellation.Token);
+            }
+        }
+
+        private async Task HandleClientAsync(TcpClient client)
+        {
+            using var _ = client;
+            await using var stream = client.GetStream();
+            using var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true);
+            var requestLine = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (requestLine is null)
+                return;
+
+            var requestParts = requestLine.Split(' ', 3);
+            var path = requestParts[1];
+            var headersByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            string? line;
+            while (!string.IsNullOrEmpty(line = await reader.ReadLineAsync().ConfigureAwait(false)))
+            {
+                var separator = line.IndexOf(':', StringComparison.Ordinal);
+                if (separator > 0)
+                    headersByName[line[..separator]] = line[(separator + 1)..].Trim();
+            }
+
+            var response = respond(new TestHttpRequest(path, headersByName));
+
+            var bodyBytes = Encoding.UTF8.GetBytes(response.Body);
+            var headerBuilder = new StringBuilder()
+                .Append("HTTP/1.1 ")
+                .Append(response.Status)
+                .Append("\r\nContent-Type: image/svg+xml; charset=utf-8\r\nContent-Length: ")
+                .Append(bodyBytes.Length)
+                .Append("\r\nConnection: close\r\n\r\n");
+
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(headerBuilder.ToString())).ConfigureAwait(false);
+            await stream.WriteAsync(bodyBytes).ConfigureAwait(false);
+        }
+    }
+
+    private sealed record TestHttpRequest(string Path, IReadOnlyDictionary<string, string> Headers);
+
+    private sealed record TestHttpResponse(string Status, string Body)
+    {
+        public static TestHttpResponse Ok(string body)
+            => new("200 OK", body);
+
+        public static TestHttpResponse Forbidden(string body)
+            => new("403 Forbidden", body);
     }
 }

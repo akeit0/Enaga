@@ -200,6 +200,70 @@ public sealed class SceneCommitPainterTextVisibilityTests
     }
 
     [Fact]
+    public void Paint_DoesNotDrawGenericPlaceholderForPendingImage()
+    {
+        using var bitmap = new SKBitmap(80, 60, true);
+        using var canvas = new SKCanvas(bitmap);
+        using var painter = new SceneCommitPainter();
+        var commit = CreateImageCommit($"https://example.invalid/{Guid.NewGuid():N}.svg");
+
+        painter.Paint(canvas, commit, TimeSpan.Zero);
+
+        Assert.Equal(0, bitmap.GetPixel(20, 20).Alpha);
+    }
+
+    [Fact]
+    public void Paint_DrawsErrorPlaceholderForFailedImage()
+    {
+        using var bitmap = new SKBitmap(80, 60, true);
+        using var canvas = new SKCanvas(bitmap);
+        using var painter = new SceneCommitPainter();
+        var commit = CreateImageCommit(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.svg"));
+
+        painter.Paint(canvas, commit, TimeSpan.Zero);
+
+        Assert.True(bitmap.GetPixel(20, 20).Alpha > 0);
+    }
+
+    [Fact]
+    public void Paint_DrawsExplicitPlaceholderForPendingImage()
+    {
+        var placeholderPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
+        using (var placeholder = new SKBitmap(10, 10))
+        using (var placeholderCanvas = new SKCanvas(placeholder))
+        {
+            placeholderCanvas.Clear(SKColors.CornflowerBlue);
+            using var image = SKImage.FromBitmap(placeholder);
+            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+            using var stream = File.OpenWrite(placeholderPath);
+            data.SaveTo(stream);
+        }
+
+        try
+        {
+            using var bitmap = new SKBitmap(80, 60, true);
+            using var canvas = new SKCanvas(bitmap);
+            using var painter = new SceneCommitPainter();
+            var commit = CreateImageCommit(
+                $"https://example.invalid/{Guid.NewGuid():N}.svg",
+                placeholderPath);
+
+            painter.Paint(canvas, commit, TimeSpan.Zero);
+            var completed = SpinWait.SpinUntil(
+                () => SkiaImageAssetCache.Resolve(placeholderPath).State == SkiaImageAssetState.Ready,
+                TimeSpan.FromSeconds(5));
+            Assert.True(completed);
+            painter.Paint(canvas, commit, TimeSpan.FromMilliseconds(16));
+
+            Assert.True(bitmap.GetPixel(20, 20).Alpha > 0);
+        }
+        finally
+        {
+            File.Delete(placeholderPath);
+        }
+    }
+
+    [Fact]
     public void Paint_InvalidatesScrollContentPictureForPaintOverride()
     {
         using var bitmap = new SKBitmap(160, 100, true);
@@ -603,6 +667,31 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     32,
                     TextContent: text,
                     TextStyle: new SceneTextStyle(16, "#101820", TextOverflowEllipsis: textOverflowEllipsis))
+            },
+            []);
+    }
+
+    private static SceneLayoutCommit CreateImageCommit(string imageSource, string? placeholderSource = null)
+    {
+        return new SceneLayoutCommit(
+            Root,
+            new SceneViewport(80, 60),
+            new Dictionary<SceneNodeId, SceneGraphNode>
+            {
+                [Root] = new(SceneNodeKind.View, null, [One]),
+                [One] = new(SceneNodeKind.Image, Root, [])
+            },
+            new Dictionary<SceneNodeId, SceneLayoutBox>
+            {
+                [Root] = new(SceneNodeKind.View, 0, 0, 80, 60),
+                [One] = new(
+                    SceneNodeKind.Image,
+                    8,
+                    8,
+                    48,
+                    32,
+                    ImageSource: imageSource,
+                    ImagePlaceholderSource: placeholderSource)
             },
             []);
     }

@@ -285,6 +285,92 @@ public sealed class HtmlSceneFrameSourceTests
     }
 
     [Fact]
+    public void RenderFrame_UsesDefaultImageSizeWhenRemoteIntrinsicSizeIsUnavailable()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                "<body><img id='logo' src='/static/_img/2025.01/iana-logo-header.svg' /></body>",
+                BasePath: "https://www.iana.org/help/"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var frame = source.RenderFrame(640, 320, TimeSpan.Zero);
+        var imageId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key;
+        var imageBox = frame.Commit.Layout[imageId];
+
+        Assert.Equal(SceneNodeKind.Image, imageBox.NodeKind);
+        Assert.Equal(300, imageBox.Width);
+        Assert.Equal(150, imageBox.Height);
+        Assert.Equal("https://www.iana.org/static/_img/2025.01/iana-logo-header.svg", imageBox.ImageSource);
+    }
+
+    [Fact]
+    public void RenderFrame_PrefersLocalSvgIntrinsicSizeWhenAvailable()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "html-image-size-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var svgPath = Path.Combine(directory, "logo.svg");
+        File.WriteAllText(svgPath, """
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 20" />
+            """);
+
+        try
+        {
+            var source = new HtmlSceneFrameSource(
+                new Enaga.Html.HtmlDocument(
+                    "<body><img id='logo' src='logo.svg' /></body>",
+                    BasePath: directory),
+                new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+            var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
+            var imageId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key;
+            var imageBox = frame.Commit.Layout[imageId];
+
+            Assert.Equal(32, imageBox.Width);
+            Assert.Equal(20, imageBox.Height);
+            Assert.Equal(svgPath, imageBox.ImageSource);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RenderFrame_PrefersResolvedRemoteSvgIntrinsicSizeWhenAvailable()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "html-image-size-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var svgPath = Path.Combine(directory, "iana-logo-header.svg");
+        File.WriteAllText(svgPath, """
+            <svg xmlns="http://www.w3.org/2000/svg" width="234px" height="72px" viewBox="0 0 468 144" />
+            """);
+
+        try
+        {
+            var backendServices = new RuntimeBackendServices(
+                new DummyRuntimeTextServices(),
+                new StaticImageResolver(svgPath));
+            var source = new HtmlSceneFrameSource(
+                new Enaga.Html.HtmlDocument(
+                    "<body><img id='logo' src='/static/_img/2025.01/iana-logo-header.svg' /></body>",
+                    BasePath: "https://www.iana.org/help/"),
+                new Enaga.Html.HtmlOptions(BackendServices: backendServices));
+
+            var frame = source.RenderFrame(640, 320, TimeSpan.Zero);
+            var imageId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key;
+            var imageBox = frame.Commit.Layout[imageId];
+
+            Assert.Equal(234, imageBox.Width);
+            Assert.Equal(72, imageBox.Height);
+            Assert.Equal("https://www.iana.org/static/_img/2025.01/iana-logo-header.svg", imageBox.ImageSource);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void HtmlSceneFrameSource_ActivatesAnchorLinksOnClick()
     {
         var source = new HtmlSceneFrameSource(
@@ -4184,6 +4270,12 @@ public sealed class HtmlSceneFrameSourceTests
         var field = typeof(HtmlSceneFrameSource).GetField("cachedBaseFragmentTree", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(field);
         return Assert.IsType<HtmlFragmentTree>(field!.GetValue(source));
+    }
+
+    private sealed class StaticImageResolver(string localPath) : IRuntimeImageResolver
+    {
+        public RuntimeImageResolveResult ResolveImage(string source)
+            => new(RuntimeImageResolveState.Ready, localPath);
     }
 
     private static SKColor ParseColor(string? color)

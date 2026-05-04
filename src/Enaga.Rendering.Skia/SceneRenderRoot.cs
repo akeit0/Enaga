@@ -107,6 +107,8 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
 
     private void OnImageCacheChanged()
     {
+        if (source is IRenderResourceInvalidationSink invalidationSink)
+            invalidationSink.InvalidateRenderResources();
         Interlocked.Exchange(ref imageCacheDirty, 1);
         renderWakeRequested?.Invoke();
     }

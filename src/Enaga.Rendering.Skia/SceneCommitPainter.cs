@@ -1397,10 +1397,14 @@ internal sealed class SceneCommitPainter : IDisposable
         if (imageState.State != WebImageCacheState.Ready)
         {
             if (imageState.State == WebImageCacheState.Pending)
+            {
                 recordingContainsPendingImages = true;
-            if (imageState.State == WebImageCacheState.Pending && TryDrawPlaceholderImage(canvas, box, destinationRect))
-                return;
-            DrawImagePlaceholder(canvas, box, destinationRect, imageState.State == WebImageCacheState.Failed);
+                _ = TryDrawPlaceholderImage(canvas, box, destinationRect);
+            }
+            else
+            {
+                DrawImagePlaceholder(canvas, box, destinationRect, isError: true);
+            }
             return;
         }
 
@@ -1408,10 +1412,14 @@ internal sealed class SceneCommitPainter : IDisposable
         if (image.State != SkiaImageAssetState.Ready || image.Asset is null)
         {
             if (image.State == SkiaImageAssetState.Pending)
+            {
                 recordingContainsPendingImages = true;
-            if (image.State == SkiaImageAssetState.Pending && TryDrawPlaceholderImage(canvas, box, destinationRect))
-                return;
-            DrawImagePlaceholder(canvas, box, destinationRect, isError: image.State == SkiaImageAssetState.Failed);
+                _ = TryDrawPlaceholderImage(canvas, box, destinationRect);
+            }
+            else
+            {
+                DrawImagePlaceholder(canvas, box, destinationRect, isError: true);
+            }
             return;
         }
 

@@ -5,7 +5,7 @@ using Enaga.Input;
 
 namespace Enaga.Html;
 
-public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWakeSource, IRenderViewportScaleController, IRuntimeBackendServicesSource, IDisposable
+public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWakeSource, IRenderViewportScaleController, IRuntimeBackendServicesSource, IRenderResourceInvalidationSink, IDisposable
 {
     private readonly object sync = new();
     private readonly SceneNodeIdAllocator sceneNodeIdAllocator = new();
@@ -94,6 +94,17 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     public void RequestRenderWake()
     {
         RenderWakeRequested?.Invoke();
+    }
+
+    public void InvalidateRenderResources()
+    {
+        lock (sync)
+        {
+            builder.InvalidateResourceDependentLayout();
+            cachedBaseCommit = null;
+            cachedCommit = null;
+            Invalidate(BaseCommitInvalidation | HtmlPipelineInvalidation.HitTest, HtmlRenderDamageBits.FullFrame | HtmlRenderDamageBits.Document);
+        }
     }
 
     public SceneLayoutCommit BuildCommit(int width, int height)

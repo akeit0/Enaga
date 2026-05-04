@@ -43,6 +43,9 @@ internal sealed class HtmlSceneTreeBuilder
             BuildTree(document, viewportWidth, viewportHeight, styleTree));
     }
 
+    public void InvalidateResourceDependentLayout()
+        => cache.Clear();
+
     public Enaga.Html.Style.RestyleHint LastInvalidationHints => versionStore.LastInvalidationHints;
 
     public Enaga.Html.Style.RenderDamage LastDamage => versionStore.LastDamage;
@@ -646,6 +649,19 @@ internal sealed class HtmlSceneTreeBuilder
             style = style.CloneForFormatting();
             style.ApplyIntrinsicImageSize(intrinsicWidth, intrinsicHeight);
         }
+        else if (nodeKind == SceneNodeKind.Image &&
+                 imageSource is not null &&
+                 TryReadRuntimeImageIntrinsicSize(imageSource, out intrinsicWidth, out intrinsicHeight))
+        {
+            style = style.CloneForFormatting();
+            style.ApplyIntrinsicImageSize(intrinsicWidth, intrinsicHeight);
+        }
+        else if (nodeKind == SceneNodeKind.Image &&
+                 IsRemoteHttpImageSource(imageSource))
+        {
+            style = style.CloneForFormatting();
+            style.ApplyDefaultImageSize();
+        }
         var rowSpan = IsTableCellElement(element) ? ParsePositiveInt(element.GetAttribute("rowspan"), 1) : 1;
         var colSpan = IsTableCellElement(element) ? ParsePositiveInt(element.GetAttribute("colspan"), 1) : 1;
 
@@ -700,6 +716,25 @@ internal sealed class HtmlSceneTreeBuilder
             return TryReadSvgIntrinsicSize(imageSource, out width, out height);
 
         return false;
+    }
+
+    private static bool IsRemoteHttpImageSource(string? imageSource)
+        => Uri.TryCreate(imageSource, UriKind.Absolute, out var uri) &&
+           (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+    private bool TryReadRuntimeImageIntrinsicSize(string imageSource, out float width, out float height)
+    {
+        width = 0;
+        height = 0;
+
+        var backendServices = options.BackendServices;
+        if (backendServices is null || ReferenceEquals(backendServices, RuntimeBackendServices.Missing))
+            return false;
+
+        var result = backendServices.Images.ResolveImage(imageSource);
+        return result.State == RuntimeImageResolveState.Ready &&
+               !string.IsNullOrWhiteSpace(result.LocalPath) &&
+               TryReadImageIntrinsicSize(result.LocalPath, out width, out height);
     }
 
     private static bool TryReadSvgIntrinsicSize(string path, out float width, out float height)
