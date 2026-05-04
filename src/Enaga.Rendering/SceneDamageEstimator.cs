@@ -3,7 +3,7 @@ using Enaga.Scene;
 
 namespace Enaga.Rendering;
 
-internal static class SceneDamageEstimator
+public static class SceneDamageEstimator
 {
     private const float ShadowPadding = 24f;
     private const float BorderPadding = 4f;
@@ -80,6 +80,57 @@ internal static class SceneDamageEstimator
             (int)Math.Ceiling(clipped.Value.Bottom - clipped.Value.Top),
             viewportWidth,
             viewportHeight);
+    }
+
+    public static void AddPaintOverrideDirtyRects(
+        SceneLayoutCommit previousCommit,
+        SceneLayoutCommit nextCommit,
+        int viewportWidth,
+        int viewportHeight,
+        ICollection<SceneDamageRect> dirtyRects)
+    {
+        if (PaintOverrideMapsEqual(previousCommit.PaintOverrides, nextCommit.PaintOverrides))
+            return;
+
+        var ids = new HashSet<SceneNodeId>();
+        ids.EnsureCapacity(previousCommit.PaintOverrides.Count + nextCommit.PaintOverrides.Count);
+        AddKeys(ids, previousCommit.PaintOverrides.Keys);
+        AddKeys(ids, nextCommit.PaintOverrides.Keys);
+
+        foreach (var id in ids)
+        {
+            var previousHasOverride = previousCommit.TryGetPaintOverride(id, out var previousOverride);
+            var nextHasOverride = nextCommit.TryGetPaintOverride(id, out var nextOverride);
+            if (previousHasOverride == nextHasOverride &&
+                (!previousHasOverride || previousOverride == nextOverride))
+            {
+                continue;
+            }
+
+            if (previousCommit.Layout.TryGetValue(id, out _))
+                AddDirtyRect(dirtyRects, GetBoxDamageRect(previousCommit, id, viewportWidth, viewportHeight));
+            if (nextCommit.Layout.TryGetValue(id, out _))
+                AddDirtyRect(dirtyRects, GetBoxDamageRect(nextCommit, id, viewportWidth, viewportHeight));
+        }
+    }
+
+    public static bool PaintOverrideMapsEqual(
+        IReadOnlyDictionary<SceneNodeId, ScenePaintOverride> previous,
+        IReadOnlyDictionary<SceneNodeId, ScenePaintOverride> next)
+    {
+        if (previous.Count != next.Count)
+            return false;
+
+        foreach (var pair in previous)
+        {
+            if (!next.TryGetValue(pair.Key, out var nextOverride) ||
+                pair.Value != nextOverride)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool RequiresFullFrame(SceneDamageReason damageReasons)
@@ -281,6 +332,12 @@ internal static class SceneDamageEstimator
     }
 
     private static void AddDirtyRect(SceneDamageRectBufferWriter dirtyRects, SceneDamageRect? rect)
+    {
+        if (rect is { } normalized)
+            dirtyRects.Add(normalized);
+    }
+
+    private static void AddDirtyRect(ICollection<SceneDamageRect> dirtyRects, SceneDamageRect? rect)
     {
         if (rect is { } normalized)
             dirtyRects.Add(normalized);

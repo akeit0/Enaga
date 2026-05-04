@@ -46,6 +46,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     private SceneNodeId? focusedInputId;
     private float lastPointerX;
     private float lastPointerY;
+    private bool hasPointerPosition;
     private SceneNodeId? lastPrimaryClickInputId;
     private float lastPrimaryClickX;
     private float lastPrimaryClickY;
@@ -104,6 +105,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         {
             lastPointerX = x;
             lastPointerY = y;
+            hasPointerPosition = true;
 
             if ((buttons & LeftMouseButtonMask) != 0 && UpdateActiveScrollBarDrag(x, y))
             {
@@ -1293,7 +1295,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private void UpdateHoveredNodeId(float x, float y)
     {
-        if (cachedCommit is not null)
+        if (hasPointerPosition && cachedCommit is not null)
             UpdateHoveredNodeId(cachedCommit, x, y, requestUpdate: true);
     }
 
@@ -1397,6 +1399,26 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return false;
     }
 
+    private bool CanActiveAffectRendering(HtmlNodeId? oldActiveNodeId, HtmlNodeId? newActiveNodeId)
+    {
+        if (parsedDocument is null)
+            return true;
+
+        return IsRenderAffectingActiveNode(oldActiveNodeId) ||
+               IsRenderAffectingActiveNode(newActiveNodeId);
+    }
+
+    private bool IsRenderAffectingActiveNode(HtmlNodeId? nodeId)
+    {
+        if (nodeId is not { } resolvedNodeId)
+            return false;
+
+        if (!cachedDomElements.TryGetValue(resolvedNodeId, out var element))
+            return false;
+
+        return false;
+    }
+
     private bool IsRenderAffectingHoverNode(HtmlNodeId nodeId, HtmlParsedDocument parsed)
     {
         if (!cachedDomElements.TryGetValue(nodeId, out var element))
@@ -1439,25 +1461,25 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private bool TryApplyHoverPaintOverlay(
         HtmlParsedDocument parsed,
-        SceneLayoutCommit commit,
+        SceneLayoutCommit previousVisibleCommit,
+        SceneLayoutCommit nextCommit,
         int width,
         int height,
         out SceneLayoutCommit overlayCommit)
     {
-        overlayCommit = commit;
+        overlayCommit = nextCommit;
         hoverPaintDirtyRects.Clear();
 
         var changedHoverLinks = CollectChangedHoverLinks(parsed, width, height);
         var paintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>(Math.Min(64, Math.Max(4, changedHoverLinks.Count * 4)));
-        var changed = false;
-        foreach (var pair in commit.Layout)
+        foreach (var pair in nextCommit.Layout)
         {
             var sceneNodeId = pair.Key;
             var box = pair.Value;
             if (box.NodeKind != SceneNodeKind.Text ||
                 box.TextStyle is null ||
                 string.IsNullOrWhiteSpace(box.LinkHref) ||
-                !TryResolveNearestDomNodeId(commit, sceneNodeId, out var domNodeId) ||
+                !TryResolveNearestDomNodeId(nextCommit, sceneNodeId, out var domNodeId) ||
                 !TryFindHoverLinkTarget(domNodeId, box.LinkHref, changedHoverLinks, out var linkNodeId, out var hoverColor))
             {
                 continue;
@@ -1470,27 +1492,94 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             }
 
             AddPaintOverride(paintOverrides, sceneNodeId, textColor: hoverColor);
-            AddHoverPaintDirtyRect(commit, sceneNodeId, box);
-            changed = true;
         }
 
-        if (!TryApplyHoverBackgroundOverlay(parsed, commit, paintOverrides, width, height, ref changed))
-            return false;
+        AddDefaultButtonInteractionPaintOverrides(nextCommit, paintOverrides);
 
-        if (!changed)
+        if (!TryApplyHoverBackgroundOverlay(parsed, nextCommit, paintOverrides, width, height))
+        {
             return false;
+        }
 
-        overlayCommit = commit with { PaintOverrides = paintOverrides };
+        overlayCommit = SceneDamageEstimator.PaintOverrideMapsEqual(nextCommit.PaintOverrides, paintOverrides)
+            ? nextCommit
+            : nextCommit with { PaintOverrides = paintOverrides };
+        if (!SceneDamageEstimator.PaintOverrideMapsEqual(previousVisibleCommit.PaintOverrides, overlayCommit.PaintOverrides))
+            SceneDamageEstimator.AddPaintOverrideDirtyRects(previousVisibleCommit, overlayCommit, width, height, hoverPaintDirtyRects);
         return true;
     }
+
+    private void AddDefaultButtonInteractionPaintOverrides(
+        SceneLayoutCommit commit,
+        Dictionary<SceneNodeId, ScenePaintOverride> paintOverrides)
+    {
+        foreach (var pair in commit.Layout)
+        {
+            var sceneNodeId = pair.Key;
+            var box = pair.Value;
+            if (box.ControlKind != SceneControlKind.Button ||
+                !TryResolveNearestDomNodeId(commit, sceneNodeId, out var domNodeId) ||
+                !cachedDomElements.TryGetValue(domNodeId, out var element) ||
+                !string.Equals(element.LocalName, "button", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var isHovered = hoveredDomNodeIds?.Contains(domNodeId) == true;
+            var isActive = activeDomNodeId == domNodeId;
+            if (!isHovered && !isActive)
+                continue;
+
+            var backgroundColor = ResolveDefaultButtonInteractionColor(
+                box.BackgroundColor,
+                isHovered,
+                isActive,
+                HtmlComputedStyle.Defaults.ColorButtonBackground,
+                HtmlComputedStyle.Defaults.ColorButtonBackgroundHover,
+                HtmlComputedStyle.Defaults.ColorButtonBackgroundActive);
+            var borderColor = ResolveDefaultButtonInteractionColor(
+                box.BorderColor,
+                isHovered,
+                isActive,
+                HtmlComputedStyle.Defaults.ColorButtonBorder,
+                HtmlComputedStyle.Defaults.ColorButtonBorderHover,
+                HtmlComputedStyle.Defaults.ColorButtonBorderActive);
+            if (backgroundColor is null && borderColor is null)
+                continue;
+
+            AddPaintOverride(paintOverrides, sceneNodeId, backgroundColor: backgroundColor, borderColor: borderColor);
+        }
+    }
+
+    private static string? ResolveDefaultButtonInteractionColor(
+        string? currentColor,
+        bool isHovered,
+        bool isActive,
+        string baseColor,
+        string hoverColor,
+        string activeColor)
+    {
+        if (!MatchesInteractionPalette(currentColor, baseColor, hoverColor, activeColor))
+            return null;
+
+        if (isActive)
+            return activeColor;
+        if (isHovered)
+            return hoverColor;
+        return null;
+    }
+
+    private static bool MatchesInteractionPalette(string? currentColor, string baseColor, string hoverColor, string activeColor)
+        => string.Equals(currentColor, baseColor, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(currentColor, hoverColor, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(currentColor, activeColor, StringComparison.OrdinalIgnoreCase);
 
     private bool TryApplyHoverBackgroundOverlay(
         HtmlParsedDocument parsed,
         SceneLayoutCommit commit,
         Dictionary<SceneNodeId, ScenePaintOverride> paintOverrides,
         int width,
-        int height,
-        ref bool changed)
+        int height)
     {
         foreach (var pair in commit.Layout)
         {
@@ -1514,8 +1603,6 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             }
 
             AddPaintOverride(paintOverrides, sceneNodeId, backgroundColor: hoverColor);
-            AddHoverPaintDirtyRect(commit, sceneNodeId, box);
-            changed = true;
         }
 
         return true;
@@ -1525,12 +1612,14 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         Dictionary<SceneNodeId, ScenePaintOverride> overrides,
         SceneNodeId id,
         string? backgroundColor = null,
+        string? borderColor = null,
         string? textColor = null)
     {
         overrides.TryGetValue(id, out var current);
         overrides[id] = current with
         {
             BackgroundColor = backgroundColor ?? current.BackgroundColor,
+            BorderColor = borderColor ?? current.BorderColor,
             TextColor = textColor ?? current.TextColor
         };
     }
@@ -1636,16 +1725,6 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         linkNodeId = default;
         hoverColor = string.Empty;
         return false;
-    }
-
-    private void AddHoverPaintDirtyRect(SceneLayoutCommit commit, SceneNodeId sceneNodeId, SceneLayoutBox box)
-    {
-        var screenBox = SceneScreenGeometry.ResolveScreenBox(commit, commit.Layout, sceneNodeId, box);
-        hoverPaintDirtyRects.Add(new SceneDamageRect(
-            Math.Max(0, (int)MathF.Floor(screenBox.AbsLeft)),
-            Math.Max(0, (int)MathF.Floor(screenBox.AbsTop)),
-            Math.Max(1, (int)MathF.Ceiling(screenBox.Width)),
-            Math.Max(1, (int)MathF.Ceiling(screenBox.Height))));
     }
 
     private readonly record struct HoverLinkPaint(string? LinkHref, string HoverColor);
@@ -1901,12 +1980,6 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     {
         if (ReferenceEquals(cachedHitTestCommit, commit))
             return cachedHitTestIndex ?? HtmlHitTestSpatialIndex.Empty;
-        if (cachedHitTestIndex is not null &&
-            cachedHitTestGeometryVersion == hitTestGeometryVersion)
-        {
-            cachedHitTestCommit = commit;
-            return cachedHitTestIndex;
-        }
 
         hitTestEntryScratch.Clear();
         if (cachedBaseFragmentTree is { } fragmentTree)

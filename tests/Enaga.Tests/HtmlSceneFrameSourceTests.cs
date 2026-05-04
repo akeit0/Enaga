@@ -1383,18 +1383,46 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
-        var initialBox = initial.Commit.Layout[buttonId];
+        var initialButtonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+        var initialBox = initial.Commit.Layout[initialButtonId];
+        var initialTextBox = initial.Commit.Layout.Values.Single(box => box.TextContent == "Open");
 
-        source.PointerMove(initialBox.AbsLeft + 4, initialBox.AbsTop + 4, 0, synthetic: false);
+        source.PointerMove(initialTextBox.AbsLeft + initialTextBox.Width / 2, initialTextBox.AbsTop + initialTextBox.Height / 2, 0, synthetic: false);
         var hovered = source.RenderFrame(320, 180, TimeSpan.Zero);
         source.PointerDown(0, 1, synthetic: false);
         var pressed = source.RenderFrame(320, 180, TimeSpan.Zero);
         source.PointerUp(0, 0, synthetic: false);
+        var hoveredButtonId = hovered.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+        var pressedButtonId = pressed.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
 
         Assert.Equal(new SKColor(0xEF, 0xEF, 0xEF, 0xFF), ParseColor(initialBox.BackgroundColor));
-        Assert.Equal(new SKColor(0xE4, 0xE4, 0xE4, 0xFF), ParseColor(hovered.Commit.Layout[buttonId].BackgroundColor));
-        Assert.Equal(new SKColor(0xF8, 0xF8, 0xF8, 0xFF), ParseColor(pressed.Commit.Layout[buttonId].BackgroundColor));
+        Assert.Equal(SceneDamageReason.FragmentDamage, hovered.DamageReasons);
+        Assert.Equal(new SKColor(0xE4, 0xE4, 0xE4, 0xFF), ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonId)));
+        Assert.Equal(new SKColor(0xF8, 0xF8, 0xF8, 0xFF), ParseColor(ResolveAppliedBackgroundColor(pressed.Commit, pressedButtonId)));
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_ClearsDefaultButtonHoverWhenPointerLeaves()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument("<body><button id='cta'>Open</button></body>"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var initialButtonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+        var initialBox = initial.Commit.Layout[initialButtonId];
+        var initialTextBox = initial.Commit.Layout.Values.Single(box => box.TextContent == "Open");
+
+        source.PointerMove(initialTextBox.AbsLeft + initialTextBox.Width / 2, initialTextBox.AbsTop + initialTextBox.Height / 2, 0, synthetic: false);
+        var hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
+        source.PointerMove(319, 179, 0, synthetic: false);
+        var unhovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
+        var hoveredButtonId = hovered.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+        var unhoveredButtonId = unhovered.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+
+        Assert.Equal(new SKColor(0xE4, 0xE4, 0xE4, 0xFF), ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonId)));
+        Assert.Equal(SceneDamageReason.FragmentDamage, unhovered.DamageReasons);
+        Assert.Equal(new SKColor(0xEF, 0xEF, 0xEF, 0xFF), ParseColor(ResolveAppliedBackgroundColor(unhovered.Commit, unhoveredButtonId)));
     }
 
     [Fact]
@@ -2108,8 +2136,8 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredBox = hovered.Commit.Layout[buttonId];
 
         Assert.Equal(new SKColor(0x11, 0x22, 0x33, 0xFF), ParseColor(initialBox.BackgroundColor));
-        Assert.Equal(new SKColor(0x44, 0x55, 0x66, 0xFF), ParseColor(hoveredBox.BackgroundColor));
-        Assert.Equal(new SKColor(0x77, 0x88, 0x99, 0xFF), ParseColor(hoveredBox.BorderColor));
+        Assert.Equal(new SKColor(0x44, 0x55, 0x66, 0xFF), ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, buttonId)));
+        Assert.Equal(new SKColor(0x77, 0x88, 0x99, 0xFF), ParseColor(ResolveAppliedBorderColor(hovered.Commit, buttonId)));
     }
 
     [Fact]
@@ -2177,12 +2205,101 @@ public sealed class HtmlSceneFrameSourceTests
 
         source.PointerMove(initialBox.AbsLeft + 10, initialBox.AbsTop + 10, 0, synthetic: false);
         var hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
-        Assert.Equal("#445566", hovered.Commit.Layout[buttonId].BackgroundColor);
+        Assert.NotEmpty(hovered.Commit.PaintOverrides);
+        Assert.Equal("#445566", ResolveAppliedBackgroundColor(hovered.Commit, buttonId));
 
         source.PointerMove(319, 179, 0, synthetic: false);
         var unhovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
-        Assert.Equal("#112233", unhovered.Commit.Layout[buttonId].BackgroundColor);
+        Assert.Equal(SceneDamageReason.FragmentDamage, unhovered.DamageReasons);
+        Assert.Equal("#112233", ResolveAppliedBackgroundColor(unhovered.Commit, buttonId));
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_ClearsHoverStyleAfterClickAndLeave()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                "<body><button id='cta'>Hover me</button></body>",
+                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+        var initialBox = initial.Commit.Layout[buttonId];
+
+        source.PointerMove(initialBox.AbsLeft + 10, initialBox.AbsTop + 10, 0, synthetic: false);
+        source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
+        source.PointerDown(0, 1, synthetic: false);
+        source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(24));
+        source.PointerUp(0, 0, synthetic: false);
+        var clicked = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
+        Assert.Equal("#445566", ResolveAppliedBackgroundColor(clicked.Commit, buttonId));
+
+        source.PointerMove(319, 179, 0, synthetic: false);
+        var unhovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(48));
+
+        Assert.Equal(SceneDamageReason.FragmentDamage, unhovered.DamageReasons);
+        Assert.Equal("#112233", ResolveAppliedBackgroundColor(unhovered.Commit, buttonId));
+        Assert.Empty(unhovered.Commit.PaintOverrides);
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_PreservesHoverStyleAfterClickWithoutPointerMove()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                "<body><button id='cta'>Hover me</button></body>",
+                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+        var initialBox = initial.Commit.Layout[buttonId];
+
+        source.PointerMove(initialBox.AbsLeft + 10, initialBox.AbsTop + 10, 0, synthetic: false);
+        source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
+        source.PointerDown(0, 1, synthetic: false);
+        var pressed = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(24));
+        source.PointerUp(0, 0, synthetic: false);
+        var released = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
+
+        Assert.Equal("#445566", ResolveAppliedBackgroundColor(pressed.Commit, buttonId));
+        Assert.Equal("#445566", ResolveAppliedBackgroundColor(released.Commit, buttonId));
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_ClearsPreviousLinkHoverAfterClickAndMove()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                """
+                <body>
+                  <a href="one.html">One</a>
+                  <a href="two.html">Two</a>
+                </body>
+                """,
+                "a { color: #112233; } a:hover { color: #445566; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
+        source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
+        var hoveredFirst = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
+
+        source.PointerDown(0, 1, synthetic: false);
+        source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(24));
+        source.PointerUp(0, 0, synthetic: false);
+        source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
+
+        var second = hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "Two");
+        source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
+        var hoveredSecond = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(48));
+
+        var oneId = hoveredSecond.Commit.Layout.First(pair => pair.Value.TextContent == "One").Key;
+        var twoId = hoveredSecond.Commit.Layout.First(pair => pair.Value.TextContent == "Two").Key;
+        Assert.Equal("#112233", ResolveAppliedTextColor(hoveredSecond.Commit, oneId));
+        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredSecond.Commit, twoId));
     }
 
     [Fact]
@@ -2345,6 +2462,49 @@ public sealed class HtmlSceneFrameSourceTests
     }
 
     [Fact]
+    public void HtmlSceneFrameSource_HoversDefaultButtonAfterRootScrollWithoutClick()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                """
+                <body>
+                  <div style="height: 600px;"></div>
+                  <button id="cta">Open</button>
+                </body>
+                """),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        SceneFrameResult scrolled = initial;
+        for (var step = 1; step <= 24; step++)
+        {
+            source.Wheel(0, -3, synthetic: false);
+            scrolled = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(step * 16));
+            var rootScrollY = scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY;
+            var buttonTextBoxCandidate = scrolled.Commit.Layout.Values.Single(box => box.TextContent == "Open");
+            var buttonScreenTop = buttonTextBoxCandidate.AbsTop - rootScrollY;
+            if (buttonScreenTop >= 0 && buttonScreenTop + buttonTextBoxCandidate.Height <= 180)
+                break;
+        }
+
+        var buttonTextBox = scrolled.Commit.Layout.Values.Single(box => box.TextContent == "Open");
+        var screenY = buttonTextBox.AbsTop - scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY + (buttonTextBox.Height / 2);
+        source.PointerMove(buttonTextBox.AbsLeft + (buttonTextBox.Width / 2), screenY, 0, synthetic: false);
+        var hovered = scrolled;
+        for (var frame = 0; frame < 8; frame++)
+        {
+            hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(224 + frame * 16));
+            var hoveredButtonIdCandidate = hovered.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+            if (string.Equals(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonIdCandidate), "#e4e4e4", StringComparison.OrdinalIgnoreCase))
+                break;
+        }
+        var hoveredButtonId = hovered.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+
+        Assert.Equal(new SKColor(0xE4, 0xE4, 0xE4, 0xFF), ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonId)));
+        Assert.Equal(SceneDamageReason.FragmentDamage, hovered.DamageReasons);
+    }
+
+    [Fact]
     public void HtmlSceneFrameSource_UsesRootScrollViewForTallDocuments()
     {
         var source = new HtmlSceneFrameSource(
@@ -2474,10 +2634,8 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
         var hoveredFirstOne = hoveredFirst.Commit.Layout.First(pair => pair.Value.TextContent == "One").Key;
         var hoveredFirstTwo = hoveredFirst.Commit.Layout.First(pair => pair.Value.TextContent == "Two").Key;
-        Assert.Equal("#445566", hoveredFirst.Commit.PaintOverrides[hoveredFirstOne].TextColor);
-        Assert.False(hoveredFirst.Commit.PaintOverrides.ContainsKey(hoveredFirstTwo));
-        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
-        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredFirst.Commit, hoveredFirstOne));
+        Assert.Equal("#112233", ResolveAppliedTextColor(hoveredFirst.Commit, hoveredFirstTwo));
 
         var second = hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "Two");
         source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
@@ -2486,10 +2644,15 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(SceneDamageReason.FragmentDamage, hoveredSecond.DamageReasons);
         var hoveredSecondOne = hoveredSecond.Commit.Layout.First(pair => pair.Value.TextContent == "One").Key;
         var hoveredSecondTwo = hoveredSecond.Commit.Layout.First(pair => pair.Value.TextContent == "Two").Key;
-        Assert.False(hoveredSecond.Commit.PaintOverrides.ContainsKey(hoveredSecondOne));
-        Assert.Equal("#445566", hoveredSecond.Commit.PaintOverrides[hoveredSecondTwo].TextColor);
-        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
-        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+        Assert.Equal("#112233", ResolveAppliedTextColor(hoveredSecond.Commit, hoveredSecondOne));
+        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredSecond.Commit, hoveredSecondTwo));
+
+        source.PointerMove(319, 179, 0, synthetic: false);
+        var unhovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(48));
+
+        Assert.Equal(SceneDamageReason.FragmentDamage, unhovered.DamageReasons);
+        Assert.Empty(unhovered.Commit.PaintOverrides);
+        Assert.Equal("#112233", ResolveAppliedTextColor(unhovered.Commit, hoveredSecondTwo));
     }
 
     [Fact]
@@ -2524,6 +2687,36 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.True(hoveredSecond.Commit.PaintOverrides.Values.Count(paintOverride => paintOverride.BackgroundColor == "#f0f0f8") >= 2);
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
         Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_ClearsHoveredTableRowBackgroundWhenPointerLeaves()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                """
+                <body>
+                  <table class="iana-table">
+                    <tr><td>One</td><td>Two</td></tr>
+                  </table>
+                </body>
+                """,
+                "td { background: #fafafc; padding: 8px; } .iana-table tr:hover td { background: #f0f0f8; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
+        source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
+        var hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
+        Assert.True(
+            hovered.Commit.Layout.Keys.Count(id => ResolveAppliedBackgroundColor(hovered.Commit, id) == "#f0f0f8") >= 2);
+
+        source.PointerMove(319, 179, 0, synthetic: false);
+        var unhovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
+
+        Assert.Equal(SceneDamageReason.FragmentDamage, unhovered.DamageReasons);
+        Assert.Empty(unhovered.Commit.PaintOverrides);
+        Assert.DoesNotContain(unhovered.Commit.Layout.Keys, id => ResolveAppliedBackgroundColor(unhovered.Commit, id) == "#f0f0f8");
     }
 
     [Fact]
@@ -3714,6 +3907,21 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.True(SceneCommitPainter.TryParseCssColor(color, out var parsed), $"Failed to parse color '{color ?? "<null>"}'");
         return parsed;
     }
+
+    private static string? ResolveAppliedBackgroundColor(SceneLayoutCommit commit, SceneNodeId id)
+        => commit.TryGetPaintOverride(id, out var paintOverride)
+            ? paintOverride.BackgroundColor ?? commit.Layout[id].BackgroundColor
+            : commit.Layout[id].BackgroundColor;
+
+    private static string? ResolveAppliedBorderColor(SceneLayoutCommit commit, SceneNodeId id)
+        => commit.TryGetPaintOverride(id, out var paintOverride)
+            ? paintOverride.BorderColor ?? commit.Layout[id].BorderColor
+            : commit.Layout[id].BorderColor;
+
+    private static string? ResolveAppliedTextColor(SceneLayoutCommit commit, SceneNodeId id)
+        => commit.TryGetPaintOverride(id, out var paintOverride)
+            ? paintOverride.TextColor ?? commit.Layout[id].TextStyle?.Color
+            : commit.Layout[id].TextStyle?.Color;
 
     private static bool IsMatchingGeneratedAncestor(SceneLayoutCommit commit, SceneNodeId nodeId, string prefix)
     {
