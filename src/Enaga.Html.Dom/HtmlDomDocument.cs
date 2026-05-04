@@ -24,6 +24,14 @@ public sealed class HtmlDomDocument
         ? RootElement
         : QuerySelector("body");
 
+    public HtmlDomElement DocumentElement => string.Equals(RootElement.LocalName, "html", StringComparison.OrdinalIgnoreCase)
+        ? RootElement
+        : QuerySelector("html") ?? RootElement;
+
+    public HtmlDomElement? Head => string.Equals(RootElement.LocalName, "head", StringComparison.OrdinalIgnoreCase)
+        ? RootElement
+        : QuerySelector("head");
+
     public HtmlDomElement? GetElementById(string id)
         => elementsById.TryGetValue(id, out var element) ? element : null;
 
@@ -46,6 +54,15 @@ public sealed class HtmlDomDocument
             string.Empty);
         elementsByNodeId[element.NodeId] = element;
         return element;
+    }
+
+    public HtmlDomElement? CloneElement(HtmlNodeId nodeId, bool deep)
+    {
+        if (!elementsByNodeId.TryGetValue(nodeId, out var element))
+            return null;
+
+        var clone = CloneElementCore(element, deep, default);
+        return clone;
     }
 
     public HtmlDomElement? SetTextContent(HtmlNodeId nodeId, string? text)
@@ -118,6 +135,20 @@ public sealed class HtmlDomDocument
 
         var nextParent = RecalculateElement(parent with { Children = [.. parent.Children, child] });
         ReplaceElement(parentNodeId, nextParent);
+        parentNodeIds[childNodeId] = parentNodeId;
+        return elementsByNodeId[parentNodeId];
+    }
+
+    public HtmlDomElement? ReplaceChildren(HtmlNodeId parentNodeId, IReadOnlyList<HtmlDomNode> children)
+    {
+        if (!elementsByNodeId.TryGetValue(parentNodeId, out var parent))
+            return null;
+
+        var nextParent = RecalculateElement(parent with { Children = children.ToArray() });
+        ReplaceElement(parentNodeId, nextParent);
+        foreach (var child in children)
+            if (child is HtmlDomElement childElement)
+                parentNodeIds[childElement.NodeId] = parentNodeId;
         return elementsByNodeId[parentNodeId];
     }
 
@@ -147,6 +178,38 @@ public sealed class HtmlDomDocument
         CollectElements(RootElement, element =>
         {
             if (string.Equals(element.LocalName, localName, StringComparison.OrdinalIgnoreCase))
+                elements.Add(element);
+        });
+        return elements;
+    }
+
+    public IReadOnlyList<HtmlDomElement> QuerySelectorAll(string selector)
+    {
+        if (string.IsNullOrWhiteSpace(selector))
+            return [];
+
+        var trimmed = selector.Trim();
+        var elements = new List<HtmlDomElement>();
+        if (trimmed.StartsWith("#", StringComparison.Ordinal))
+        {
+            if (GetElementById(trimmed[1..]) is { } element)
+                elements.Add(element);
+            return elements;
+        }
+
+        if (trimmed.StartsWith(".", StringComparison.Ordinal))
+        {
+            CollectElements(RootElement, element =>
+            {
+                if (element.HasClass(trimmed[1..]))
+                    elements.Add(element);
+            });
+            return elements;
+        }
+
+        CollectElements(RootElement, element =>
+        {
+            if (string.Equals(element.LocalName, trimmed, StringComparison.OrdinalIgnoreCase))
                 elements.Add(element);
         });
         return elements;
@@ -183,6 +246,34 @@ public sealed class HtmlDomDocument
                 IndexElement(childElement, element.NodeId);
     }
 
+    private HtmlDomElement CloneElementCore(HtmlDomElement element, bool deep, HtmlNodeId parentNodeId)
+    {
+        var cloneNodeId = new HtmlNodeId(Interlocked.Increment(ref nextGeneratedNodeId));
+        var children = deep
+            ? element.Children.Select(child => child is HtmlDomElement childElement
+                ? CloneElementCore(childElement, deep: true, cloneNodeId)
+                : child).ToArray()
+            : [];
+        var clone = RecalculateElement(element with
+        {
+            NodeId = cloneNodeId,
+            Attributes = new Dictionary<string, string>(element.Attributes, StringComparer.OrdinalIgnoreCase),
+            Children = children
+        });
+        IndexClonedElement(clone, parentNodeId);
+        return clone;
+    }
+
+    private void IndexClonedElement(HtmlDomElement element, HtmlNodeId parentNodeId)
+    {
+        elementsByNodeId[element.NodeId] = element;
+        if (parentNodeId.IsValid)
+            parentNodeIds[element.NodeId] = parentNodeId;
+        foreach (var child in element.Children)
+            if (child is HtmlDomElement childElement)
+                IndexClonedElement(childElement, element.NodeId);
+    }
+
     private void ReplaceElement(HtmlNodeId nodeId, HtmlDomElement nextElement)
     {
         if (!TryReplaceElement(RootElement, nodeId, nextElement, out var nextRoot))
@@ -191,11 +282,44 @@ public sealed class HtmlDomDocument
             if (!string.IsNullOrWhiteSpace(nextElement.Id))
                 elementsById[nextElement.Id] = nextElement;
             nextGeneratedNodeId = Math.Max(nextGeneratedNodeId, nextElement.NodeId.Value);
+            PropagateDetachedChildReplacement(nodeId, nextElement);
             return;
         }
 
         RootElement = nextRoot;
         RebuildIndexes();
+    }
+
+    private void PropagateDetachedChildReplacement(HtmlNodeId childNodeId, HtmlDomElement replacement)
+    {
+        if (!parentNodeIds.TryGetValue(childNodeId, out var parentNodeId) ||
+            !elementsByNodeId.TryGetValue(parentNodeId, out var parent))
+        {
+            return;
+        }
+
+        var changed = false;
+        var children = new HtmlDomNode[parent.Children.Count];
+        for (var index = 0; index < parent.Children.Count; index++)
+        {
+            if (parent.Children[index] is HtmlDomElement childElement &&
+                childElement.NodeId == childNodeId)
+            {
+                children[index] = replacement;
+                changed = true;
+            }
+            else
+            {
+                children[index] = parent.Children[index];
+            }
+        }
+
+        if (!changed)
+            return;
+
+        var nextParent = RecalculateElement(parent with { Children = children });
+        elementsByNodeId[parentNodeId] = nextParent;
+        PropagateDetachedChildReplacement(parentNodeId, nextParent);
     }
 
     private static bool TryReplaceElement(HtmlDomElement current, HtmlNodeId nodeId, HtmlDomElement replacement, out HtmlDomElement next)

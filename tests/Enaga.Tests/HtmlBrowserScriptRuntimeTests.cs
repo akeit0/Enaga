@@ -202,6 +202,124 @@ public sealed class HtmlBrowserScriptRuntimeTests
     }
 
     [Fact]
+    public void CreateAndRun_ProvidesNavigatorAndDataLayerGlobals()
+    {
+        var document = new HtmlDocument("""
+            <body>
+              <div id="status"></div>
+              <script>
+                dataLayer.push("ready");
+                document.getElementById("status").textContent =
+                  navigator.userAgent.indexOf("Enaga.Browser") >= 0 && window.dataLayer.length === 1
+                    ? "available"
+                    : "missing";
+              </script>
+            </body>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+
+        Assert.NotNull(runtime);
+        Assert.Contains("<div id=\"status\">available</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateAndRun_ExposesWindowAssignmentsAsGlobalsForLaterScripts()
+    {
+        var document = new HtmlDocument("""
+            <body>
+              <div id="status"></div>
+              <script>
+                window.libraryValue = "available";
+              </script>
+              <script>
+                document.getElementById("status").textContent = libraryValue;
+              </script>
+            </body>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+
+        Assert.NotNull(runtime);
+        Assert.Contains("<div id=\"status\">available</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateAndRun_ProvidesMinimalDomProbeApis()
+    {
+        var document = new HtmlDocument("""
+            <html>
+              <head></head>
+              <body>
+                <div id="status"></div>
+                <script>
+                  const fieldset = document.createElement("fieldset");
+                  fieldset.innerHTML = "<a href='#'></a>";
+                  const inputHost = document.createElement("fieldset");
+                  inputHost.innerHTML = "<input/>";
+                  inputHost.firstChild.setAttribute("value", "");
+                  inputHost.firstChild.setAttribute("checked", "checked");
+                  const inputClone = inputHost.cloneNode(true).cloneNode(true);
+                  const htmlDocBody = document.implementation.createHTMLDocument("").body;
+                  htmlDocBody.innerHTML = "<form></form><form></form>";
+                  const script = document.createElement("script");
+                  const ok = document.documentElement.nodeType === 1 &&
+                    document.head.appendChild(script).parentNode.removeChild(script) === script &&
+                    document.querySelectorAll("fieldset").length === 0 &&
+                    fieldset.nodeType === 1 &&
+                    fieldset.nodeName === "FIELDSET" &&
+                    fieldset.childNodes.length === 1 &&
+                    fieldset.lastChild === fieldset.firstChild &&
+                    inputClone.lastChild.checked === true &&
+                    htmlDocBody.childNodes.length === 2 &&
+                    fieldset.style.getPropertyValue("display") === "" &&
+                    fieldset.firstChild.ownerDocument === document &&
+                    fieldset.firstChild.getAttribute("href") === "#" &&
+                    inputHost.firstChild.nodeName === "INPUT" &&
+                    inputHost.firstChild.getAttributeNode("value").specified &&
+                    inputHost.firstChild.getAttributeNode("value").value === "" &&
+                    fieldset.compareDocumentPosition(document.createElement("fieldset")) === 1 &&
+                    fieldset.parentNode === null &&
+                    (function ce(e){var t=document.createElement("fieldset");try{return!!e(t)}catch(e){return false}finally{t.parentNode&&t.parentNode.removeChild(t),t=null}})(function(e){return 1&e.compareDocumentPosition(document.createElement("fieldset"))}) &&
+                    (function ce(e){var t=document.createElement("fieldset");try{return!!e(t)}catch(e){return false}finally{t.parentNode&&t.parentNode.removeChild(t),t=null}})(function(e){return e.innerHTML="<a href='#'></a>","#"===e.firstChild.getAttribute("href")});
+                  document.getElementById("status").textContent = ok ? "available" : "missing";
+                </script>
+              </body>
+            </html>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+
+        Assert.NotNull(runtime);
+        Assert.Contains("<div id=\"status\">available</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateAndRun_ClampsLongScriptErrorSourceLine()
+    {
+        var script = "const filler = '" + new string('x', 400) + "'; throw new Error('boom');";
+        var document = new HtmlDocument("<body><script>" + script + "</script></body>");
+        using var error = new StringWriter();
+        var previousError = Console.Error;
+        Console.SetError(error);
+
+        try
+        {
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+
+            Assert.NotNull(runtime);
+        }
+        finally
+        {
+            Console.SetError(previousError);
+        }
+
+        var log = error.ToString();
+        Assert.Contains("...", log, StringComparison.Ordinal);
+        Assert.DoesNotContain(new string('x', 300), log, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CreateAndRun_LoadsRemoteExternalScriptWithBrowserHeadersAndReferer()
     {
         string? serverReferer = null;

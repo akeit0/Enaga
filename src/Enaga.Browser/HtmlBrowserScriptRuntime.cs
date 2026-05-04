@@ -1,11 +1,14 @@
 using Enaga.Html.Dom;
 using Enaga.Html;
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using Okojo;
+using Okojo.Compiler;
 using Okojo.Hosting;
 using Okojo.Objects;
+using Okojo.Parsing;
 using Okojo.Runtime;
 using Okojo.WebPlatform;
 
@@ -37,9 +40,14 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private readonly string? basePath;
     private readonly Dictionary<HtmlNodeId, List<JsFunction>> clickListeners = [];
     private readonly Dictionary<HtmlNodeId, JsUserDataObject<HtmlDomElement>> elementObjects = [];
+    private readonly Dictionary<HtmlNodeId, string> elementValues = [];
+    private readonly Dictionary<int, IHostDelayedOperation> timerOperations = [];
     private JsUserDataObject<HtmlDomDocument>? documentObject;
     private JsPlainObject? locationObject;
+    private int nextTimerId;
     private ulong documentVersion;
+
+    private sealed record BrowserScriptText(string Text, string DisplayName, string? Source);
 
     private HtmlBrowserScriptRuntime(HtmlDomDocument document, string documentSource, string? styleSheet, string? basePath)
     {
@@ -96,39 +104,48 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         {
             try
             {
-                scriptRuntime.runtime.MainRealm.Evaluate(scripts[index]);
+                var script = scripts[index];
+                var program = JavaScriptParser.ParseScript(script.Text, script.DisplayName);
+                var compiledScript = JsCompiler.Compile(scriptRuntime.runtime.MainRealm, program);
+                scriptRuntime.runtime.MainRealm.Execute(compiledScript);
+                scriptRuntime.MirrorWindowPropertiesToGlobal();
                 scriptRuntime.PumpEventLoopUntilIdle();
+                scriptRuntime.MirrorWindowPropertiesToGlobal();
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[Browser script:{index + 1}] {ex.Message}");
+                Console.Error.WriteLine(FormatScriptError(index + 1, scripts[index], ex));
             }
         }
 
         return scriptRuntime;
     }
 
-    private static IReadOnlyList<string> LoadExecutableScriptTexts(IReadOnlyList<HtmlDomScript> scripts, string? basePath, string documentSource)
+    private static IReadOnlyList<BrowserScriptText> LoadExecutableScriptTexts(IReadOnlyList<HtmlDomScript> scripts, string? basePath, string documentSource)
     {
         if (scripts.Count == 0)
             return [];
 
-        var executableScripts = new List<string>(scripts.Count);
-        foreach (var script in scripts)
+        var executableScripts = new List<BrowserScriptText>(scripts.Count);
+        for (var index = 0; index < scripts.Count; index++)
         {
+            var script = scripts[index];
             if (!script.IsClassicJavaScript)
                 continue;
 
             if (!script.HasSource)
             {
                 if (!string.IsNullOrWhiteSpace(script.TextContent))
-                    executableScripts.Add(script.TextContent);
+                    executableScripts.Add(new(script.TextContent, $"inline:{index + 1}", null));
                 continue;
             }
-
             try
             {
-                executableScripts.Add(ReadExternalScriptText(script.Source!, basePath, documentSource));
+                var resolvedSource = ResolveScriptSource(script.Source!, basePath, documentSource);
+                executableScripts.Add(new(
+                    ReadExternalScriptText(resolvedSource, ResolveRequestReferer(basePath, documentSource)),
+                    resolvedSource,
+                    resolvedSource));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException or UriFormatException)
             {
@@ -139,17 +156,15 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         return executableScripts;
     }
 
-    private static string ReadExternalScriptText(string source, string? basePath, string documentSource)
+    private static string ResolveScriptSource(string source, string? basePath, string documentSource)
     {
         var trimmed = source.Trim();
-        var referer = ResolveRequestReferer(basePath, documentSource);
         if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absoluteUri))
         {
-            if (absoluteUri.IsFile)
-                return File.ReadAllText(absoluteUri.LocalPath);
-
-            if (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps)
-                return ReadRemoteScriptText(absoluteUri, referer);
+            if (absoluteUri.IsFile ||
+                absoluteUri.Scheme == Uri.UriSchemeHttp ||
+                absoluteUri.Scheme == Uri.UriSchemeHttps)
+                return absoluteUri.ToString();
 
             throw new UriFormatException($"Unsupported script URI scheme '{absoluteUri.Scheme}'.");
         }
@@ -162,18 +177,104 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             if (baseUri.IsFile)
             {
                 var filePath = Path.GetFullPath(Path.Combine(baseUri.LocalPath, Uri.UnescapeDataString(StripUrlSuffix(trimmed))));
-                return File.ReadAllText(filePath);
+                return filePath;
             }
 
             var resolvedUri = new Uri(baseUri, StripUrlFragment(trimmed));
             if (resolvedUri.Scheme == Uri.UriSchemeHttp || resolvedUri.Scheme == Uri.UriSchemeHttps)
-                return ReadRemoteScriptText(resolvedUri, referer);
+                return resolvedUri.ToString();
 
             throw new UriFormatException($"Unsupported script URI scheme '{resolvedUri.Scheme}'.");
         }
 
         var path = Path.GetFullPath(Path.Combine(basePath, Uri.UnescapeDataString(StripUrlSuffix(trimmed))));
-        return File.ReadAllText(path);
+        return path;
+    }
+
+    private static string ReadExternalScriptText(string resolvedSource, Uri? referer)
+    {
+        if (Uri.TryCreate(resolvedSource, UriKind.Absolute, out var absoluteUri))
+        {
+            if (absoluteUri.IsFile)
+                return File.ReadAllText(absoluteUri.LocalPath);
+
+            if (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps)
+                return ReadRemoteScriptText(absoluteUri, referer);
+
+            throw new UriFormatException($"Unsupported script URI scheme '{absoluteUri.Scheme}'.");
+        }
+
+        return File.ReadAllText(resolvedSource);
+    }
+
+    private static string FormatScriptError(int ordinal, BrowserScriptText script, Exception exception)
+    {
+        var message = FormatExceptionMessage(exception);
+        var builder = new StringBuilder()
+            .Append("[Browser script:")
+            .Append(ordinal)
+            .Append("] ")
+            .Append(message)
+            .Append(" (source: ")
+            .Append(script.DisplayName)
+            .Append(')');
+
+        var location = TryGetExceptionLocation(exception);
+        if (location is { Line: > 0, Column: > 0 } &&
+            SourceLocation.TryGetLineOffsetRange(script.Text, location.Value.Line, out var lineStart, out var lineEnd))
+        {
+            var excerpt = CreateSourceExcerpt(script.Text, lineStart, lineEnd, location.Value.Column);
+            builder
+                .AppendLine()
+                .Append("  ")
+                .Append(excerpt.Text)
+                .AppendLine()
+                .Append("  ")
+                .Append(' ', excerpt.CaretColumn)
+                .Append('^');
+        }
+
+        return builder.ToString();
+    }
+
+    private static string FormatExceptionMessage(Exception exception)
+        => exception is JsRuntimeException runtimeException
+            ? runtimeException.FullMessageWithStack()
+            : exception.Message;
+
+    private static (int Line, int Column)? TryGetExceptionLocation(Exception exception)
+    {
+        if (exception is JsParseException parseException)
+            return (parseException.Line, parseException.Column);
+
+        if (exception is JsRuntimeException runtimeException)
+        {
+            foreach (var frame in runtimeException.StackFrames)
+                if (frame.HasSourceLocation)
+                    return (frame.SourceLine, frame.SourceColumn);
+        }
+
+        return null;
+    }
+
+    private static (string Text, int CaretColumn) CreateSourceExcerpt(
+        string source,
+        int lineStart,
+        int lineEnd,
+        int oneBasedColumn,
+        int maxLength = 240)
+    {
+        var line = source[lineStart..lineEnd].TrimEnd('\r');
+        var zeroBasedColumn = Math.Clamp(oneBasedColumn - 1, 0, line.Length);
+        if (line.Length <= maxLength)
+            return (line, zeroBasedColumn);
+
+        const string prefix = "...";
+        const string suffix = "...";
+        var contentLength = maxLength - prefix.Length - suffix.Length;
+        var windowStart = Math.Clamp(zeroBasedColumn - contentLength / 2, 0, Math.Max(0, line.Length - contentLength));
+        var text = prefix + line.Substring(windowStart, Math.Min(contentLength, line.Length - windowStart)) + suffix;
+        return (text, prefix.Length + zeroBasedColumn - windowStart);
     }
 
     private static string ReadRemoteScriptText(Uri uri, Uri? referer)
@@ -471,6 +572,9 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     public void Dispose()
     {
+        foreach (var operation in timerOperations.Values)
+            operation.Dispose();
+        timerOperations.Clear();
         hostTaskScheduler.Dispose();
         runtime.Dispose();
     }
@@ -480,8 +584,16 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         var initialDocumentVersion = documentVersion;
         for (var turn = 0; turn < maxTurns; turn++)
         {
-            if (!HostTurnRunner.RunTurn(hostTaskScheduler, hostPump, SEventLoopQueueOrder))
+            try
+            {
+                if (!HostTurnRunner.RunTurn(hostTaskScheduler, hostPump, SEventLoopQueueOrder))
+                    return documentVersion != initialDocumentVersion;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[Browser script:event-loop] {FormatExceptionMessage(ex)}");
                 return documentVersion != initialDocumentVersion;
+            }
         }
 
         return documentVersion != initialDocumentVersion;
@@ -534,6 +646,12 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     {
         var documentValue = JsValue.FromObject(CreateDocumentObject(realm));
         var locationValue = JsValue.FromObject(CreateLocationObject(realm));
+        var navigatorValue = JsValue.FromObject(CreateNavigatorObject(realm));
+        var dataLayerValue = JsValue.FromObject(new JsArray(realm));
+        var setTimeoutValue = GetOrCreateGlobalFunction(realm, "setTimeout", () => JsValue.FromObject(CreateTimerFunction(realm, "setTimeout")));
+        var clearTimeoutValue = GetOrCreateGlobalFunction(realm, "clearTimeout", () => JsValue.FromObject(CreateClearTimerFunction(realm, "clearTimeout")));
+        var setIntervalValue = GetOrCreateGlobalFunction(realm, "setInterval", () => JsValue.FromObject(CreateTimerFunction(realm, "setInterval")));
+        var clearIntervalValue = GetOrCreateGlobalFunction(realm, "clearInterval", () => JsValue.FromObject(CreateClearTimerFunction(realm, "clearInterval")));
         var window = new JsUserDataObject<HtmlBrowserScriptRuntime>(realm, useDictionaryMode: true)
         {
             UserData = this
@@ -542,11 +660,127 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         window.DefineDataProperty("self", JsValue.FromObject(window), OpenFlags);
         window.DefineDataProperty("document", documentValue, OpenFlags);
         window.DefineDataProperty("location", locationValue, OpenFlags);
+        window.DefineDataProperty("navigator", navigatorValue, OpenFlags);
+        window.DefineDataProperty("dataLayer", dataLayerValue, OpenFlags);
+        window.DefineDataProperty("top", JsValue.FromObject(window), OpenFlags);
+        window.DefineDataProperty("parent", JsValue.FromObject(window), OpenFlags);
+        window.DefineDataProperty("CSS", JsValue.FromObject(CreateCssObject(realm)), OpenFlags);
+        window.DefineDataProperty("getComputedStyle", JsValue.FromObject(CreateGetComputedStyleFunction(realm)), OpenFlags);
+        window.DefineDataProperty("setTimeout", setTimeoutValue, OpenFlags);
+        window.DefineDataProperty("clearTimeout", clearTimeoutValue, OpenFlags);
+        window.DefineDataProperty("setInterval", setIntervalValue, OpenFlags);
+        window.DefineDataProperty("clearInterval", clearIntervalValue, OpenFlags);
 
         realm.Global["window"] = JsValue.FromObject(window);
         realm.Global["self"] = JsValue.FromObject(window);
         realm.Global["document"] = documentValue;
         realm.Global["location"] = locationValue;
+        realm.Global["navigator"] = navigatorValue;
+        realm.Global["dataLayer"] = dataLayerValue;
+        realm.Global["top"] = JsValue.FromObject(window);
+        realm.Global["parent"] = JsValue.FromObject(window);
+        realm.Global["CSS"] = window["CSS"];
+        realm.Global["getComputedStyle"] = window["getComputedStyle"];
+    }
+
+    private static JsValue GetOrCreateGlobalFunction(JsRealm realm, string name, Func<JsValue> create)
+    {
+        if (realm.Global.TryGetValue(name, out var existing) && existing.TryGetObject(out _))
+            return existing;
+
+        var created = create();
+        realm.Global[name] = created;
+        return created;
+    }
+
+    private JsHostFunction CreateTimerFunction(JsRealm realm, string name)
+        => new(realm, (in CallInfo info) =>
+        {
+            if (!info.GetArgumentOrDefault(0, JsValue.Undefined).TryGetObject(out var callbackObject) ||
+                callbackObject is not JsFunction callback)
+                return JsValue.FromInt32(0);
+
+            var delay = info.GetArgumentOrDefault(1, JsValue.Undefined).IsNumber
+                ? Math.Max(0, (int)info.GetArgumentOrDefault(1, JsValue.Undefined).NumberValue)
+                : 0;
+            var timerId = Interlocked.Increment(ref nextTimerId);
+            timerOperations[timerId] = hostTaskScheduler.ScheduleDelayed(
+                TimeSpan.FromMilliseconds(delay),
+                WebTaskQueueKeys.Timers,
+                _ =>
+                {
+                    timerOperations.Remove(timerId);
+                    realm.Call(callback, JsValue.FromObject(realm.GlobalObject), []);
+                },
+                null);
+            return JsValue.FromInt32(timerId);
+        }, name, 2);
+
+    private JsHostFunction CreateClearTimerFunction(JsRealm realm, string name)
+        => new(realm, (in CallInfo info) =>
+        {
+            var timerId = info.GetArgumentOrDefault(0, JsValue.Undefined).IsNumber
+                ? (int)info.GetArgumentOrDefault(0, JsValue.Undefined).NumberValue
+                : 0;
+            if (timerOperations.Remove(timerId, out var operation))
+                operation.Cancel();
+            return JsValue.Undefined;
+        }, name, 1);
+
+    private static JsPlainObject CreateCssObject(JsRealm realm)
+    {
+        var css = new JsPlainObject(realm);
+        css.DefineDataProperty("supports", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo _) => JsValue.False, "supports", 2)), OpenFlags);
+        return css;
+    }
+
+    private static JsHostFunction CreateGetComputedStyleFunction(JsRealm realm)
+        => new(realm, static (in CallInfo info) =>
+        {
+            var style = new JsPlainObject(info.Realm);
+            style.DefineDataProperty("getPropertyValue", JsValue.FromObject(new JsHostFunction(info.Realm, static (in CallInfo propertyInfo) =>
+            {
+                return JsValue.FromString(string.Empty);
+            }, "getPropertyValue", 1)), OpenFlags);
+            style.DefineDataProperty("display", JsValue.FromString("block"), OpenFlags);
+            return JsValue.FromObject(style);
+        }, "getComputedStyle", 1);
+
+    private static JsPlainObject CreateNavigatorObject(JsRealm realm)
+    {
+        var language = CultureInfo.CurrentUICulture.Name;
+        if (string.IsNullOrWhiteSpace(language))
+            language = "en-US";
+
+        var languages = new JsArray(realm);
+        languages.SetElement(0, JsValue.FromString(language));
+        var neutralLanguage = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        if (!string.IsNullOrWhiteSpace(neutralLanguage) &&
+            !string.Equals(neutralLanguage, language, StringComparison.OrdinalIgnoreCase))
+        {
+            languages.SetElement(1, JsValue.FromString(neutralLanguage));
+        }
+
+        var navigator = new JsPlainObject(realm);
+        navigator.DefineDataProperty("userAgent", JsValue.FromString(ScriptUserAgent), OpenFlags);
+        navigator.DefineDataProperty("appVersion", JsValue.FromString(ScriptUserAgent), OpenFlags);
+        navigator.DefineDataProperty("platform", JsValue.FromString(GetNavigatorPlatform()), OpenFlags);
+        navigator.DefineDataProperty("language", JsValue.FromString(language), OpenFlags);
+        navigator.DefineDataProperty("languages", JsValue.FromObject(languages), OpenFlags);
+        navigator.DefineDataProperty("cookieEnabled", JsValue.True, OpenFlags);
+        navigator.DefineDataProperty("onLine", JsValue.True, OpenFlags);
+        return navigator;
+    }
+
+    private static string GetNavigatorPlatform()
+    {
+        if (OperatingSystem.IsWindows())
+            return "Win32";
+        if (OperatingSystem.IsMacOS())
+            return "MacIntel";
+        if (OperatingSystem.IsLinux())
+            return "Linux x86_64";
+        return Environment.OSVersion.Platform.ToString();
     }
 
     private JsPlainObject CreateLocationObject(JsRealm realm)
@@ -606,6 +840,18 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         realm.Global["fetch"] = fetchValue;
         if (realm.Global["window"].TryGetObject(out var window))
             window.DefineDataProperty("fetch", fetchValue, OpenFlags);
+    }
+
+    private void MirrorWindowPropertiesToGlobal()
+    {
+        var realm = runtime.MainRealm;
+        if (!realm.Global["window"].TryGetObject(out var window))
+            return;
+
+        var names = window.GetEnumerableOwnPropertyNames();
+        for (var index = 0; index < names.Count; index++)
+            if (window.TryGetProperty(names[index], out var value))
+                realm.Global[names[index]] = value;
     }
 
     private async Task<JsValue> FetchAsync(JsRealm realm, string url, JsValue init)
@@ -671,6 +917,12 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         {
             UserData = document
         };
+        documentObject = obj;
+        obj.DefineDataProperty("nodeType", JsValue.FromInt32(9), OpenFlags);
+        obj.DefineDataProperty("readyState", JsValue.FromString("complete"), OpenFlags);
+        obj.DefineDataProperty("compatMode", JsValue.FromString("CSS1Compat"), OpenFlags);
+        obj.DefineDataProperty("visibilityState", JsValue.FromString("visible"), OpenFlags);
+        obj.DefineDataProperty("hidden", JsValue.False, OpenFlags);
         obj.DefineDataProperty("getElementById", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
         {
             var id = info.GetArgumentStringOrDefault(0, string.Empty);
@@ -683,26 +935,116 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             var element = document.QuerySelector(selector);
             return element is null ? JsValue.Null : JsValue.FromObject(CreateElementObject(info.Realm, element));
         }, "querySelector", 1)), OpenFlags);
+        obj.DefineDataProperty("querySelectorAll", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            var selector = info.GetArgumentStringOrDefault(0, string.Empty);
+            return JsValue.FromObject(CreateElementArray(info.Realm, document.QuerySelectorAll(selector)));
+        }, "querySelectorAll", 1)), OpenFlags);
         obj.DefineDataProperty("createElement", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
         {
             var localName = info.GetArgumentStringOrDefault(0, "div");
             var element = document.CreateElement(localName);
             return JsValue.FromObject(CreateElementObject(info.Realm, element));
         }, "createElement", 1)), OpenFlags);
+        obj.DefineDataProperty("createTextNode", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            var text = info.GetArgumentStringOrDefault(0, string.Empty);
+            var textNode = new JsPlainObject(info.Realm);
+            textNode.DefineDataProperty("nodeType", JsValue.FromInt32(3), OpenFlags);
+            textNode.DefineDataProperty("nodeName", JsValue.FromString("#text"), OpenFlags);
+            textNode.DefineDataProperty("nodeValue", JsValue.FromString(text), OpenFlags);
+            textNode.DefineDataProperty("textContent", JsValue.FromString(text), OpenFlags);
+            return JsValue.FromObject(textNode);
+        }, "createTextNode", 1)), OpenFlags);
+        obj.DefineDataProperty("createComment", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            var text = info.GetArgumentStringOrDefault(0, string.Empty);
+            var comment = new JsPlainObject(info.Realm);
+            comment.DefineDataProperty("nodeType", JsValue.FromInt32(8), OpenFlags);
+            comment.DefineDataProperty("nodeName", JsValue.FromString("#comment"), OpenFlags);
+            comment.DefineDataProperty("nodeValue", JsValue.FromString(text), OpenFlags);
+            return JsValue.FromObject(comment);
+        }, "createComment", 1)), OpenFlags);
+        obj.DefineDataProperty("createDocumentFragment", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            var fragmentElement = document.CreateElement("fragment");
+            var fragment = CreateElementObject(info.Realm, fragmentElement);
+            fragment.DefineDataProperty("nodeType", JsValue.FromInt32(11), OpenFlags);
+            fragment.DefineDataProperty("nodeName", JsValue.FromString("#document-fragment"), OpenFlags);
+            return JsValue.FromObject(fragment);
+        }, "createDocumentFragment", 0)), OpenFlags);
         obj.DefineDataProperty("getElementsByTagName", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
         {
             var localName = info.GetArgumentStringOrDefault(0, string.Empty);
-            var elements = document.GetElementsByTagName(localName);
-            var array = new JsArray(info.Realm);
-            foreach (var element in elements)
-                array.SetElement(array.Length, JsValue.FromObject(CreateElementObject(info.Realm, element)));
-            return JsValue.FromObject(array);
+            return JsValue.FromObject(CreateElementArray(info.Realm, document.GetElementsByTagName(localName)));
         }, "getElementsByTagName", 1)), OpenFlags);
+        obj.DefineDataProperty("addEventListener", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo _) => JsValue.Undefined, "addEventListener", 2)), OpenFlags);
+        obj.DefineDataProperty("removeEventListener", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo _) => JsValue.Undefined, "removeEventListener", 2)), OpenFlags);
+        obj.DefineDataProperty("implementation", JsValue.FromObject(CreateDocumentImplementationObject(realm)), OpenFlags);
+        obj.DefineDataProperty("documentElement", JsValue.FromObject(CreateElementObject(realm, document.DocumentElement)), OpenFlags);
+        var head = document.Head ?? document.CreateElement("head");
+        obj.DefineDataProperty("head", JsValue.FromObject(CreateElementObject(realm, head)), OpenFlags);
         if (document.Body is { } body)
             obj.DefineDataProperty("body", JsValue.FromObject(CreateElementObject(realm, body)), OpenFlags);
 
-        documentObject = obj;
         return obj;
+    }
+
+    private JsPlainObject CreateDocumentImplementationObject(JsRealm realm)
+    {
+        var implementation = new JsPlainObject(realm);
+        implementation.DefineDataProperty("createHTMLDocument", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            var body = document.CreateElement("body");
+            var htmlDocument = new JsPlainObject(info.Realm);
+            htmlDocument.DefineDataProperty("nodeType", JsValue.FromInt32(9), OpenFlags);
+            htmlDocument.DefineDataProperty("body", JsValue.FromObject(CreateElementObject(info.Realm, body)), OpenFlags);
+            htmlDocument.DefineDataProperty("documentElement", JsValue.FromObject(CreateElementObject(info.Realm, body)), OpenFlags);
+            htmlDocument.DefineDataProperty("createElement", JsValue.FromObject(new JsHostFunction(info.Realm, (in CallInfo createInfo) =>
+            {
+                var localName = createInfo.GetArgumentStringOrDefault(0, "div");
+                return JsValue.FromObject(CreateElementObject(createInfo.Realm, document.CreateElement(localName)));
+            }, "createElement", 1)), OpenFlags);
+            return JsValue.FromObject(htmlDocument);
+        }, "createHTMLDocument", 1)), OpenFlags);
+        return implementation;
+    }
+
+    private JsArray CreateElementArray(JsRealm realm, IReadOnlyList<HtmlDomElement> elements)
+    {
+        var array = new JsArray(realm);
+        foreach (var element in elements)
+            array.SetElement(array.Length, JsValue.FromObject(CreateElementObject(realm, element)));
+        return array;
+    }
+
+    private JsArray CreateChildElementArray(JsRealm realm, HtmlDomElement element)
+    {
+        var array = new JsArray(realm);
+        foreach (var child in element.Children)
+            if (child is HtmlDomElement childElement)
+                array.SetElement(array.Length, JsValue.FromObject(CreateElementObject(realm, childElement)));
+        return array;
+    }
+
+    private static JsPlainObject CreateStyleObject(JsRealm realm)
+    {
+        var style = new JsPlainObject(realm);
+        style.DefineDataProperty("cssText", JsValue.FromString(string.Empty), OpenFlags);
+        style.DefineDataProperty("display", JsValue.FromString(string.Empty), OpenFlags);
+        style.DefineDataProperty("getPropertyValue", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo _) =>
+        {
+            return JsValue.FromString(string.Empty);
+        }, "getPropertyValue", 1)), OpenFlags);
+        style.DefineDataProperty("setProperty", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo info) =>
+        {
+            var name = info.GetArgumentStringOrDefault(0, string.Empty);
+            var value = info.GetArgumentStringOrDefault(1, string.Empty);
+            if (!string.IsNullOrWhiteSpace(name) && info.ThisValue.TryGetObject(out var styleObject))
+                styleObject.DefineDataProperty(name, JsValue.FromString(value), OpenFlags);
+            return JsValue.Undefined;
+        }, "setProperty", 2)), OpenFlags);
+        return style;
     }
 
     private JsUserDataObject<HtmlDomElement> CreateElementObject(JsRealm realm, HtmlDomElement element)
@@ -726,6 +1068,135 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             OpenFlags);
         obj.DefineDataProperty("localName", JsValue.FromString(element.LocalName), OpenFlags);
         obj.DefineDataProperty("tagName", JsValue.FromString(element.LocalName.ToUpperInvariant()), OpenFlags);
+        obj.DefineDataProperty("nodeName", JsValue.FromString(element.LocalName.ToUpperInvariant()), OpenFlags);
+        obj.DefineDataProperty("nodeType", JsValue.FromInt32(1), OpenFlags);
+        obj.DefineDataProperty("sourceIndex", JsValue.FromInt32(element.NodeId.Value), OpenFlags);
+        obj.DefineDataProperty("ownerDocument", JsValue.FromObject(CreateDocumentObject(realm)), OpenFlags);
+        obj.DefineDataProperty("style", JsValue.FromObject(CreateStyleObject(realm)), OpenFlags);
+        obj.DefineAccessorProperty(
+            "defaultValue",
+            new JsHostFunction(realm, (in CallInfo info) =>
+            {
+                if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                    elementObject.UserData is not { } current)
+                {
+                    return JsValue.Undefined;
+                }
+
+                current = document.GetElementByNodeId(current.NodeId) ?? current;
+                return JsValue.FromString(current.GetAttribute("value") ?? string.Empty);
+            }, "defaultValue", 0),
+            null,
+            OpenFlags);
+        obj.DefineAccessorProperty(
+            "parentNode",
+            new JsHostFunction(realm, (in CallInfo info) =>
+            {
+                if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                    elementObject.UserData is not { } current)
+                {
+                    return JsValue.Null;
+                }
+
+                var parentNodeId = document.GetParentNodeId(current.NodeId);
+                var parent = parentNodeId.IsValid ? document.GetElementByNodeId(parentNodeId) : null;
+                return parent is null ? JsValue.Null : JsValue.FromObject(CreateElementObject(info.Realm, parent));
+            }, "parentNode", 0),
+            null,
+            OpenFlags);
+        obj.DefineDataProperty("insertBefore", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> parentObject ||
+                parentObject.UserData is not { } parent ||
+                !info.GetArgumentOrDefault(0, JsValue.Undefined).TryGetObject(out var childObject) ||
+                childObject is not JsUserDataObject<HtmlDomElement> childElementObject ||
+                childElementObject.UserData is not { } child)
+            {
+                return info.GetArgumentOrDefault(0, JsValue.Undefined);
+            }
+
+            var nextParent = document.AppendChild(parent.NodeId, child.NodeId);
+            if (nextParent is null)
+                return JsValue.Null;
+
+            parentObject.UserData = nextParent;
+            if (document.GetElementByNodeId(child.NodeId) is { } nextChild)
+                childElementObject.UserData = nextChild;
+            NotifyDocumentMutated();
+            return JsValue.FromObject(childElementObject);
+        }, "insertBefore", 2)), OpenFlags);
+        obj.DefineAccessorProperty(
+            "firstChild",
+            new JsHostFunction(realm, (in CallInfo info) =>
+            {
+                if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                    elementObject.UserData is not { } current)
+                {
+                    return JsValue.Null;
+                }
+
+                current = document.GetElementByNodeId(current.NodeId) ?? current;
+                elementObject.UserData = current;
+                foreach (var child in current.Children)
+                    if (child is HtmlDomElement childElement)
+                        return JsValue.FromObject(CreateElementObject(info.Realm, childElement));
+
+                return JsValue.Null;
+            }, "firstChild", 0),
+            null,
+            OpenFlags);
+        obj.DefineAccessorProperty(
+            "lastChild",
+            new JsHostFunction(realm, (in CallInfo info) =>
+            {
+                if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                    elementObject.UserData is not { } current)
+                {
+                    return JsValue.Null;
+                }
+
+                current = document.GetElementByNodeId(current.NodeId) ?? current;
+                elementObject.UserData = current;
+                for (var index = current.Children.Count - 1; index >= 0; index--)
+                    if (current.Children[index] is HtmlDomElement childElement)
+                        return JsValue.FromObject(CreateElementObject(info.Realm, childElement));
+
+                return JsValue.Null;
+            }, "lastChild", 0),
+            null,
+            OpenFlags);
+        obj.DefineAccessorProperty(
+            "childNodes",
+            new JsHostFunction(realm, (in CallInfo info) =>
+            {
+                if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                    elementObject.UserData is not { } current)
+                {
+                    return JsValue.FromObject(new JsArray(info.Realm));
+                }
+
+                current = document.GetElementByNodeId(current.NodeId) ?? current;
+                elementObject.UserData = current;
+                return JsValue.FromObject(CreateChildElementArray(info.Realm, current));
+            }, "childNodes", 0),
+            null,
+            OpenFlags);
+        obj.DefineAccessorProperty(
+            "children",
+            new JsHostFunction(realm, (in CallInfo info) =>
+            {
+                if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                    elementObject.UserData is not { } current)
+                {
+                    return JsValue.FromObject(new JsArray(info.Realm));
+                }
+
+                current = document.GetElementByNodeId(current.NodeId) ?? current;
+                elementObject.UserData = current;
+                return JsValue.FromObject(CreateChildElementArray(info.Realm, current));
+            }, "children", 0),
+            null,
+            OpenFlags);
         obj.DefineAccessorProperty(
             "textContent",
             CreateElementTextGetter(realm, "textContent", static element => element.TextContent),
@@ -737,9 +1208,43 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             CreateElementTextSetter(realm, "innerText"),
             OpenFlags);
         obj.DefineAccessorProperty(
+            "innerHTML",
+            CreateElementInnerHtmlGetter(realm),
+            CreateElementInnerHtmlSetter(realm),
+            OpenFlags);
+        obj.DefineAccessorProperty(
             "value",
             CreateElementValueGetter(realm),
             CreateElementValueSetter(realm),
+            OpenFlags);
+        obj.DefineAccessorProperty(
+            "checked",
+            new JsHostFunction(realm, (in CallInfo info) =>
+            {
+                if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                    elementObject.UserData is not { } element)
+                {
+                    return JsValue.False;
+                }
+
+                var current = document.GetElementByNodeId(element.NodeId) ?? element;
+                return current.GetAttribute("checked") is null ? JsValue.False : JsValue.True;
+            }, "checked", 0),
+            new JsHostFunction(realm, (in CallInfo info) =>
+            {
+                if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                    elementObject.UserData is not { } element)
+                {
+                    return JsValue.Undefined;
+                }
+
+                var nextElement = info.GetArgumentOrDefault(0, JsValue.Undefined).ToBoolean()
+                    ? document.SetAttribute(element.NodeId, "checked", "checked")
+                    : document.RemoveAttribute(element.NodeId, "checked");
+                if (nextElement is not null)
+                    elementObject.UserData = nextElement;
+                return JsValue.Undefined;
+            }, "checked", 1),
             OpenFlags);
         obj.DefineDataProperty("getAttribute", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
         {
@@ -747,6 +1252,18 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             var name = info.GetArgumentStringOrDefault(0, string.Empty);
             return current.GetAttribute(name) is { } value ? JsValue.FromString(value) : JsValue.Null;
         }, "getAttribute", 1)), OpenFlags);
+        obj.DefineDataProperty("getAttributeNode", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            var current = ((JsUserDataObject<HtmlDomElement>)info.ThisValue.AsObject()).UserData!;
+            var name = info.GetArgumentStringOrDefault(0, string.Empty);
+            if (current.GetAttribute(name) is not { } value)
+                return JsValue.Null;
+
+            var attribute = new JsPlainObject(info.Realm);
+            attribute.DefineDataProperty("specified", JsValue.True, OpenFlags);
+            attribute.DefineDataProperty("value", JsValue.FromString(value), OpenFlags);
+            return JsValue.FromObject(attribute);
+        }, "getAttributeNode", 1)), OpenFlags);
         obj.DefineDataProperty("setAttribute", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
         {
             if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
@@ -792,7 +1309,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
                 childObject is not JsUserDataObject<HtmlDomElement> childElementObject ||
                 childElementObject.UserData is not { } child)
             {
-                return JsValue.Null;
+                return info.GetArgumentOrDefault(0, JsValue.Undefined);
             }
 
             var nextParent = document.AppendChild(parent.NodeId, child.NodeId);
@@ -805,6 +1322,41 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             NotifyDocumentMutated();
             return JsValue.FromObject(childElementObject);
         }, "appendChild", 1)), OpenFlags);
+        obj.DefineDataProperty("removeChild", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            return info.GetArgumentOrDefault(0, JsValue.Undefined);
+        }, "removeChild", 1)), OpenFlags);
+        obj.DefineDataProperty("cloneNode", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                elementObject.UserData is not { } element)
+            {
+                return JsValue.Null;
+            }
+
+            var clone = document.CloneElement(element.NodeId, info.GetArgumentOrDefault(0, JsValue.Undefined).ToBoolean());
+            return clone is null ? JsValue.Null : JsValue.FromObject(CreateElementObject(info.Realm, clone));
+        }, "cloneNode", 1)), OpenFlags);
+        obj.DefineDataProperty("compareDocumentPosition", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo _) =>
+        {
+            return JsValue.FromInt32(1);
+        }, "compareDocumentPosition", 1)), OpenFlags);
+        obj.DefineDataProperty("contains", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> parentObject ||
+                parentObject.UserData is not { } parent ||
+                !info.GetArgumentOrDefault(0, JsValue.Undefined).TryGetObject(out var childObject) ||
+                childObject is not JsUserDataObject<HtmlDomElement> childElementObject ||
+                childElementObject.UserData is not { } child)
+            {
+                return JsValue.False;
+            }
+
+            for (var current = child.NodeId; current.IsValid; current = document.GetParentNodeId(current))
+                if (current == parent.NodeId)
+                    return JsValue.True;
+            return JsValue.False;
+        }, "contains", 1)), OpenFlags);
         obj.DefineDataProperty("addEventListener", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
         {
             if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
@@ -891,6 +1443,40 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             return JsValue.Undefined;
         }, name, 1);
 
+    private JsHostFunction CreateElementInnerHtmlGetter(JsRealm realm)
+        => new(realm, (in CallInfo info) =>
+        {
+            if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                elementObject.UserData is not { } element)
+            {
+                return JsValue.Undefined;
+            }
+
+            var current = document.GetElementByNodeId(element.NodeId) ?? element;
+            elementObject.UserData = current;
+            return JsValue.FromString(current.TextContent);
+        }, "innerHTML", 0);
+
+    private JsHostFunction CreateElementInnerHtmlSetter(JsRealm realm)
+        => new(realm, (in CallInfo info) =>
+        {
+            if (info.ThisValue.AsObject() is not JsUserDataObject<HtmlDomElement> elementObject ||
+                elementObject.UserData is not { } element)
+            {
+                return JsValue.Undefined;
+            }
+
+            var html = info.GetArgumentStringOrDefault(0, string.Empty);
+            var nextElement = SetElementInnerHtml(element, html);
+            if (nextElement is not null)
+            {
+                elementObject.UserData = nextElement;
+                NotifyDocumentMutated();
+            }
+
+            return JsValue.Undefined;
+        }, "innerHTML", 1);
+
     private JsHostFunction CreateElementValueGetter(JsRealm realm)
         => new(realm, (in CallInfo info) =>
         {
@@ -915,6 +1501,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             }
 
             var value = info.GetArgumentStringOrDefault(0, string.Empty);
+            elementValues[element.NodeId] = value;
             var nextElement = string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase)
                 ? document.SetTextContent(element.NodeId, value)
                 : document.SetAttribute(element.NodeId, "value", value);
@@ -947,6 +1534,149 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             return JsValue.Undefined;
         }, name, 1);
 
+    private HtmlDomElement? SetElementInnerHtml(HtmlDomElement element, string html)
+    {
+        var trimmed = html.Trim();
+        if (TryParseElementHtmlSequence(trimmed, out var children))
+            return document.ReplaceChildren(element.NodeId, children);
+
+        if (TryParseSingleElementHtml(trimmed, out var localName, out var attributes))
+        {
+            var child = document.CreateElement(localName);
+            foreach (var attribute in attributes)
+            {
+                child = document.SetAttribute(child.NodeId, attribute.Key, attribute.Value) ?? child;
+            }
+
+            return document.ReplaceChildren(element.NodeId, [child]);
+        }
+
+        return document.SetTextContent(element.NodeId, html);
+    }
+
+    private bool TryParseElementHtmlSequence(string html, out IReadOnlyList<HtmlDomNode> children)
+    {
+        var parsedChildren = new List<HtmlDomNode>();
+        var index = 0;
+        while (index < html.Length)
+        {
+            while (index < html.Length && char.IsWhiteSpace(html[index]))
+                index++;
+            if (index >= html.Length)
+                break;
+            if (html[index] != '<' || index + 1 >= html.Length || html[index + 1] == '/')
+            {
+                children = [];
+                return false;
+            }
+
+            var tagEnd = html.IndexOf('>', index);
+            if (tagEnd < 0 ||
+                !TryParseSingleElementHtml(html[index..(tagEnd + 1)], out var localName, out var attributes))
+            {
+                children = [];
+                return false;
+            }
+
+            var child = document.CreateElement(localName);
+            foreach (var attribute in attributes)
+                child = document.SetAttribute(child.NodeId, attribute.Key, attribute.Value) ?? child;
+
+            var afterTag = tagEnd + 1;
+            if (!html[tagEnd - 1].Equals('/'))
+            {
+                var closeTag = "</" + localName + ">";
+                var closeIndex = html.IndexOf(closeTag, afterTag, StringComparison.OrdinalIgnoreCase);
+                if (closeIndex >= 0)
+                {
+                    var text = html[afterTag..closeIndex];
+                    if (text.Length > 0)
+                        child = document.SetTextContent(child.NodeId, text) ?? child;
+                    afterTag = closeIndex + closeTag.Length;
+                }
+            }
+
+            parsedChildren.Add(child);
+            index = afterTag;
+        }
+
+        children = parsedChildren;
+        return parsedChildren.Count > 0;
+    }
+
+    private static bool TryParseSingleElementHtml(
+        string html,
+        out string localName,
+        out Dictionary<string, string> attributes)
+    {
+        localName = string.Empty;
+        attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!html.StartsWith('<') || html.StartsWith("</", StringComparison.Ordinal))
+            return false;
+
+        var tagEnd = html.IndexOf('>');
+        if (tagEnd <= 1)
+            return false;
+
+        var tag = html[1..tagEnd].Trim();
+        var spaceIndex = tag.IndexOfAny([' ', '\t', '\r', '\n', '/']);
+        localName = spaceIndex < 0 ? tag.TrimEnd('/') : tag[..spaceIndex];
+        if (string.IsNullOrWhiteSpace(localName))
+            return false;
+
+        var attributeText = spaceIndex < 0 ? string.Empty : tag[spaceIndex..].Trim().TrimEnd('/');
+        var index = 0;
+        while (index < attributeText.Length)
+        {
+            while (index < attributeText.Length && char.IsWhiteSpace(attributeText[index]))
+                index++;
+            var nameStart = index;
+            while (index < attributeText.Length &&
+                   !char.IsWhiteSpace(attributeText[index]) &&
+                   attributeText[index] != '=')
+            {
+                index++;
+            }
+
+            if (index == nameStart)
+                break;
+
+            var name = attributeText[nameStart..index];
+            while (index < attributeText.Length && char.IsWhiteSpace(attributeText[index]))
+                index++;
+
+            var value = string.Empty;
+            if (index < attributeText.Length && attributeText[index] == '=')
+            {
+                index++;
+                while (index < attributeText.Length && char.IsWhiteSpace(attributeText[index]))
+                    index++;
+
+                if (index < attributeText.Length && (attributeText[index] == '"' || attributeText[index] == '\''))
+                {
+                    var quote = attributeText[index++];
+                    var valueStart = index;
+                    while (index < attributeText.Length && attributeText[index] != quote)
+                        index++;
+                    value = attributeText[valueStart..Math.Min(index, attributeText.Length)];
+                    if (index < attributeText.Length)
+                        index++;
+                }
+                else
+                {
+                    var valueStart = index;
+                    while (index < attributeText.Length && !char.IsWhiteSpace(attributeText[index]))
+                        index++;
+                    value = attributeText[valueStart..index];
+                }
+            }
+
+            attributes[name] = value;
+        }
+
+        return true;
+    }
+
     private void NotifyDocumentMutated()
     {
         var nextHtml = document.ToHtml();
@@ -960,6 +1690,9 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     private string ResolveElementValue(HtmlDomElement element)
     {
+        if (elementValues.TryGetValue(element.NodeId, out var elementValue))
+            return elementValue;
+
         if (!string.IsNullOrWhiteSpace(element.Id) &&
             TextInputValueResolver is { } resolver &&
             resolver(element.Id, out var liveValue))
