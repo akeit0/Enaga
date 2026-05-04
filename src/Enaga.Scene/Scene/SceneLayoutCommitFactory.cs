@@ -74,11 +74,12 @@ public static class SceneLayoutCommitFactory
         SceneNodeMap<SceneGraphNode> nodes,
         SceneNodeMap<SceneLayoutBox> layout)
     {
-        if (!nodes.TryGetValue(scrollViewId, out var scrollNode) || scrollNode.Children.Count == 0)
+        if (!nodes.TryGetValue(scrollViewId, out var scrollNode) || scrollNode.Children.Length == 0)
             return scrollBox.Width;
 
         var maxRight = scrollBox.AbsLeft + scrollBox.PaddingLeft;
-        var pending = new Stack<SceneNodeId>(scrollNode.Children);
+        var pending = new Stack<SceneNodeId>(scrollNode.Children.Length);
+        PushChildrenReverse(pending, scrollNode.Children);
         while (pending.Count > 0)
         {
             var nodeId = pending.Pop();
@@ -89,8 +90,7 @@ public static class SceneLayoutCommitFactory
             if (!nodes.TryGetValue(nodeId, out var childNode) || childNode.NodeKind == SceneNodeKind.ScrollView)
                 continue;
 
-            for (var index = childNode.Children.Count - 1; index >= 0; index--)
-                pending.Push(childNode.Children[index]);
+            PushChildrenReverse(pending, childNode.Children);
         }
 
         return Math.Max(scrollBox.Width, maxRight - scrollBox.AbsLeft + scrollBox.PaddingRight);
@@ -102,11 +102,12 @@ public static class SceneLayoutCommitFactory
         SceneNodeMap<SceneGraphNode> nodes,
         SceneNodeMap<SceneLayoutBox> layout)
     {
-        if (!nodes.TryGetValue(scrollViewId, out var scrollNode) || scrollNode.Children.Count == 0)
+        if (!nodes.TryGetValue(scrollViewId, out var scrollNode) || scrollNode.Children.Length == 0)
             return scrollBox.Height;
 
         var maxBottom = scrollBox.AbsTop + scrollBox.PaddingTop;
-        var pending = new Stack<SceneNodeId>(scrollNode.Children);
+        var pending = new Stack<SceneNodeId>(scrollNode.Children.Length);
+        PushChildrenReverse(pending, scrollNode.Children);
         while (pending.Count > 0)
         {
             var nodeId = pending.Pop();
@@ -117,8 +118,7 @@ public static class SceneLayoutCommitFactory
             if (!nodes.TryGetValue(nodeId, out var childNode) || childNode.NodeKind == SceneNodeKind.ScrollView)
                 continue;
 
-            for (var index = childNode.Children.Count - 1; index >= 0; index--)
-                pending.Push(childNode.Children[index]);
+            PushChildrenReverse(pending, childNode.Children);
         }
 
         return Math.Max(scrollBox.Height, maxBottom - scrollBox.AbsTop + scrollBox.PaddingBottom);
@@ -177,11 +177,16 @@ public static class SceneLayoutCommitFactory
             }
 
             order.Add(id);
-            for (var index = node.Children.Count - 1; index >= 0; index--)
-                pending.Push(node.Children[index]);
+            PushChildrenReverse(pending, node.Children);
         }
 
         return order.Count == 0 ? [] : order.ToArray();
+    }
+
+    private static void PushChildrenReverse(Stack<SceneNodeId> pending, ReadOnlySpan<SceneNodeId> children)
+    {
+        for (var index = children.Length - 1; index >= 0; index--)
+            pending.Push(children[index]);
     }
 
     private static bool IsHostAnimatedRuntimeShader(SceneLayoutBox box)

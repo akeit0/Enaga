@@ -134,14 +134,14 @@ internal static class SceneDamageEstimator
     private static bool NodesEqual(SceneGraphNode previousNode, SceneGraphNode nextNode)
     {
         if (!NodesEqualIgnoringChildren(previousNode, nextNode) ||
-            previousNode.Children.Count != nextNode.Children.Count)
+            previousNode.Children.Length != nextNode.Children.Length)
         {
             return false;
         }
 
-        for (var index = 0; index < previousNode.Children.Count; index++)
+        for (var index = 0; index < previousNode.Children.Length; index++)
         {
-                if (previousNode.Children[index] != nextNode.Children[index])
+            if (previousNode.Children[index] != nextNode.Children[index])
                 return false;
         }
 
@@ -173,10 +173,10 @@ internal static class SceneDamageEstimator
     private static bool HasPositionedChildMutation(
         SceneLayoutCommit previousCommit,
         SceneLayoutCommit nextCommit,
-        IReadOnlyList<SceneNodeId> previousChildren,
-        IReadOnlyList<SceneNodeId> nextChildren)
+        ReadOnlySpan<SceneNodeId> previousChildren,
+        ReadOnlySpan<SceneNodeId> nextChildren)
     {
-        for (var index = 0; index < previousChildren.Count; index++)
+        for (var index = 0; index < previousChildren.Length; index++)
         {
             var childId = previousChildren[index];
             if (!Contains(nextChildren, childId) &&
@@ -187,7 +187,7 @@ internal static class SceneDamageEstimator
             }
         }
 
-        for (var index = 0; index < nextChildren.Count; index++)
+        for (var index = 0; index < nextChildren.Length; index++)
         {
             var childId = nextChildren[index];
             if (!Contains(previousChildren, childId) &&
@@ -201,9 +201,9 @@ internal static class SceneDamageEstimator
         return false;
     }
 
-    private static bool Contains(IReadOnlyList<SceneNodeId> ids, SceneNodeId id)
+    private static bool Contains(ReadOnlySpan<SceneNodeId> ids, SceneNodeId id)
     {
-        for (var index = 0; index < ids.Count; index++)
+        for (var index = 0; index < ids.Length; index++)
             if (ids[index] == id)
                 return true;
 
@@ -218,12 +218,12 @@ internal static class SceneDamageEstimator
                box.BackgroundShader is not null;
     }
 
-    private static bool HasInsertionRemovalOnlyChildMutation(IReadOnlyList<SceneNodeId> previousChildren, IReadOnlyList<SceneNodeId> nextChildren)
+    private static bool HasInsertionRemovalOnlyChildMutation(ReadOnlySpan<SceneNodeId> previousChildren, ReadOnlySpan<SceneNodeId> nextChildren)
     {
-        if (previousChildren.Count == nextChildren.Count)
+        if (previousChildren.Length == nextChildren.Length)
         {
             var identical = true;
-            for (var index = 0; index < previousChildren.Count; index++)
+            for (var index = 0; index < previousChildren.Length; index++)
             {
                 if (previousChildren[index] == nextChildren[index])
                     continue;
@@ -236,14 +236,15 @@ internal static class SceneDamageEstimator
                 return false;
         }
 
-        var nextPositions = new Dictionary<SceneNodeId, int>(nextChildren.Count);
-        for (var index = 0; index < nextChildren.Count; index++)
+        var nextPositions = new Dictionary<SceneNodeId, int>(nextChildren.Length);
+        for (var index = 0; index < nextChildren.Length; index++)
             nextPositions[nextChildren[index]] = index;
 
         var lastMatchedIndex = -1;
         var matchedAny = false;
-        foreach (var childId in previousChildren)
+        for (var index = 0; index < previousChildren.Length; index++)
         {
+            var childId = previousChildren[index];
             if (!nextPositions.TryGetValue(childId, out var nextIndex))
                 continue;
 
@@ -254,7 +255,7 @@ internal static class SceneDamageEstimator
             matchedAny = true;
         }
 
-        return matchedAny || previousChildren.Count != nextChildren.Count;
+        return matchedAny || previousChildren.Length != nextChildren.Length;
     }
 
     private static void AddKeys(HashSet<SceneNodeId> ids, IEnumerable<SceneNodeId> keys)

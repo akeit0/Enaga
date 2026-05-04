@@ -139,7 +139,7 @@ internal sealed class HtmlSceneTreeBuilder
         return GroupInlineRuns(parent, parentAllowsInlineContent, ApplyFlexOrder(inheritedStyle, NormalizeInlinePunctuation(parentAllowsInlineContent, children)), inheritedStyle, idGenerator);
     }
 
-    private static IReadOnlyList<HtmlSceneNode> ApplyFlexOrder(HtmlComputedStyle parentStyle, IReadOnlyList<HtmlSceneNode> children)
+    private static List<HtmlSceneNode> ApplyFlexOrder(HtmlComputedStyle parentStyle, List<HtmlSceneNode> children)
     {
         if (children.Count < 2 || parentStyle.Display != HtmlDisplay.Flex)
             return children;
@@ -338,7 +338,7 @@ internal sealed class HtmlSceneTreeBuilder
         return nodes.ToArray();
     }
 
-    private static IReadOnlyList<HtmlSceneNode> NormalizeInlinePunctuation(bool parentAllowsInlineContent, IReadOnlyList<HtmlSceneNode> children)
+    private static List<HtmlSceneNode> NormalizeInlinePunctuation(bool parentAllowsInlineContent, List<HtmlSceneNode> children)
     {
         if (!parentAllowsInlineContent || children.Count < 2)
             return children;
@@ -368,7 +368,7 @@ internal sealed class HtmlSceneTreeBuilder
     private HtmlSceneNode[] GroupInlineRuns(
         HtmlDomElement parent,
         bool parentAllowsInlineContent,
-        IReadOnlyList<HtmlSceneNode> children,
+        List<HtmlSceneNode> children,
         HtmlComputedStyle parentStyle,
         HtmlNodeIdGenerator idGenerator)
     {
@@ -440,7 +440,7 @@ internal sealed class HtmlSceneTreeBuilder
     private HtmlComputedStyle CreateInlineRunContainerStyle(
         HtmlDomElement parent,
         HtmlComputedStyle parentStyle,
-        IReadOnlyList<HtmlSceneNode> children,
+        List<HtmlSceneNode> children,
         int start,
         int count)
     {
@@ -456,7 +456,7 @@ internal sealed class HtmlSceneTreeBuilder
             : formattingStyleCache.GetInlineRunStyle(parentStyle);
     }
 
-    private static bool ContainsInlineControl(IReadOnlyList<HtmlSceneNode> children, int start, int count)
+    private static bool ContainsInlineControl(List<HtmlSceneNode> children, int start, int count)
     {
         for (var index = 0; index < count; index++)
         {
@@ -498,7 +498,7 @@ internal sealed class HtmlSceneTreeBuilder
            (node.NodeKind == SceneNodeKind.View && node.Style.Display == HtmlDisplay.Inline) ||
            (parentAllowsInlineContent && (node.NodeKind == SceneNodeKind.Text || IsInlineBreak(node)));
 
-    private static bool StartsInlineRun(HtmlDomElement parent, bool parentAllowsInlineContent, IReadOnlyList<HtmlSceneNode> children, int index)
+    private static bool StartsInlineRun(HtmlDomElement parent, bool parentAllowsInlineContent, List<HtmlSceneNode> children, int index)
     {
         var node = children[index];
         if (IsInlineRunCandidate(parent, parentAllowsInlineContent, node))
@@ -1011,7 +1011,7 @@ internal sealed class HtmlSceneTreeBuilder
             _ => text
         };
 
-    private static List<HtmlSceneNode> CopyPrefix(IReadOnlyList<HtmlSceneNode> source, int count)
+    private static List<HtmlSceneNode> CopyPrefix(List<HtmlSceneNode> source, int count)
     {
         var list = new List<HtmlSceneNode>(source.Count);
         for (var index = 0; index < count; index++)
@@ -1019,7 +1019,7 @@ internal sealed class HtmlSceneTreeBuilder
         return list;
     }
 
-    private HtmlSceneNode[] CopyInlineRunRange(IReadOnlyList<HtmlSceneNode> source, int start, int count)
+    private HtmlSceneNode[] CopyInlineRunRange(List<HtmlSceneNode> source, int start, int count)
     {
         if (count <= 0)
             return [];
@@ -1055,19 +1055,8 @@ internal sealed class HtmlSceneTreeBuilder
         return range;
     }
 
-    private static HtmlSceneNode[] ToArray(IReadOnlyList<HtmlSceneNode> source)
-    {
-        if (source is HtmlSceneNode[] array)
-            return array;
-
-        if (source.Count == 0)
-            return [];
-
-        var result = new HtmlSceneNode[source.Count];
-        for (var index = 0; index < source.Count; index++)
-            result[index] = source[index];
-        return result;
-    }
+    private static HtmlSceneNode[] ToArray(List<HtmlSceneNode> source)
+        => source.Count == 0 ? [] : source.ToArray();
 
     private static bool IsPunctuationOnly(string text)
     {

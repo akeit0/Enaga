@@ -10,8 +10,8 @@ internal static class HtmlFragmentTreeFactory
         SceneNodeIdentityMap<HtmlSceneNodeId> sceneNodeIds,
         float rootWidth,
         float rootHeight,
-        IReadOnlyList<HtmlPlacedNode> placedNodes,
-        IReadOnlyDictionary<SceneNodeId, SceneLayoutBox>? layout = null)
+        List<HtmlPlacedNode> placedNodes,
+        SceneNodeMap<SceneLayoutBox>? layout = null)
     {
         var rootFragmentId = CreateFragmentId(rootId);
         var rootSceneNodeId = sceneNodeIds.GetOrCreate(rootId);

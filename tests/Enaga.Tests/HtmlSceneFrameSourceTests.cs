@@ -113,7 +113,7 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
 
         var frame = source.RenderFrame(400, 200, TimeSpan.Zero);
-        var rowNode = frame.Commit.Nodes.Single(pair => pair.Value.Label is null && pair.Value.Children.Count == 2 && pair.Key != frame.Commit.RootId);
+        var rowNode = frame.Commit.Nodes.Single(pair => pair.Value.Label is null && pair.Value.Children.Length == 2 && pair.Key != frame.Commit.RootId);
         var firstChildId = frame.Commit.Nodes[rowNode.Key].Children[0];
         var secondChildId = frame.Commit.Nodes[rowNode.Key].Children[1];
         var firstBox = frame.Commit.Layout[firstChildId];
@@ -1620,8 +1620,8 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent == "Zone");
         Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent == ".INT");
         Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent == "Registry");
-        var row = frame.Commit.Nodes.First(pair => pair.Value.Children.Count >= 2).Value;
-        Assert.True(row.Children.Count >= 2);
+        var row = frame.Commit.Nodes.First(pair => pair.Value.Children.Length >= 2).Value;
+        Assert.True(row.Children.Length >= 2);
         var root = frame.Commit.Layout.Values.Single(box => box.TextContent == "Root");
         var intRegistry = frame.Commit.Layout.Values.Single(box => box.TextContent == ".INT");
         Assert.True(intRegistry.AbsTop >= root.AbsTop);
@@ -1633,7 +1633,7 @@ public sealed class HtmlSceneFrameSourceTests
             abuse.AbsLeft > numberResources.AbsLeft + numberResources.Width,
             $"Expected second table column after first column text, number=({numberResources.AbsLeft},{numberResources.Width}) abuse={abuse.AbsLeft}.");
         var rows = frame.Commit.Nodes
-            .Where(pair => pair.Value.Children.Count >= 2 && frame.Commit.Layout.ContainsKey(pair.Key))
+            .Where(pair => pair.Value.Children.Length >= 2 && frame.Commit.Layout.ContainsKey(pair.Key))
             .Select(pair => frame.Commit.Layout[pair.Key])
             .OrderBy(box => box.AbsTop)
             .ToArray();
@@ -3616,13 +3616,13 @@ public sealed class HtmlSceneFrameSourceTests
             return false;
 
         if (prefix is "td-" or "th-")
-            return node.Children.Count > 0 && node.ParentId is { } parentId && commit.Nodes.TryGetValue(parentId, out var parent) && parent.Children.Count > 1;
+            return node.Children.Length > 0 && node.ParentId is { } parentId && commit.Nodes.TryGetValue(parentId, out var parent) && parent.Children.Length > 1;
 
         if (prefix == "tr-")
-            return node.Children.Count > 1;
+            return node.Children.Length > 1;
 
         if (prefix == "table-")
-            return node.ParentId == commit.RootId || node.Children.Count > 1 && node.Children.Any(childId => commit.Nodes.TryGetValue(childId, out var child) && child.Children.Count > 1);
+            return node.ParentId == commit.RootId || node.Children.Length > 1 && node.Children.Any(childId => commit.Nodes.TryGetValue(childId, out var child) && child.Children.Length > 1);
 
         return false;
     }

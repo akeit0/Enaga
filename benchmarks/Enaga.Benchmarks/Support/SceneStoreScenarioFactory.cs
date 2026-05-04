@@ -83,10 +83,10 @@ internal static class SceneStoreScenarioFactory
                 createdNodes++;
             }
 
-            store.SetChildren(containerId, childIds);
+            store.SetChildren(containerId, [.. childIds]);
         }
 
-        store.SetChildren(rootId, rootChildren);
+        store.SetChildren(rootId, [.. rootChildren]);
         return new BenchmarkSceneStoreState(
             store,
             [.. mutableNodeIds],

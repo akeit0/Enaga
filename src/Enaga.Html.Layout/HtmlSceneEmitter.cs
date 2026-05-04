@@ -18,8 +18,8 @@ internal sealed class HtmlSceneEmitter(
     public SceneLayoutCommit Emit(
         SceneNodeKind rootKind,
         HtmlComputedStyle rootStyle,
-        IReadOnlyList<HtmlPlacedNode> placedNodes,
-        IReadOnlyList<HtmlChildRelation> childRelations,
+        List<HtmlPlacedNode> placedNodes,
+        List<HtmlChildRelation> childRelations,
         HtmlPipelineMetrics metrics)
     {
         metrics.AddDisplayListCommandsRebuilt(placedNodes.Count + 1);

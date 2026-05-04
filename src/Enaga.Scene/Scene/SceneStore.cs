@@ -80,7 +80,7 @@ public sealed class SceneStore
         }
     }
 
-    public void SetChildren(SceneNodeId parentId, IReadOnlyList<SceneNodeId> children)
+    public void SetChildren(SceneNodeId parentId, SceneNodeId[] children)
     {
         lock (sync)
         {
@@ -194,13 +194,15 @@ public sealed class SceneStore
         }
     }
 
-    private void ApplySetChildren(SceneNodeId parentId, IReadOnlyList<SceneNodeId> children)
+    private void ApplySetChildren(SceneNodeId parentId, ReadOnlySpan<SceneNodeId> children)
     {
         var parent = EnsureNode(parentId);
         parent.Children.Clear();
-        parent.Children.AddRange(children);
-        foreach (var childId in children)
+        parent.Children.EnsureCapacity(children.Length);
+        for (var index = 0; index < children.Length; index++)
         {
+            var childId = children[index];
+            parent.Children.Add(childId);
             var child = EnsureNode(childId);
             child.ParentId = parentId;
         }

@@ -12,7 +12,7 @@ public sealed record UpsertNodeMutation(
     SceneNodeId? ParentId = null,
     string? Label = null) : SceneMutation;
 
-public sealed record SetChildrenMutation(SceneNodeId ParentId, IReadOnlyList<SceneNodeId> Children) : SceneMutation;
+public sealed record SetChildrenMutation(SceneNodeId ParentId, SceneNodeId[] Children) : SceneMutation;
 
 public sealed record SetLayoutMutation(SceneNodeId Id, SceneLayoutBox Layout) : SceneMutation;
 

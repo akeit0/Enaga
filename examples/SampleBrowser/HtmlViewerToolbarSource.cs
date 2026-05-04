@@ -381,7 +381,7 @@ internal sealed class SampleBrowserToolbarSource : ISceneFrameSource, IInputSink
         nodes[RefreshSceneId] = new(SceneNodeKind.View, RootSceneId, [], "Refresh");
         nodes[RefreshIconSceneId] = new(SceneNodeKind.Image, RootSceneId, [], "Refresh icon");
         nodes[UrlInputSceneId] = new(SceneNodeKind.TextInput, RootSceneId, [], "URL");
-        nodes[RootSceneId] = new(SceneNodeKind.View, null, children);
+        nodes[RootSceneId] = new(SceneNodeKind.View, null, [.. children]);
         layout[RefreshSceneId] = CreateButtonBox(toolbarLayout.RefreshLeft);
         layout[RefreshIconSceneId] = CreateIconBox(toolbarLayout.RefreshLeft + 4, "refresh_black64.png");
         layout[UrlInputSceneId] = new(

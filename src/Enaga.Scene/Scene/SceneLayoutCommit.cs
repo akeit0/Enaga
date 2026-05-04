@@ -43,7 +43,7 @@ public sealed record SceneViewport(int Width, int Height);
 public sealed record SceneGraphNode(
     SceneNodeKind NodeKind,
     SceneNodeId? ParentId,
-    IReadOnlyList<SceneNodeId> Children,
+    SceneNodeId[] Children,
     string? Label = null);
 
 public sealed record SceneFont(
