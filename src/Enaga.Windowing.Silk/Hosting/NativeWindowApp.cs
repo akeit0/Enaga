@@ -351,6 +351,7 @@ public sealed class NativeWindowApp : IDisposable
     private void OnRenderWakeRequested()
     {
         hostUpdatePending = true;
+        RequestInteractiveBurst();
         windowLoop.RequestImmediateFrame();
         WakeWindowEventLoop();
     }

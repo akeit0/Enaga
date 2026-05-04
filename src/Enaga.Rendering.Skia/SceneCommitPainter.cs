@@ -132,6 +132,7 @@ internal sealed class SceneCommitPainter : IDisposable
             canvas.Clear(SKColors.Transparent);
             BeginRecordingStats();
             PaintNode(canvas, commit, commit.RootId);
+            PaintDynamicOverlayRoots(canvas, commit);
             CompleteRecordingStats();
             PaintAnimatedShaderNodes(canvas, commit, (float)elapsed.TotalSeconds);
         }
@@ -197,6 +198,7 @@ internal sealed class SceneCommitPainter : IDisposable
                 canvas.ClipRect(clipRect);
                 canvas.DrawRect(clipRect, clearPaint);
                 PaintNode(canvas, commit, commit.RootId);
+                PaintDynamicOverlayRoots(canvas, commit);
                 PaintAnimatedShaderNodes(canvas, commit, (float)elapsed.TotalSeconds);
                 canvas.Restore();
             }
@@ -290,6 +292,13 @@ internal sealed class SceneCommitPainter : IDisposable
 
         if (clipPushed)
             canvas.Restore();
+    }
+
+    private void PaintDynamicOverlayRoots(SKCanvas canvas, SceneLayoutCommit commit)
+    {
+        var overlayRootIds = commit.DynamicOverlayRootIds;
+        for (var index = 0; index < overlayRootIds.Length; index++)
+            PaintNode(canvas, commit, overlayRootIds[index]);
     }
 
     private void PaintScrollViewChildren(SKCanvas canvas, SceneLayoutCommit commit, SceneNodeId id, SceneGraphNode node, SceneLayoutBox box)

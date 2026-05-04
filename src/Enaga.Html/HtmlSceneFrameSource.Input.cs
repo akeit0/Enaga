@@ -36,7 +36,9 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     private readonly Dictionary<HtmlNodeId, HtmlSelectState> selectStates = [];
     private readonly Dictionary<SceneNodeId, HtmlScrollViewState> scrollStates = new();
     private readonly Dictionary<SceneNodeId, ScrollScaleAnchor> pendingScrollScaleAnchors = new();
-    private readonly List<SceneDamageRect> hoverPaintDirtyRects = new();
+    private readonly List<SceneDamageRect> dynamicVisualDirtyRects = new();
+    private readonly HashSet<HtmlNodeId> dynamicPaintDomCandidateIds = new();
+    private readonly List<SceneNodeId> dynamicPaintSceneNodeIds = new();
     private readonly List<SceneNodeId> staleInputIdScratch = new();
     private readonly List<SceneNodeId> staleScrollIdScratch = new();
     private readonly SceneWheelScrollTargetLatch<SceneNodeId> wheelScrollTargetLatch = new();
@@ -47,6 +49,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     private float lastPointerX;
     private float lastPointerY;
     private bool hasPointerPosition;
+    private SceneDamageRect? lastSelectPopupDirtyRect;
     private SceneNodeId? lastPrimaryClickInputId;
     private float lastPrimaryClickX;
     private float lastPrimaryClickY;
@@ -118,7 +121,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             {
                 UpdateHoveredNodeId(x, y);
                 UpdatePointerCursor();
-                RequestInteractiveUpdate();
+                RequestDynamicVisualUpdate();
                 return;
             }
 
@@ -155,7 +158,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 openSelectDomNodeId = null;
                 SetFocusedTextInput(null);
                 activeDomNodeId = null;
-                RequestInteractiveUpdate();
+                RequestDynamicVisualUpdate();
                 return;
             }
 
@@ -175,20 +178,22 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             if (TryBeginScrollBarDrag(lastPointerX, lastPointerY))
             {
                 SetFocusedTextInput(null);
-                openSelectDomNodeId = null;
+                var closedSelect = SetOpenSelectDomNodeId(null);
                 RequestInteractiveUpdate();
+                if (closedSelect)
+                    RequestDynamicVisualUpdate();
                 return;
             }
 
             if (TryHitTestSelect(cachedCommit, lastPointerX, lastPointerY, out var selectDomNodeId, out _))
             {
-                openSelectDomNodeId = openSelectDomNodeId == selectDomNodeId ? null : selectDomNodeId;
+                SetOpenSelectDomNodeId(openSelectDomNodeId == selectDomNodeId ? null : selectDomNodeId);
                 SetFocusedTextInput(null);
-                RequestInteractiveUpdate();
+                RequestDynamicVisualUpdate();
                 return;
             }
 
-            openSelectDomNodeId = null;
+            var selectWasClosed = SetOpenSelectDomNodeId(null);
             if (TryHitTestTextInput(cachedCommit, lastPointerX, lastPointerY, out var inputId, out var inputBox))
             {
                 var state = EnsureInputState(inputId, inputBox);
@@ -215,6 +220,8 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             }
 
             RequestInteractiveUpdate();
+            if (selectWasClosed)
+                RequestDynamicVisualUpdate();
         }
     }
 
@@ -649,6 +656,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     {
         SceneNodeMap<SceneLayoutBox>? updatedLayout = null;
         SceneNodeMap<SceneGraphNode>? updatedNodes = null;
+        SceneNodeId[] dynamicOverlayRootIds = [];
         activeInputIdScratch.Clear();
         activeScrollIdScratch.Clear();
         hasPendingScrollAnimation = false;
@@ -707,6 +715,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 {
                     updatedLayout ??= SceneNodeMap<SceneLayoutBox>.CreateOverlay(commit.Layout, Math.Max(4, inputStates.Count));
                     updatedLayout[id] = nextSelectBox;
+                    AddDynamicVisualDirtyRect(SceneScreenGeometry.ResolveScreenBox(commit, updatedLayout, id, nextSelectBox));
                 }
 
                 continue;
@@ -746,8 +755,15 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         var commitWithLayout = updatedLayout is null
             ? commit
             : commit with { Layout = updatedLayout };
-        if (TryAddSelectPopupOverlay(commitWithLayout, layoutForOverlay, ref updatedNodes, ref updatedLayout))
+        if (TryAddSelectPopupOverlay(commitWithLayout, layoutForOverlay, ref updatedNodes, ref updatedLayout, out var selectPopupRootId))
         {
+            dynamicOverlayRootIds = [selectPopupRootId];
+            hitTestGeometryChanged = true;
+        }
+        else if (lastSelectPopupDirtyRect is { } previousPopupRect)
+        {
+            AddDynamicVisualDirtyRect(previousPopupRect);
+            lastSelectPopupDirtyRect = null;
             hitTestGeometryChanged = true;
         }
 
@@ -757,7 +773,8 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return commit with
         {
             Nodes = updatedNodes ?? commit.Nodes,
-            Layout = updatedLayout ?? commit.Layout
+            Layout = updatedLayout ?? commit.Layout,
+            DynamicOverlayRootIds = dynamicOverlayRootIds
         };
     }
 
@@ -794,18 +811,61 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         for (var candidateIndex = candidateIndexes.Count - 1; candidateIndex >= 0; candidateIndex--)
         {
             var entry = hitTestIndex.Entries[candidateIndexes[candidateIndex]];
-            if (entry.Box.NodeKind != SceneNodeKind.TextInput ||
-                !entry.ScreenRect.Contains(x, y) ||
-                !IsPointVisibleThroughScrollAncestors(commit, entry.SceneNodeId, x, y) ||
-                !TryResolveNearestDomNodeId(commit, entry.SceneNodeId, out var domNodeId) ||
-                !TryResolveDomElement(domNodeId, out var element) ||
-                !IsSelectElement(element))
-            {
-                continue;
-            }
+            if (TryAcceptSelectHit(
+                commit,
+                entry.SceneNodeId,
+                WithScreenRect(entry.Box, entry.ScreenRect),
+                x,
+                y,
+                out selectDomNodeId,
+                out selectBox))
+                return true;
+        }
 
+        var ids = commit.PaintOrderIds.Length > 0 ? commit.PaintOrderIds : commit.Layout.Keys.ToArray();
+        for (var index = ids.Length - 1; index >= 0; index--)
+        {
+            var id = ids[index];
+            if (!commit.Layout.TryGetValue(id, out var box))
+                continue;
+
+            if (TryAcceptSelectHit(
+                commit,
+                id,
+                SceneScreenGeometry.ResolveScreenBox(commit, commit.Layout, id, box),
+                x,
+                y,
+                out selectDomNodeId,
+                out selectBox))
+                return true;
+        }
+
+        selectDomNodeId = default;
+        selectBox = default!;
+        return false;
+    }
+
+    private bool TryAcceptSelectHit(
+        SceneLayoutCommit commit,
+        SceneNodeId sceneNodeId,
+        SceneLayoutBox screenBox,
+        float x,
+        float y,
+        out HtmlNodeId selectDomNodeId,
+        out SceneLayoutBox selectBox)
+    {
+        if (screenBox.NodeKind == SceneNodeKind.TextInput &&
+            x >= screenBox.AbsLeft &&
+            x <= screenBox.AbsLeft + screenBox.Width &&
+            y >= screenBox.AbsTop &&
+            y <= screenBox.AbsTop + screenBox.Height &&
+            IsPointVisibleThroughScrollAncestors(commit, sceneNodeId, x, y) &&
+            TryResolveNearestDomNodeId(commit, sceneNodeId, out var domNodeId) &&
+            TryResolveDomElement(domNodeId, out var element) &&
+            IsSelectElement(element))
+        {
             selectDomNodeId = domNodeId;
-            selectBox = WithScreenRect(entry.Box, entry.ScreenRect);
+            selectBox = screenBox;
             return true;
         }
 
@@ -824,8 +884,21 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             return false;
         }
 
+        if (cachedCommit is not null)
+            PrimeOpenSelectPopupGeometry(cachedCommit);
         state = resolvedState;
         return state.TryHitOption(x, y, out optionIndex);
+    }
+
+    private bool SetOpenSelectDomNodeId(HtmlNodeId? nextOpenSelectDomNodeId)
+    {
+        if (openSelectDomNodeId == nextOpenSelectDomNodeId)
+            return false;
+
+        openSelectDomNodeId = nextOpenSelectDomNodeId;
+        if (nextOpenSelectDomNodeId is not null && cachedCommit is not null)
+            PrimeOpenSelectPopupGeometry(cachedCommit);
+        return true;
     }
 
     private bool UpdateOpenSelectHover(float x, float y)
@@ -836,6 +909,8 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             return false;
         }
 
+        if (cachedCommit is not null)
+            PrimeOpenSelectPopupGeometry(cachedCommit);
         var nextHoveredIndex = state.TryHitOption(x, y, out var optionIndex) ? optionIndex : -1;
         return state.SetHoveredIndex(nextHoveredIndex);
     }
@@ -844,8 +919,10 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         SceneLayoutCommit commit,
         SceneNodeMap<SceneLayoutBox> layout,
         ref SceneNodeMap<SceneGraphNode>? updatedNodes,
-        ref SceneNodeMap<SceneLayoutBox>? updatedLayout)
+        ref SceneNodeMap<SceneLayoutBox>? updatedLayout,
+        out SceneNodeId popupId)
     {
+        popupId = default;
         if (openSelectDomNodeId is not { } selectDomNodeId ||
             parsedDocument is null ||
             !TryResolveDomElement(selectDomNodeId, out var selectElement) ||
@@ -855,28 +932,21 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             return false;
         }
 
-        var rootScrollX = 0f;
-        var rootScrollY = 0f;
-        if (layout.TryGetValue(commit.RootId, out var rootBox) && rootBox.NodeKind == SceneNodeKind.ScrollView)
-        {
-            rootScrollX = rootBox.ScrollX;
-            rootScrollY = rootBox.ScrollY;
-        }
-
-        var visibleCount = Math.Min(selectState.Options.Count, 8);
-        var rowHeight = Math.Max(24, selectBox.Height);
-        var popupWidth = Math.Max(selectBox.Width, 80);
         const float popupBorderWidth = 1;
-        var popupHeight = rowHeight * visibleCount + popupBorderWidth * 2;
-        var popupScreenLeft = Math.Clamp(selectBox.AbsLeft, 0, Math.Max(0, commit.Viewport.Width - popupWidth));
-        var popupScreenTop = selectBox.AbsTop + selectBox.Height;
-        if (popupScreenTop + popupHeight > commit.Viewport.Height && selectBox.AbsTop - popupHeight >= 0)
-            popupScreenTop = selectBox.AbsTop - popupHeight;
+        var geometry = ResolveSelectPopupGeometry(commit, layout, selectBox, selectState.Options.Count, popupBorderWidth);
+        var popupDirtyRect = geometry.DirtyRect;
+        if (lastSelectPopupDirtyRect is { } previousPopupRect)
+            AddDynamicVisualDirtyRect(previousPopupRect);
+        AddDynamicVisualDirtyRect(popupDirtyRect);
+        lastSelectPopupDirtyRect = popupDirtyRect;
 
-        var popupLeft = popupScreenLeft + rootScrollX;
-        var popupTop = popupScreenTop + rootScrollY;
+        var popupLeft = geometry.Left;
+        var popupTop = geometry.Top;
+        var popupWidth = geometry.Width;
+        var rowHeight = geometry.RowHeight;
+        var visibleCount = geometry.VisibleCount;
         var popupKey = $"__html-select-popup:{selectDomNodeId.Value}";
-        var popupId = overlaySceneNodeIds.GetOrCreate(popupKey);
+        popupId = overlaySceneNodeIds.GetOrCreate(popupKey);
         var optionIds = new SceneNodeId[visibleCount];
         updatedNodes ??= SceneNodeMap<SceneGraphNode>.CreateOverlay(commit.Nodes, visibleCount * 2 + 1);
         updatedLayout ??= SceneNodeMap<SceneLayoutBox>.CreateOverlay(commit.Layout, visibleCount * 2 + 1);
@@ -892,7 +962,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             var rowLeft = popupLeft + popupBorderWidth;
             var rowTop = popupTop + popupBorderWidth + rowHeight * index;
             var rowWidth = Math.Max(0, popupWidth - popupBorderWidth * 2);
-            var rowScreenTop = popupScreenTop + popupBorderWidth + rowHeight * index;
+            var rowScreenTop = geometry.ScreenTop + popupBorderWidth + rowHeight * index;
             var background = index == selectState.HoveredIndex
                 ? "#e5e7eb"
                 : index == selectState.SelectedIndex
@@ -918,41 +988,111 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 TextStyle: selectBox.TextStyle ?? new SceneTextStyle(16, "#111827"),
                 LineHeight: selectBox.LineHeight,
                 IsPositioned: false);
-            selectState.SetPopupOptionRect(index, popupScreenLeft + popupBorderWidth, rowScreenTop, rowWidth, rowHeight);
+            selectState.SetPopupOptionRect(index, geometry.ScreenLeft + popupBorderWidth, rowScreenTop, rowWidth, rowHeight);
         }
 
-        updatedNodes[popupId] = new SceneGraphNode(SceneNodeKind.View, commit.RootId, optionIds);
+        updatedNodes[popupId] = new SceneGraphNode(SceneNodeKind.View, null, optionIds);
         updatedLayout[popupId] = new SceneLayoutBox(
             SceneNodeKind.View,
             popupLeft,
             popupTop,
             popupWidth,
-            popupHeight,
+            geometry.Height,
             BackgroundColor: "#ffffff",
             BorderColor: "#9ca3af",
             BorderWidth: popupBorderWidth,
             BorderStyle: SceneBorderStyle.Solid,
             IsPositioned: true);
 
-        if (updatedNodes.TryGetValue(commit.RootId, out var updatedRootNode))
-        {
-            if (Array.IndexOf(updatedRootNode.Children, popupId) < 0)
-                updatedNodes[commit.RootId] = updatedRootNode with { Children = AppendChild(updatedRootNode.Children, popupId) };
-        }
-        else if (commit.Nodes.TryGetValue(commit.RootId, out var rootNode))
-        {
-            updatedNodes[commit.RootId] = rootNode with { Children = AppendChild(rootNode.Children, popupId) };
-        }
-
         return true;
     }
 
-    private static SceneNodeId[] AppendChild(SceneNodeId[] children, SceneNodeId childId)
+    private void AddDynamicVisualDirtyRect(SceneDamageRect rect)
     {
-        var appended = new SceneNodeId[children.Length + 1];
-        children.AsSpan().CopyTo(appended);
-        appended[^1] = childId;
-        return appended;
+        if (rect.Width <= 0 || rect.Height <= 0)
+            return;
+
+        dynamicVisualDirtyRects.Add(rect);
+    }
+
+    private void AddDynamicVisualDirtyRect(SceneLayoutBox box)
+    {
+        var left = Math.Max(0, (int)MathF.Floor(box.AbsLeft));
+        var top = Math.Max(0, (int)MathF.Floor(box.AbsTop));
+        var right = Math.Max(left + 1, (int)MathF.Ceiling(box.AbsLeft + box.Width));
+        var bottom = Math.Max(top + 1, (int)MathF.Ceiling(box.AbsTop + box.Height));
+        AddDynamicVisualDirtyRect(new SceneDamageRect(left, top, right - left, bottom - top));
+    }
+
+    private void PrimeOpenSelectPopupGeometry(SceneLayoutCommit commit)
+    {
+        if (openSelectDomNodeId is not { } selectDomNodeId ||
+            !TryResolveDomElement(selectDomNodeId, out var selectElement))
+        {
+            return;
+        }
+
+        var selectState = EnsureSelectState(selectElement);
+        if (selectState.Options.Count == 0 ||
+            !TryFindSelectSceneNode(commit, commit.Layout, selectDomNodeId, out _, out var selectBox))
+        {
+            return;
+        }
+
+        const float popupBorderWidth = 1;
+        var geometry = ResolveSelectPopupGeometry(commit, commit.Layout, selectBox, selectState.Options.Count, popupBorderWidth);
+        selectState.BeginPopupLayout();
+        for (var index = 0; index < geometry.VisibleCount; index++)
+        {
+            var rowWidth = Math.Max(0, geometry.Width - popupBorderWidth * 2);
+            var rowScreenTop = geometry.ScreenTop + popupBorderWidth + geometry.RowHeight * index;
+            selectState.SetPopupOptionRect(index, geometry.ScreenLeft + popupBorderWidth, rowScreenTop, rowWidth, geometry.RowHeight);
+        }
+    }
+
+    private static SelectPopupGeometry ResolveSelectPopupGeometry(
+        SceneLayoutCommit commit,
+        SceneNodeMap<SceneLayoutBox> layout,
+        SceneLayoutBox selectBox,
+        int optionCount,
+        float popupBorderWidth)
+    {
+        var rootScrollX = 0f;
+        var rootScrollY = 0f;
+        if (layout.TryGetValue(commit.RootId, out var rootBox) && rootBox.NodeKind == SceneNodeKind.ScrollView)
+        {
+            rootScrollX = rootBox.ScrollX;
+            rootScrollY = rootBox.ScrollY;
+        }
+
+        var visibleCount = Math.Min(optionCount, 8);
+        var rowHeight = Math.Max(24, selectBox.Height);
+        var popupWidth = Math.Max(selectBox.Width, 80);
+        var popupHeight = rowHeight * visibleCount + popupBorderWidth * 2;
+        var popupScreenLeft = Math.Clamp(selectBox.AbsLeft, 0, Math.Max(0, commit.Viewport.Width - popupWidth));
+        var popupScreenTop = selectBox.AbsTop + selectBox.Height;
+        if (popupScreenTop + popupHeight > commit.Viewport.Height && selectBox.AbsTop - popupHeight >= 0)
+            popupScreenTop = selectBox.AbsTop - popupHeight;
+
+        var popupDirtyLeft = (int)MathF.Floor(popupScreenLeft);
+        var popupDirtyTop = (int)MathF.Floor(popupScreenTop);
+        var popupDirtyRight = (int)MathF.Ceiling(popupScreenLeft + popupWidth);
+        var popupDirtyBottom = (int)MathF.Ceiling(popupScreenTop + popupHeight);
+        var dirtyRect = new SceneDamageRect(
+            popupDirtyLeft,
+            popupDirtyTop,
+            Math.Max(0, popupDirtyRight - popupDirtyLeft),
+            Math.Max(0, popupDirtyBottom - popupDirtyTop));
+        return new SelectPopupGeometry(
+            popupScreenLeft,
+            popupScreenTop,
+            popupScreenLeft + rootScrollX,
+            popupScreenTop + rootScrollY,
+            popupWidth,
+            popupHeight,
+            rowHeight,
+            visibleCount,
+            dirtyRect);
     }
 
     private bool TryFindSelectSceneNode(
@@ -1316,7 +1456,6 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 return false;
             }
 
-            builder.ApplyHoverSnapshot(cachedHoveredDomNodeIds, nextHoveredDomNodeIds);
             if (requestUpdate)
                 RequestHoverUpdate();
             hoveredDomNodeIds = nextHoveredDomNodeIds;
@@ -1333,7 +1472,6 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             return false;
         }
 
-        builder.ApplyHoverSnapshot(oldHoveredDomNodeIds, hoveredDomNodeIds);
         hoverRefreshDeferred = false;
         if (requestUpdate)
             RequestHoverUpdate();
@@ -1459,7 +1597,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return ids;
     }
 
-    private bool TryApplyHoverPaintOverlay(
+    private bool TryApplyDynamicPaintOverlay(
         HtmlParsedDocument parsed,
         SceneLayoutCommit previousVisibleCommit,
         SceneLayoutCommit nextCommit,
@@ -1468,14 +1606,17 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         out SceneLayoutCommit overlayCommit)
     {
         overlayCommit = nextCommit;
-        hoverPaintDirtyRects.Clear();
+        BuildDynamicPaintDomCandidates(parsed);
+        BuildDynamicPaintSceneNodeCandidates();
 
         var changedHoverLinks = CollectChangedHoverLinks(parsed, width, height);
         var paintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>(Math.Min(64, Math.Max(4, changedHoverLinks.Count * 4)));
-        foreach (var pair in nextCommit.Layout)
+        for (var index = 0; index < dynamicPaintSceneNodeIds.Count; index++)
         {
-            var sceneNodeId = pair.Key;
-            var box = pair.Value;
+            var sceneNodeId = dynamicPaintSceneNodeIds[index];
+            if (!nextCommit.Layout.TryGetValue(sceneNodeId, out var box))
+                continue;
+
             if (box.NodeKind != SceneNodeKind.Text ||
                 box.TextStyle is null ||
                 string.IsNullOrWhiteSpace(box.LinkHref) ||
@@ -1494,9 +1635,9 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             AddPaintOverride(paintOverrides, sceneNodeId, textColor: hoverColor);
         }
 
-        AddDefaultButtonInteractionPaintOverrides(nextCommit, paintOverrides);
+        AddDefaultControlDynamicPaintOverrides(nextCommit, paintOverrides);
 
-        if (!TryApplyHoverBackgroundOverlay(parsed, nextCommit, paintOverrides, width, height))
+        if (!TryApplyCssDynamicBackgroundPaint(parsed, nextCommit, paintOverrides, width, height))
         {
             return false;
         }
@@ -1505,18 +1646,20 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             ? nextCommit
             : nextCommit with { PaintOverrides = paintOverrides };
         if (!SceneDamageEstimator.PaintOverrideMapsEqual(previousVisibleCommit.PaintOverrides, overlayCommit.PaintOverrides))
-            SceneDamageEstimator.AddPaintOverrideDirtyRects(previousVisibleCommit, overlayCommit, width, height, hoverPaintDirtyRects);
+            SceneDamageEstimator.AddPaintOverrideDirtyRects(previousVisibleCommit, overlayCommit, width, height, dynamicVisualDirtyRects);
         return true;
     }
 
-    private void AddDefaultButtonInteractionPaintOverrides(
+    private void AddDefaultControlDynamicPaintOverrides(
         SceneLayoutCommit commit,
         Dictionary<SceneNodeId, ScenePaintOverride> paintOverrides)
     {
-        foreach (var pair in commit.Layout)
+        for (var index = 0; index < dynamicPaintSceneNodeIds.Count; index++)
         {
-            var sceneNodeId = pair.Key;
-            var box = pair.Value;
+            var sceneNodeId = dynamicPaintSceneNodeIds[index];
+            if (!commit.Layout.TryGetValue(sceneNodeId, out var box))
+                continue;
+
             if (box.ControlKind != SceneControlKind.Button ||
                 !TryResolveNearestDomNodeId(commit, sceneNodeId, out var domNodeId) ||
                 !cachedDomElements.TryGetValue(domNodeId, out var element) ||
@@ -1551,6 +1694,70 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         }
     }
 
+    private void BuildDynamicPaintDomCandidates(HtmlParsedDocument parsed)
+    {
+        dynamicPaintDomCandidateIds.Clear();
+        AddDynamicPaintDomCandidates(parsed, cachedHoveredDomNodeIds);
+        AddDynamicPaintDomCandidates(parsed, hoveredDomNodeIds);
+        if (cachedActiveDomNodeId is { } previousActiveDomNodeId && previousActiveDomNodeId.IsValid)
+            AddDomSubtreeCandidate(previousActiveDomNodeId);
+        if (activeDomNodeId is { } nextActiveDomNodeId && nextActiveDomNodeId.IsValid)
+            AddDomSubtreeCandidate(nextActiveDomNodeId);
+    }
+
+    private void AddDynamicPaintDomCandidates(HtmlParsedDocument parsed, IReadOnlySet<HtmlNodeId>? source)
+    {
+        if (source is null)
+            return;
+
+        foreach (var nodeId in source)
+        {
+            if (!CanDynamicPaintDependOnDomState(parsed, nodeId))
+                continue;
+
+            AddDomSubtreeCandidate(nodeId);
+        }
+    }
+
+    private bool CanDynamicPaintDependOnDomState(HtmlParsedDocument parsed, HtmlNodeId nodeId)
+    {
+        if (!cachedDomElements.TryGetValue(nodeId, out var element))
+            return true;
+
+        return string.Equals(element.LocalName, "button", StringComparison.OrdinalIgnoreCase) ||
+               parsed.CanHoverAffectElement(element);
+    }
+
+    private void AddDomSubtreeCandidate(HtmlNodeId nodeId)
+    {
+        if (!dynamicPaintDomCandidateIds.Add(nodeId) ||
+            !cachedDomElements.TryGetValue(nodeId, out var element))
+        {
+            return;
+        }
+
+        for (var index = 0; index < element.Children.Count; index++)
+        {
+            if (element.Children[index] is HtmlDomElement childElement)
+                AddDomSubtreeCandidate(childElement.NodeId);
+        }
+    }
+
+    private void BuildDynamicPaintSceneNodeCandidates()
+    {
+        dynamicPaintSceneNodeIds.Clear();
+        foreach (var domNodeId in dynamicPaintDomCandidateIds)
+        {
+            if (!cachedDomSceneNodeIds.TryGetValue(domNodeId, out var sceneNodeIds))
+                continue;
+
+            for (var index = 0; index < sceneNodeIds.Count; index++)
+                dynamicPaintSceneNodeIds.Add(sceneNodeIds[index]);
+        }
+
+        LastDynamicPaintCandidateCount = dynamicPaintSceneNodeIds.Count;
+    }
+
     private static string? ResolveDefaultButtonInteractionColor(
         string? currentColor,
         bool isHovered,
@@ -1574,17 +1781,19 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
            string.Equals(currentColor, hoverColor, StringComparison.OrdinalIgnoreCase) ||
            string.Equals(currentColor, activeColor, StringComparison.OrdinalIgnoreCase);
 
-    private bool TryApplyHoverBackgroundOverlay(
+    private bool TryApplyCssDynamicBackgroundPaint(
         HtmlParsedDocument parsed,
         SceneLayoutCommit commit,
         Dictionary<SceneNodeId, ScenePaintOverride> paintOverrides,
         int width,
         int height)
     {
-        foreach (var pair in commit.Layout)
+        for (var index = 0; index < dynamicPaintSceneNodeIds.Count; index++)
         {
-            var sceneNodeId = pair.Key;
-            var box = pair.Value;
+            var sceneNodeId = dynamicPaintSceneNodeIds[index];
+            if (!commit.Layout.TryGetValue(sceneNodeId, out var box))
+                continue;
+
             if (!TryResolveNearestDomNodeId(commit, sceneNodeId, out var domNodeId) ||
                 !cachedDomElements.TryGetValue(domNodeId, out var element) ||
                 !TryBuildAncestorStyleContext(domNodeId, out var ancestors, out var hoverStates))
@@ -2154,6 +2363,12 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         RenderWakeRequested?.Invoke();
     }
 
+    private void RequestDynamicVisualUpdate()
+    {
+        Invalidate(HtmlPipelineInvalidation.DynamicVisual | HtmlPipelineInvalidation.HitTest, HtmlRenderDamageBits.DirtyRects);
+        RenderWakeRequested?.Invoke();
+    }
+
     private void RequestHoverUpdate()
     {
         Invalidate(HtmlPipelineInvalidation.Hover | HtmlPipelineInvalidation.HitTest, HtmlRenderDamageBits.DirtyRects);
@@ -2565,6 +2780,17 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         public bool Contains(float x, float y)
             => x >= Left && x <= Left + Width && y >= Top && y <= Top + Height;
     }
+
+    private readonly record struct SelectPopupGeometry(
+        float ScreenLeft,
+        float ScreenTop,
+        float Left,
+        float Top,
+        float Width,
+        float Height,
+        float RowHeight,
+        int VisibleCount,
+        SceneDamageRect DirtyRect);
 
     private readonly record struct ScrollScaleAnchor(SceneNodeId NodeId, float ScreenTop);
 

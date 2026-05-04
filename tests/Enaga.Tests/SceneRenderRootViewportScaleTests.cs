@@ -145,6 +145,20 @@ public sealed class SceneRenderRootViewportScaleTests
         Assert.False(root.HitTestOverlayInput(250, 20));
     }
 
+    [Fact]
+    public void InputForwarding_RequestsRenderWakeAfterSourceMutation()
+    {
+        var source = new TestViewportScaleFrameSource();
+        using var root = new SceneRenderRoot(source);
+        var wakeCount = 0;
+        root.RenderWakeRequested += () => wakeCount++;
+
+        root.PointerDown(0, 1, synthetic: false);
+
+        Assert.Equal(1, source.PointerDownCount);
+        Assert.Equal(1, wakeCount);
+    }
+
     private sealed class TestViewportScaleFrameSource : ISceneFrameSource, IRenderViewportScaleController, IInputSink
     {
         private bool rendered;
@@ -158,6 +172,8 @@ public sealed class SceneRenderRootViewportScaleTests
         public float ViewportScale => Scale;
 
         public int PointerMoveCount { get; private set; }
+
+        public int PointerDownCount { get; private set; }
 
         public bool TryStepViewportScale(int direction)
         {
@@ -197,6 +213,7 @@ public sealed class SceneRenderRootViewportScaleTests
 
         public void PointerDown(int button, int buttons, bool synthetic)
         {
+            PointerDownCount++;
         }
 
         public void PointerUp(int button, int buttons, bool synthetic)

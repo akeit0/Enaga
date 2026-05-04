@@ -128,6 +128,7 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         {
             var scale = ViewportScale;
             inputSink.PointerMove(x / scale, y / scale, buttons, synthetic);
+            RequestInputRenderWake();
         }
     }
 
@@ -155,7 +156,10 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
             return;
 
         if (source is IInputSink inputSink)
+        {
             inputSink.PointerDown(button, buttons, synthetic);
+            RequestInputRenderWake();
+        }
     }
 
     public void PointerUp(int button, int buttons, bool synthetic)
@@ -164,81 +168,123 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
             return;
 
         if (source is IInputSink inputSink)
+        {
             inputSink.PointerUp(button, buttons, synthetic);
+            RequestInputRenderWake();
+        }
     }
 
     public void Wheel(float deltaX, float deltaY, bool synthetic)
     {
         if (source is IInputSink inputSink)
+        {
             inputSink.Wheel(deltaX, deltaY, synthetic);
+            RequestInputRenderWake();
+        }
     }
 
     public void Wheel(float deltaX, float deltaY, bool synthetic, int modifiers = 0)
     {
         if (source is IInputSink inputSink)
+        {
             inputSink.Wheel(deltaX, deltaY, synthetic, modifiers);
+            RequestInputRenderWake();
+        }
     }
 
     public void KeyDown(string key, int modifiers, bool repeat, bool synthetic)
     {
         if (source is IInputSink inputSink)
+        {
             inputSink.KeyDown(key, modifiers, repeat, synthetic);
+            RequestInputRenderWake();
+        }
     }
 
     public void KeyUp(string key, int modifiers, bool synthetic)
     {
         if (source is IInputSink inputSink)
+        {
             inputSink.KeyUp(key, modifiers, synthetic);
+            RequestInputRenderWake();
+        }
     }
 
     public void TextInput(string text, bool synthetic)
     {
         if (source is IInputSink inputSink)
+        {
             inputSink.TextInput(text, synthetic);
+            RequestInputRenderWake();
+        }
     }
 
     public void StartTextComposition()
     {
         if (source is ITextCompositionSink compositionSink)
+        {
             compositionSink.StartTextComposition();
+            RequestInputRenderWake();
+        }
     }
 
     public void StartTextComposition(int startIndex)
     {
         if (source is ITextCompositionRangeSink rangeSink)
+        {
             rangeSink.StartTextComposition(startIndex);
+            RequestInputRenderWake();
+        }
         else if (source is ITextCompositionSink compositionSink)
+        {
             compositionSink.StartTextComposition();
+            RequestInputRenderWake();
+        }
     }
 
     public void UpdateTextComposition(string text, int cursorPosition)
     {
         if (source is ITextCompositionSink compositionSink)
+        {
             compositionSink.UpdateTextComposition(text, cursorPosition);
+            RequestInputRenderWake();
+        }
     }
 
     public void UpdateTextComposition(string text, int cursorPosition, int selectionStart, int selectionLength)
     {
         if (source is ITextCompositionSink compositionSink)
+        {
             compositionSink.UpdateTextComposition(text, cursorPosition, selectionStart, selectionLength);
+            RequestInputRenderWake();
+        }
     }
 
     public void EndTextComposition()
     {
         if (source is ITextCompositionSink compositionSink)
+        {
             compositionSink.EndTextComposition();
+            RequestInputRenderWake();
+        }
     }
 
     public void PrepareTextCompositionCommit()
     {
         if (source is ITextCompositionSink compositionSink)
+        {
             compositionSink.PrepareTextCompositionCommit();
+            RequestInputRenderWake();
+        }
     }
 
     public void UpdateImeState(bool isOpen, string indicator)
     {
         if (source is ITextCompositionSink compositionSink)
+        {
             compositionSink.UpdateImeState(isOpen, indicator);
+            RequestInputRenderWake();
+        }
     }
 
     public bool TryGetTextCompositionCursor(out TextCompositionCursor cursor)
@@ -414,6 +460,9 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
 
     public void SetRenderGpuContext(GRContext? context)
         => painter.SetRenderGpuContext(context);
+
+    private void RequestInputRenderWake()
+        => renderWakeRequested?.Invoke();
 
     public RenderRootDiagnosticsSnapshot GetRenderRootDiagnosticsSnapshot()
     {

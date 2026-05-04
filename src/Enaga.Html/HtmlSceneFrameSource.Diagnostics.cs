@@ -22,7 +22,10 @@ public sealed partial class HtmlSceneFrameSource
         HtmlRenderDamageBits.Document;
 
     public HtmlPipelineMetricsSnapshot LastPipelineMetrics { get; private set; }
+    public int LastDynamicPaintCandidateCount { get; private set; }
+    public int LastDocumentCommitBuildCount { get; private set; }
     private HtmlPipelineMetricsSnapshot frameBuildMetrics;
+    private int frameDocumentCommitBuildCount;
     private Enaga.Html.Style.RenderDamage frameStyleDamage;
 
     private void Invalidate(HtmlPipelineInvalidation invalidation, HtmlRenderDamageBits damage)
@@ -98,15 +101,43 @@ public sealed partial class HtmlSceneFrameSource
         HtmlParsedDocument parsed,
         int width,
         int height)
+        => BuildDocumentCommit(parsed, width, height, hoveredDomNodeIds, activeDomNodeId);
+
+    private SceneLayoutCommit BuildDocumentCommit(
+        HtmlParsedDocument parsed,
+        int width,
+        int height,
+        IReadOnlySet<HtmlNodeId>? hoveredNodeIds,
+        HtmlNodeId? activeNodeId)
     {
-        var commit = builder.Build(parsed, width, height, viewportScale, hoveredDomNodeIds, activeDomNodeId);
+        frameDocumentCommitBuildCount++;
+        var commit = builder.Build(parsed, width, height, viewportScale, hoveredNodeIds, activeNodeId);
         frameBuildMetrics = builder.LastMetrics;
         frameStyleDamage = builder.LastDamage;
         cachedBaseFragmentTree = builder.LastFragmentTree;
         cachedSceneNodeDomIds = builder.LastSceneNodeDomIds;
+        UpdateDomSceneNodeMap(cachedSceneNodeDomIds);
         UpdateDomNodeRelationshipMaps(parsed.RootElement);
         hitTestGeometryVersion++;
         return commit;
+    }
+
+    private void UpdateDomSceneNodeMap(IReadOnlyDictionary<SceneNodeId, HtmlNodeId> sceneNodeDomIds)
+    {
+        cachedDomSceneNodeIds.Clear();
+        foreach (var pair in sceneNodeDomIds)
+        {
+            if (!pair.Value.IsValid)
+                continue;
+
+            if (!cachedDomSceneNodeIds.TryGetValue(pair.Value, out var sceneNodeIds))
+            {
+                sceneNodeIds = [];
+                cachedDomSceneNodeIds[pair.Value] = sceneNodeIds;
+            }
+
+            sceneNodeIds.Add(pair.Key);
+        }
     }
 
     private void UpdateDomNodeRelationshipMaps(HtmlDomElement root)
@@ -179,7 +210,8 @@ internal enum HtmlPipelineInvalidation
     Scroll = 1 << 6,
     Viewport = 1 << 7,
     HitTest = 1 << 8,
-    Hover = 1 << 9
+    Hover = 1 << 9,
+    DynamicVisual = 1 << 10
 }
 
 [Flags]

@@ -55,14 +55,15 @@ internal sealed class SampleBrowserDiagnosticsFrameSource :
         var viewportChanged = width != lastWidth || height != lastHeight;
         var scrollChanged = float.IsNaN(lastRootScrollY) || Math.Abs(rootScrollY - lastRootScrollY) > 0.001f;
 
-        if (viewportChanged || scrollChanged || pendingInputLog)
+        var dynamicOverlayCount = result.Commit.DynamicOverlayRootIds.Length;
+        if (viewportChanged || scrollChanged || pendingInputLog || dynamicOverlayCount > 0)
         {
             Write(
                 "frame " +
                 $"viewport={width}x{height} scale={Format(ViewportScale)} " +
                 $"rootScroll=({Format(RootBoxOrDefault(result.Commit).ScrollX)},{Format(rootScrollY)}) " +
                 $"mouse=({Format(pointerX)},{Format(pointerY)}) buttons={pointerButtons} " +
-                $"damage={result.DamageReasons} dirty={result.DirtyRects.Length}");
+                $"damage={result.DamageReasons} dirty={result.DirtyRects.Length} overlays={dynamicOverlayCount}");
             WriteHitCandidates(result.Commit, pointerX, pointerY);
         }
 

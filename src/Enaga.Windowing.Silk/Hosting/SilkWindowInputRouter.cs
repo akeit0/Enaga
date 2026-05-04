@@ -61,29 +61,29 @@ internal sealed class SilkWindowInputRouter : IDisposable
 
         nextMouse.MouseMove += (_, position) =>
         {
-            requestFrame();
             inputSink.PointerMove(position.X, position.Y, GetButtonsMask(nextMouse), synthetic: false);
             ApplyPointerCursor(nextMouse);
+            requestFrame();
         };
         nextMouse.MouseDown += (_, button) =>
         {
-            requestFrame();
             inputSink.PointerMove(nextMouse.Position.X, nextMouse.Position.Y, GetButtonsMask(nextMouse), synthetic: false);
             ApplyPointerCursor(nextMouse);
             platformIntegration?.OnPointerDown((int)button);
             inputSink.PointerDown((int)button, GetButtonsMask(nextMouse), synthetic: false);
+            requestFrame();
         };
         nextMouse.MouseUp += (_, button) =>
         {
-            requestFrame();
             inputSink.PointerMove(nextMouse.Position.X, nextMouse.Position.Y, GetButtonsMask(nextMouse), synthetic: false);
             ApplyPointerCursor(nextMouse);
             inputSink.PointerUp((int)button, GetButtonsMask(nextMouse), synthetic: false);
+            requestFrame();
         };
         nextMouse.Scroll += (_, wheel) =>
         {
-            requestFrame();
             inputSink.Wheel(wheel.X, wheel.Y, synthetic: false, keyboard is not null ? GetModifiersMask(keyboard) : 0);
+            requestFrame();
         };
     }
 
@@ -118,21 +118,21 @@ internal sealed class SilkWindowInputRouter : IDisposable
         nextKeyboard.KeyDown += (keyboardDevice, key, _) =>
         {
             heldKeyboardKeys.Add(key.ToString());
-            requestFrame();
             inputSink.KeyDown(
                 key.ToString(),
                 GetModifiersMask(keyboardDevice),
                 repeat: false,
                 synthetic: false);
+            requestFrame();
         };
         nextKeyboard.KeyUp += (keyboardDevice, key, _) =>
         {
-            requestFrame();
             heldKeyboardKeys.Remove(key.ToString());
             inputSink.KeyUp(
                 key.ToString(),
                 GetModifiersMask(keyboardDevice),
                 synthetic: false);
+            requestFrame();
         };
         nextKeyboard.KeyChar += (_, character) =>
         {
@@ -140,8 +140,8 @@ internal sealed class SilkWindowInputRouter : IDisposable
                 platformIntegration?.HandlesTextInput != true &&
                 platformIntegration?.ShouldForwardTextInput(character) != false)
             {
-                requestFrame();
                 inputSink.TextInput(character.ToString(), synthetic: false);
+                requestFrame();
             }
         };
     }

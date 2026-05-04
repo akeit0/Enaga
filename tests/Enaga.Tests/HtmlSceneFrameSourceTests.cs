@@ -1467,9 +1467,14 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.DoesNotContain(initial.Commit.Layout.Values, box => box.TextContent is "EMEA" or "AMER");
 
         source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + 8, 0, synthetic: false);
+        var beforeOpen = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(8));
+        Assert.Empty(beforeOpen.Commit.DynamicOverlayRootIds);
+
         source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
         var opened = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
 
+        Assert.NotEmpty(opened.Commit.DynamicOverlayRootIds);
         var popup = opened.Commit.Layout.Values.Single(box =>
             box.NodeKind == SceneNodeKind.View &&
             box.IsPositioned &&
@@ -1483,6 +1488,9 @@ public sealed class HtmlSceneFrameSourceTests
 
         Assert.Equal(1, popup.BorderWidth);
         Assert.Equal(SceneBorderStyle.Solid, popup.BorderStyle);
+        Assert.False(opened.DamageReasons.HasFlag(SceneDamageReason.Scroll));
+        Assert.Contains(opened.DirtyRects, rect => Intersects(rect, popup));
+        Assert.DoesNotContain(opened.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180);
         Assert.True(firstOption.AbsLeft > popup.AbsLeft);
         Assert.True(firstOption.AbsTop > popup.AbsTop);
         Assert.Contains(opened.Commit.Layout.Values, box => box.TextContent == "EMEA");
@@ -1494,14 +1502,79 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + selectBox.Height + selectBox.Height + 4, 0, synthetic: false);
         var hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(24));
         Assert.Contains(hovered.Commit.Layout.Values, box => box.TextContent == "EMEA");
-        Assert.Contains(hovered.Commit.Layout.Values, box => box.BackgroundColor == "#e5e7eb");
+        var hoveredOption = hovered.Commit.Layout.Values.Single(box => box.BackgroundColor == "#e5e7eb");
+        Assert.Contains(hovered.DirtyRects, rect => Intersects(rect, hoveredOption));
+        Assert.DoesNotContain(hovered.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180);
 
         source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + selectBox.Height + selectBox.Height + 4, 0, synthetic: false);
         source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
         var selected = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal("EMEA", selected.Commit.Layout[selectId].TextContent);
         Assert.DoesNotContain(selected.Commit.Layout.Values, box => box.IsPositioned && box.BorderStyle == SceneBorderStyle.Solid);
+        Assert.Contains(selected.DirtyRects, rect => Intersects(rect, popup));
+        Assert.Contains(selected.DirtyRects, rect => Intersects(rect, selected.Commit.Layout[selectId]));
+
+        static bool Intersects(SceneDamageRect rect, SceneLayoutBox box)
+            => rect.X < box.AbsLeft + box.Width &&
+               rect.X + rect.Width > box.AbsLeft &&
+               rect.Y < box.AbsTop + box.Height &&
+               rect.Y + rect.Height > box.AbsTop;
+    }
+
+    [Fact]
+    public void SceneRenderRoot_RendersSelectDropdownImmediatelyAfterClick()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                """
+                <body>
+                  <select id='region'>
+                    <option value='apac'>APAC</option>
+                    <option value='emea'>EMEA</option>
+                    <option value='amer'>AMER</option>
+                  </select>
+                </body>
+                """,
+                "body { background: #ff0000; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+        using var root = new SceneRenderRoot(source, requiresFullFramePresentation: true);
+        using var bitmap = new SKBitmap(320, 180);
+        using var canvas = new SKCanvas(bitmap);
+
+        root.Render(canvas, 320, 180, TimeSpan.Zero);
+        var initial = source.BuildCommit(320, 180);
+        var selectId = initial.Nodes.Single(pair => pair.Value.Label == "region").Key;
+        var selectBox = initial.Layout[selectId];
+        var sampleX = (int)(selectBox.AbsLeft + 8);
+        var sampleY = (int)(selectBox.AbsTop + selectBox.Height + 8);
+        var before = bitmap.GetPixel(sampleX, sampleY);
+
+        root.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + 8, 0, synthetic: false);
+        root.PointerDown(0, 1, synthetic: false);
+        root.PointerUp(0, 0, synthetic: false);
+        root.Render(canvas, 320, 180, TimeSpan.FromMilliseconds(16));
+
+        var afterOpen = bitmap.GetPixel(sampleX, sampleY);
+        Assert.NotEqual(before, afterOpen);
+        Assert.Contains(root.GetLastDirtyRects().ToArray(), rect =>
+            rect.X <= sampleX &&
+            rect.X + rect.Width > sampleX &&
+            rect.Y <= sampleY &&
+            rect.Y + rect.Height > sampleY);
+
+        root.PointerDown(0, 1, synthetic: false);
+        root.PointerUp(0, 0, synthetic: false);
+        root.Render(canvas, 320, 180, TimeSpan.FromMilliseconds(32));
+
+        var afterClose = bitmap.GetPixel(sampleX, sampleY);
+        Assert.Equal(before, afterClose);
+        Assert.Contains(root.GetLastDirtyRects().ToArray(), rect =>
+            rect.X <= sampleX &&
+            rect.X + rect.Width > sampleX &&
+            rect.Y <= sampleY &&
+            rect.Y + rect.Height > sampleY);
     }
 
     [Fact]
@@ -2323,8 +2396,8 @@ public sealed class HtmlSceneFrameSourceTests
         var twoId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "two").Key;
         source.PointerMove(40, 40, 0, synthetic: false);
         var hoveredOne = source.RenderFrame(320, 120, TimeSpan.FromMilliseconds(16));
-        Assert.Equal("#445566", hoveredOne.Commit.Layout[oneId].BackgroundColor);
-        Assert.Equal("#112233", hoveredOne.Commit.Layout[twoId].BackgroundColor);
+        Assert.Equal("#445566", ResolveAppliedBackgroundColor(hoveredOne.Commit, oneId));
+        Assert.Equal("#112233", ResolveAppliedBackgroundColor(hoveredOne.Commit, twoId));
 
         source.Wheel(0, -6, synthetic: false);
         var scrolled = hoveredOne;
@@ -2332,8 +2405,8 @@ public sealed class HtmlSceneFrameSourceTests
             scrolled = source.RenderFrame(320, 120, TimeSpan.FromMilliseconds(32 + frame * 16));
 
         Assert.True(scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY >= 70);
-        Assert.Equal("#112233", scrolled.Commit.Layout[oneId].BackgroundColor);
-        Assert.Equal("#445566", scrolled.Commit.Layout[twoId].BackgroundColor);
+        Assert.Equal("#112233", ResolveAppliedBackgroundColor(scrolled.Commit, oneId));
+        Assert.Equal("#445566", ResolveAppliedBackgroundColor(scrolled.Commit, twoId));
     }
 
     [Fact]
@@ -2365,7 +2438,7 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerMove(40, 150, 0, synthetic: false);
         var outsidePane = source.RenderFrame(320, 220, TimeSpan.FromMilliseconds(32));
 
-        Assert.Equal("#112233", outsidePane.Commit.Layout[twoId].BackgroundColor);
+        Assert.Equal("#112233", ResolveAppliedBackgroundColor(outsidePane.Commit, twoId));
     }
 
     [Fact]
@@ -2395,7 +2468,7 @@ public sealed class HtmlSceneFrameSourceTests
 
         source.PointerMove(40, 40, 0, synthetic: false);
         var hoveredRow1 = source.RenderFrame(320, 220, TimeSpan.FromMilliseconds(16));
-        Assert.Equal("#445566", hoveredRow1.Commit.Layout[row1Id].BackgroundColor);
+        Assert.Equal("#445566", ResolveAppliedBackgroundColor(hoveredRow1.Commit, row1Id));
 
         source.Wheel(0, -5, synthetic: false);
         var scrolled = hoveredRow1;
@@ -2405,14 +2478,14 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.True(scrolled.Commit.Layout[paneId].ScrollY >= 60);
         var hoveredRows = new[]
         {
-            scrolled.Commit.Layout[row1Id].BackgroundColor,
-            scrolled.Commit.Layout[row2Id].BackgroundColor,
-            scrolled.Commit.Layout[row3Id].BackgroundColor,
-            scrolled.Commit.Layout[row4Id].BackgroundColor
+            ResolveAppliedBackgroundColor(scrolled.Commit, row1Id),
+            ResolveAppliedBackgroundColor(scrolled.Commit, row2Id),
+            ResolveAppliedBackgroundColor(scrolled.Commit, row3Id),
+            ResolveAppliedBackgroundColor(scrolled.Commit, row4Id)
         }.Count(static color => string.Equals(color, "#445566", StringComparison.Ordinal));
 
         Assert.Equal(1, hoveredRows);
-        Assert.Equal("#445566", scrolled.Commit.Layout[row2Id].BackgroundColor);
+        Assert.Equal("#445566", ResolveAppliedBackgroundColor(scrolled.Commit, row2Id));
     }
 
     [Fact]
@@ -2720,6 +2793,163 @@ public sealed class HtmlSceneFrameSourceTests
     }
 
     [Fact]
+    public void HtmlSceneFrameSource_LargeTableHoverMoveUsesSmallPaintDiff()
+    {
+        var html = new System.Text.StringBuilder();
+        html.Append("<body><table class='iana-table'>");
+        for (var row = 0; row < 300; row++)
+        {
+            html.Append("<tr><td>R");
+            html.Append(row);
+            html.Append("A</td><td>R");
+            html.Append(row);
+            html.Append("B</td></tr>");
+        }
+        html.Append("</table></body>");
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                html.ToString(),
+                "td { background: #fafafc; padding: 4px; } .iana-table tr:hover td { background: #f0f0f8; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(640, 240, TimeSpan.Zero);
+        var first = initial.Commit.Layout.Values.First(box => box.TextContent == "R0A");
+        source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
+        var hoveredFirst = source.RenderFrame(640, 240, TimeSpan.FromMilliseconds(16));
+        Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+        Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
+        Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
+        Assert.Equal(0, source.LastDocumentCommitBuildCount);
+        Assert.True(source.LastDynamicPaintCandidateCount <= 8, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
+
+        var second = initial.Commit.Layout.Values.First(box => box.TextContent == "R1A");
+        source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
+        var moved = source.RenderFrame(640, 240, TimeSpan.FromMilliseconds(32));
+
+        Assert.Equal(SceneDamageReason.FragmentDamage, moved.DamageReasons);
+        Assert.DoesNotContain(moved.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 640 && rect.Height == 240);
+        Assert.True(moved.DirtyPixelCount < 640L * 240L, $"Dirty pixels: {moved.DirtyPixelCount}");
+        Assert.True(moved.DirtyRects.Count() <= 8, $"Dirty rects: {moved.DirtyRects.Count()}");
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+        Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
+        Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
+        Assert.Equal(0, source.LastDocumentCommitBuildCount);
+        Assert.True(source.LastDynamicPaintCandidateCount <= 16, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
+        Assert.True(moved.Commit.PaintOverrides.Values.Count(paintOverride => paintOverride.BackgroundColor == "#f0f0f8") >= 2);
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_LargeLinkTableHoverMoveDoesNotBuildFullCommit()
+    {
+        var html = new System.Text.StringBuilder();
+        html.Append("<body><table>");
+        for (var row = 0; row < 300; row++)
+        {
+            html.Append("<tr><td><a href='r");
+            html.Append(row);
+            html.Append(".html'>L");
+            html.Append(row);
+            html.Append("</a></td></tr>");
+        }
+        html.Append("</table></body>");
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                html.ToString(),
+                "td { padding: 4px; } a { color: #112233; } a:hover { color: #445566; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(640, 240, TimeSpan.Zero);
+        var first = initial.Commit.Layout.Values.First(box => box.TextContent == "L0");
+        source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
+        var hoveredFirst = source.RenderFrame(640, 240, TimeSpan.FromMilliseconds(16));
+        var hoveredFirstId = hoveredFirst.Commit.Layout.First(pair => pair.Value.TextContent == "L0").Key;
+        Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
+        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredFirst.Commit, hoveredFirstId));
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+        Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
+        Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
+        Assert.Equal(0, source.LastDocumentCommitBuildCount);
+        Assert.True(source.LastDynamicPaintCandidateCount <= 4, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
+
+        var second = hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "L1");
+        source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
+        var moved = source.RenderFrame(640, 240, TimeSpan.FromMilliseconds(32));
+
+        var movedFirstId = moved.Commit.Layout.First(pair => pair.Value.TextContent == "L0").Key;
+        var movedSecondId = moved.Commit.Layout.First(pair => pair.Value.TextContent == "L1").Key;
+        Assert.Equal(SceneDamageReason.FragmentDamage, moved.DamageReasons);
+        Assert.Equal("#112233", ResolveAppliedTextColor(moved.Commit, movedFirstId));
+        Assert.Equal("#445566", ResolveAppliedTextColor(moved.Commit, movedSecondId));
+        Assert.DoesNotContain(moved.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 640 && rect.Height == 240);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+        Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
+        Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
+        Assert.Equal(0, source.LastDocumentCommitBuildCount);
+        Assert.True(source.LastDynamicPaintCandidateCount <= 8, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
+    }
+
+    [Fact]
+    public void HtmlSceneFrameSource_ProtocolStyleLinkTableRowHoverDoesNotScanWholePage()
+    {
+        var html = new System.Text.StringBuilder();
+        html.Append("<body><header><div id='header'><div class='navigation'><ul><li><a href='nav.html'>Nav</a></li></ul></div></div></header>");
+        html.Append("<main><table class='iana-table'>");
+        for (var row = 0; row < 300; row++)
+        {
+            html.Append("<tr><td><a href='r");
+            html.Append(row);
+            html.Append(".html'>P");
+            html.Append(row);
+            html.Append("</a></td><td>Updated ");
+            html.Append(row);
+            html.Append("</td></tr>");
+        }
+        html.Append("</table></main></body>");
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                html.ToString(),
+                """
+                a:link, a:visited { color: #0069d6; text-decoration: none; }
+                #header .navigation li a:hover { color: rgba(92, 166, 210, 0.8); transition: color 150ms ease-in; }
+                .iana-table td { background: #fafafc; padding: 4px; }
+                .iana-table tr:hover td { background-color: #f0f0f8; }
+                """),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(800, 260, TimeSpan.Zero);
+        var first = initial.Commit.Layout.Values.First(box => box.TextContent == "P0");
+        source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
+        var hoveredFirst = source.RenderFrame(800, 260, TimeSpan.FromMilliseconds(16));
+
+        Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+        Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
+        Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
+        Assert.Equal(0, source.LastDocumentCommitBuildCount);
+        Assert.True(source.LastDynamicPaintCandidateCount <= 12, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
+        Assert.Contains(hoveredFirst.Commit.PaintOverrides.Values, paintOverride => paintOverride.BackgroundColor == "#f0f0f8");
+
+        var second = hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "P1");
+        source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
+        var moved = source.RenderFrame(800, 260, TimeSpan.FromMilliseconds(32));
+
+        Assert.Equal(SceneDamageReason.FragmentDamage, moved.DamageReasons);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
+        Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
+        Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
+        Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
+        Assert.Equal(0, source.LastDocumentCommitBuildCount);
+        Assert.True(source.LastDynamicPaintCandidateCount <= 24, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
+        Assert.DoesNotContain(moved.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 800 && rect.Height == 260);
+    }
+
+    [Fact]
     public void HtmlSceneFrameSource_ChangesViewportScaleWithControlWheel()
     {
         var source = new HtmlSceneFrameSource(
@@ -2961,7 +3191,7 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredFrame = source.RenderFrame(900, 260, TimeSpan.FromMilliseconds(16));
         var hoveredName = hoveredFrame.Commit.Layout.Values.First(box => box.TextContent?.Contains("KSK", StringComparison.Ordinal) == true);
         var hoveredNameCellId = FindAncestorId(hoveredFrame.Commit, hoveredFrame.Commit.Nodes.Single(pair => hoveredFrame.Commit.Layout[pair.Key].TextContent == hoveredName.TextContent).Key, "td-");
-        Assert.Equal("#f0f0f8", hoveredFrame.Commit.Layout[hoveredNameCellId].BackgroundColor);
+        Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hoveredFrame.Commit, hoveredNameCellId));
 
         static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
         {
@@ -3052,7 +3282,7 @@ public sealed class HtmlSceneFrameSourceTests
             .ToArray();
 
         Assert.True(cellIds.Length >= 2);
-        Assert.All(cellIds, cellId => Assert.Equal("#f0f0f8", hovered.Commit.Layout[cellId].BackgroundColor));
+        Assert.All(cellIds, cellId => Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
 
         static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
         {
@@ -3145,9 +3375,9 @@ public sealed class HtmlSceneFrameSourceTests
         var secondRowId = FindAncestorId(hovered.Commit, FindNodeIdByText(hovered.Commit, "root-anchors.p7s"), "tr-");
         var thirdRowId = FindAncestorId(hovered.Commit, FindNodeIdByText(hovered.Commit, "icannbundle.pem"), "tr-");
 
-        Assert.All(FindCellIds(hovered.Commit, firstRowId), cellId => Assert.Equal("#f0f0f8", hovered.Commit.Layout[cellId].BackgroundColor));
-        Assert.All(FindCellIds(hovered.Commit, secondRowId), cellId => Assert.Equal("#fafafc", hovered.Commit.Layout[cellId].BackgroundColor));
-        Assert.All(FindCellIds(hovered.Commit, thirdRowId), cellId => Assert.Equal("#fafafc", hovered.Commit.Layout[cellId].BackgroundColor));
+        Assert.All(FindCellIds(hovered.Commit, firstRowId), cellId => Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
+        Assert.All(FindCellIds(hovered.Commit, secondRowId), cellId => Assert.Equal("#fafafc", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
+        Assert.All(FindCellIds(hovered.Commit, thirdRowId), cellId => Assert.Equal("#fafafc", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
 
         static SceneNodeId FindNodeIdByText(SceneLayoutCommit commit, string text)
             => commit.Nodes.Single(pair => commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == text).Key;
@@ -3227,7 +3457,7 @@ public sealed class HtmlSceneFrameSourceTests
             .ToArray();
 
         Assert.Equal(2, cellIds.Length);
-        Assert.All(cellIds, cellId => Assert.Equal("#f0f0f8", hovered.Commit.Layout[cellId].BackgroundColor));
+        Assert.All(cellIds, cellId => Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
         Assert.All(cellIds, cellId => Assert.Contains(hovered.DirtyRects, rect => Intersects(rect, ToScreenBox(hovered.Commit, cellId))));
 
         static SceneNodeId FindNodeIdByText(SceneLayoutCommit commit, string text)

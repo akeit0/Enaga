@@ -354,4 +354,6 @@ public sealed record SceneLayoutCommit(
 
     public bool TryGetPaintOverride(SceneNodeId id, out ScenePaintOverride paintOverride)
         => PaintOverrides.TryGetValue(id, out paintOverride) && !paintOverride.IsEmpty;
+
+    public SceneNodeId[] DynamicOverlayRootIds { get; init; } = [];
 }

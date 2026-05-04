@@ -19,6 +19,7 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     private HtmlFragmentTree? lastRenderedFragmentTree;
     private IReadOnlyDictionary<SceneNodeId, HtmlNodeId> cachedSceneNodeDomIds =
         new Dictionary<SceneNodeId, HtmlNodeId>();
+    private readonly Dictionary<HtmlNodeId, List<SceneNodeId>> cachedDomSceneNodeIds = new();
     private readonly Dictionary<HtmlNodeId, HtmlNodeId> cachedDomNodeParentIds = new();
     private readonly Dictionary<HtmlNodeId, int> cachedDomNodeDepths = new();
     private readonly Dictionary<HtmlNodeId, HtmlDomElement> cachedDomElements = new();
@@ -33,7 +34,6 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     private ulong cachedHitTestGeometryVersion = ulong.MaxValue;
     private IReadOnlySet<HtmlNodeId>? cachedHoveredDomNodeIds;
     private HtmlNodeId? cachedActiveDomNodeId;
-    private bool cachedBaseCommitHasPseudoState;
     private IReadOnlySet<HtmlNodeId>? hoveredDomNodeIds;
     private HtmlNodeId? activeDomNodeId;
     private int cachedWidth = -1;
@@ -83,7 +83,6 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
             parsedDocument = null;
             cachedBaseCommit = null;
             cachedCommit = null;
-            cachedBaseCommitHasPseudoState = false;
             cachedDomRelationshipCapacity = 0;
             Invalidate(BaseCommitInvalidation | HtmlPipelineInvalidation.HitTest, HtmlRenderDamageBits.FullFrame | HtmlRenderDamageBits.Document);
             ResetInteractiveState();
@@ -119,14 +118,16 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
             var consumedDamage = pendingDamage;
             var scrollDeltaSeconds = ResolveScrollAnimationDelta(elapsed);
             frameBuildMetrics = default;
+            frameDocumentCommitBuildCount = 0;
             frameStyleDamage = Enaga.Html.Style.RenderDamage.None;
             var commit = BuildCommitCore(resolvedWidth, resolvedHeight, scrollDeltaSeconds);
+            LastDocumentCommitBuildCount = frameDocumentCommitBuildCount;
             var reasons = ResolveDamageReasons(consumedInvalidation, consumedDamage, frameStyleDamage, previousWidth, previousHeight, resolvedWidth, resolvedHeight);
 
-            if (TryConsumeHoverPaintDirtyRects(out var hoverDirtyRects))
+            if (TryConsumeDynamicVisualDirtyRects(out var dynamicVisualDirtyRects))
             {
-                RecordDirtyMetrics(hoverDirtyRects);
-                return new SceneFrameResult(commit, hoverDirtyRects, SceneDamageReason.FragmentDamage);
+                RecordDirtyMetrics(dynamicVisualDirtyRects);
+                return new SceneFrameResult(commit, dynamicVisualDirtyRects, SceneDamageReason.FragmentDamage);
             }
 
             if (reasons == SceneDamageReason.None &&
@@ -195,16 +196,16 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
         return true;
     }
 
-    private bool TryConsumeHoverPaintDirtyRects(out SceneDamageRect[] dirtyRects)
+    private bool TryConsumeDynamicVisualDirtyRects(out SceneDamageRect[] dirtyRects)
     {
-        if (hoverPaintDirtyRects.Count == 0)
+        if (dynamicVisualDirtyRects.Count == 0)
         {
             dirtyRects = [];
             return false;
         }
 
-        dirtyRects = hoverPaintDirtyRects.ToArray();
-        hoverPaintDirtyRects.Clear();
+        dirtyRects = dynamicVisualDirtyRects.ToArray();
+        dynamicVisualDirtyRects.Clear();
         return dirtyRects.Length > 0;
     }
 
@@ -312,7 +313,7 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     {
         var rebuildInvalidation = HasAny(pendingInvalidation, BaseCommitInvalidation);
         var hoverInvalidation = HasAny(pendingInvalidation, HtmlPipelineInvalidation.Hover);
-        var interactiveInvalidation = HasAny(pendingInvalidation, HtmlPipelineInvalidation.Interactive | HtmlPipelineInvalidation.Scroll);
+        var interactiveInvalidation = HasAny(pendingInvalidation, HtmlPipelineInvalidation.Interactive | HtmlPipelineInvalidation.Scroll | HtmlPipelineInvalidation.DynamicVisual);
         if (!rebuildInvalidation &&
             !hoverInvalidation &&
             SameDomNodeSet(cachedHoveredDomNodeIds, hoveredDomNodeIds) &&
@@ -340,16 +341,16 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
                 activeRequiresRebuild;
 
             if (needsRebuild &&
+                !interactiveInvalidation &&
                 !rebuildInvalidation &&
                 cachedBaseCommit is not null &&
                 cachedCommit is not null &&
                 cachedWidth == width &&
                 cachedHeight == height &&
-                CanUseHoverOverlayFastPath() &&
                 !activeRequiresRebuild)
             {
                 parsedDocument ??= documentParser.Parse(document);
-                if (TryApplyHoverPaintOverlay(parsedDocument, cachedCommit, cachedCommit, width, height, out var overlayCommit))
+                if (TryApplyDynamicPaintOverlay(parsedDocument, cachedCommit, cachedCommit, width, height, out var overlayCommit))
                 {
                     cachedCommit = overlayCommit;
                     cachedHoveredDomNodeIds = hoveredDomNodeIds;
@@ -365,12 +366,18 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
             if (needsRebuild)
             {
                 parsedDocument ??= documentParser.Parse(document);
-                cachedBaseCommit = BuildDocumentCommit(parsedDocument, width, height);
-                cachedBaseCommitHasPseudoState = CurrentPseudoStateRequiresBaseCommit();
+                var shouldBuildPseudoFreeBase =
+                    rebuildInvalidation ||
+                    cachedBaseCommit is null ||
+                    cachedWidth != width ||
+                    cachedHeight != height;
+                cachedBaseCommit = shouldBuildPseudoFreeBase
+                    ? BuildDocumentCommit(parsedDocument, width, height, hoveredNodeIds: null, activeNodeId: null)
+                    : BuildDocumentCommit(parsedDocument, width, height);
                 cachedWidth = width;
                 cachedHeight = height;
-                cachedHoveredDomNodeIds = hoveredDomNodeIds;
-                cachedActiveDomNodeId = activeDomNodeId;
+                cachedHoveredDomNodeIds = shouldBuildPseudoFreeBase ? null : hoveredDomNodeIds;
+                cachedActiveDomNodeId = shouldBuildPseudoFreeBase ? null : activeDomNodeId;
                 pendingInvalidation &= ~BaseCommitInvalidation;
             }
 
@@ -393,7 +400,6 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
                          UpdateHoveredNodeId(cachedCommit, lastPointerX, lastPointerY, requestUpdate: false))
                 {
                     cachedBaseCommit = BuildDocumentCommit(parsedDocument, width, height);
-                    cachedBaseCommitHasPseudoState = CurrentPseudoStateRequiresBaseCommit();
                     cachedHoveredDomNodeIds = hoveredDomNodeIds;
                     cachedActiveDomNodeId = activeDomNodeId;
                     hoverRefreshDeferred = false;
@@ -404,14 +410,15 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
                     keepInteractiveDirty |= hoverRefreshDirty;
                 }
 
-                if (TryApplyHoverPaintOverlay(parsedDocument, previousVisibleCommit, cachedCommit, width, height, out var overlayCommit))
+                if (TryApplyDynamicPaintOverlay(parsedDocument, previousVisibleCommit, cachedCommit, width, height, out var overlayCommit))
                     cachedCommit = overlayCommit;
             }
 
             cachedWidth = width;
             cachedHeight = height;
+            cachedHoveredDomNodeIds = hoveredDomNodeIds;
             cachedActiveDomNodeId = activeDomNodeId;
-            pendingInvalidation &= ~(HtmlPipelineInvalidation.Interactive | HtmlPipelineInvalidation.Scroll | HtmlPipelineInvalidation.HitTest | HtmlPipelineInvalidation.Hover);
+            pendingInvalidation &= ~(HtmlPipelineInvalidation.Interactive | HtmlPipelineInvalidation.Scroll | HtmlPipelineInvalidation.HitTest | HtmlPipelineInvalidation.Hover | HtmlPipelineInvalidation.DynamicVisual);
             pendingDamage = HtmlRenderDamageBits.None;
             if (keepInteractiveDirty)
                 Invalidate(HtmlPipelineInvalidation.Interactive | HtmlPipelineInvalidation.Scroll, HtmlRenderDamageBits.Scroll | HtmlRenderDamageBits.DirtyRects);
@@ -426,7 +433,6 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
             var fallbackDocument = documentParser.Parse(new HtmlDocument("<body></body>"));
             var fallbackBaseCommit = cachedBaseCommit ?? BuildDocumentCommit(fallbackDocument, width, height);
             cachedBaseCommit = fallbackBaseCommit;
-            cachedBaseCommitHasPseudoState = CurrentPseudoStateRequiresBaseCommit();
             cachedCommit = ApplyInteractiveState(fallbackBaseCommit, scrollDeltaSeconds, out _, out var hitTestGeometryChanged);
             if (hitTestGeometryChanged)
                 hitTestGeometryVersion++;
@@ -439,15 +445,6 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
             return cachedCommit;
         }
     }
-
-    private bool CanUseHoverOverlayFastPath()
-        => !cachedBaseCommitHasPseudoState &&
-           ((cachedHoveredDomNodeIds is null || cachedHoveredDomNodeIds.Count == 0) ||
-            cachedCommit?.PaintOverrides.Count > 0);
-
-    private bool CurrentPseudoStateRequiresBaseCommit()
-        => activeDomNodeId is not null ||
-           hoveredDomNodeIds is { Count: > 0 };
 
     private bool ShouldDeferHoverRefreshForScroll(bool hitTestGeometryChanged)
         => hitTestGeometryChanged && dirtyScrollViewIds.Count > 0;
