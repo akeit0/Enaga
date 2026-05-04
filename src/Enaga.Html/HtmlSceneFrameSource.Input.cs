@@ -2110,8 +2110,9 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
         private static void CollectOptions(HtmlDomElement element, List<HtmlSelectOption> result)
         {
-            foreach (var child in element.Children)
+            for (var index = 0; index < element.Children.Count; index++)
             {
+                var child = element.Children[index];
                 if (child is not HtmlDomElement childElement)
                     continue;
 

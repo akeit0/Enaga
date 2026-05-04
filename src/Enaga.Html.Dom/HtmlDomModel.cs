@@ -11,9 +11,16 @@ public sealed record HtmlDomElement(
     string? ClassName,
     IReadOnlyDictionary<string, string> Attributes,
     IReadOnlyList<HtmlDomNode> Children,
-    string TextContent,
-    string InnerText) : HtmlDomNode
+    string? InitialTextContent = null,
+    string? InitialInnerText = null) : HtmlDomNode
 {
+    private string? textContent;
+    private string? innerText;
+
+    public string TextContent => textContent ??= InitialTextContent ?? BuildTextContent(Children);
+
+    public string InnerText => innerText ??= InitialInnerText ?? (IsNonRenderedTextElement(LocalName) ? string.Empty : BuildInnerText(Children));
+
     public string? GetAttribute(string name)
         => Attributes.TryGetValue(name, out var value) ? value : null;
 
@@ -39,6 +46,79 @@ public sealed record HtmlDomElement(
 
         return false;
     }
+
+    private static string BuildTextContent(IReadOnlyList<HtmlDomNode> children)
+    {
+        if (children.Count == 0)
+            return string.Empty;
+
+        string? textContent = null;
+        System.Text.StringBuilder? builder = null;
+        for (var index = 0; index < children.Count; index++)
+        {
+            switch (children[index])
+            {
+                case HtmlDomText text:
+                    AppendText(text.Text, ref textContent, ref builder);
+                    break;
+                case HtmlDomElement childElement:
+                    AppendText(childElement.TextContent, ref textContent, ref builder);
+                    break;
+            }
+        }
+
+        return builder?.ToString() ?? textContent ?? string.Empty;
+    }
+
+    private static string BuildInnerText(IReadOnlyList<HtmlDomNode> children)
+    {
+        if (children.Count == 0)
+            return string.Empty;
+
+        string? textContent = null;
+        System.Text.StringBuilder? builder = null;
+        for (var index = 0; index < children.Count; index++)
+        {
+            switch (children[index])
+            {
+                case HtmlDomText text:
+                    AppendText(text.Text, ref textContent, ref builder);
+                    break;
+                case HtmlDomElement childElement when !IsNonRenderedTextElement(childElement.LocalName):
+                    AppendText(childElement.InnerText, ref textContent, ref builder);
+                    break;
+            }
+        }
+
+        return builder?.ToString() ?? textContent ?? string.Empty;
+    }
+
+    private static void AppendText(string text, ref string? textContent, ref System.Text.StringBuilder? builder)
+    {
+        if (text.Length == 0)
+            return;
+
+        if (builder is not null)
+        {
+            builder.Append(text);
+            return;
+        }
+
+        if (textContent is null)
+        {
+            textContent = text;
+            return;
+        }
+
+        builder = new System.Text.StringBuilder(textContent.Length + text.Length);
+        builder.Append(textContent);
+        builder.Append(text);
+        textContent = null;
+    }
+
+    private static bool IsNonRenderedTextElement(string localName)
+        => string.Equals(localName, "script", StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(localName, "style", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed record HtmlDomScript(

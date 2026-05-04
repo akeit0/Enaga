@@ -808,19 +808,57 @@ internal sealed class HtmlSceneTreeBuilder
                 return false;
         }
 
-        textContent = HtmlTextNormalizer.Normalize(element.TextContent);
+        textContent = HtmlTextNormalizer.Normalize(ConcatDirectTextChildren(element));
         return textContent.Length > 0;
     }
 
     private static string ResolveTextInputValue(HtmlDomElement element)
     {
         if (string.Equals(element.LocalName, "textarea", StringComparison.OrdinalIgnoreCase))
-            return element.TextContent ?? string.Empty;
+            return ConcatDirectTextChildren(element);
 
         if (string.Equals(element.LocalName, "select", StringComparison.OrdinalIgnoreCase))
             return ResolveSelectDisplayText(element);
 
         return element.GetAttribute("value") ?? string.Empty;
+    }
+
+    private static string ConcatDirectTextChildren(HtmlDomElement element)
+    {
+        string? textContent = null;
+        System.Text.StringBuilder? builder = null;
+        for (var index = 0; index < element.Children.Count; index++)
+        {
+            if (element.Children[index] is not HtmlDomText text)
+                continue;
+
+            AppendText(text.Text, ref textContent, ref builder);
+        }
+
+        return builder?.ToString() ?? textContent ?? string.Empty;
+    }
+
+    private static void AppendText(string text, ref string? textContent, ref System.Text.StringBuilder? builder)
+    {
+        if (text.Length == 0)
+            return;
+
+        if (builder is not null)
+        {
+            builder.Append(text);
+            return;
+        }
+
+        if (textContent is null)
+        {
+            textContent = text;
+            return;
+        }
+
+        builder = new System.Text.StringBuilder(textContent.Length + text.Length);
+        builder.Append(textContent);
+        builder.Append(text);
+        textContent = null;
     }
 
     private HtmlSceneNode[] BuildInputButtonChildren(

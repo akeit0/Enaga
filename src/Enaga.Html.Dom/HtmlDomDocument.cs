@@ -57,8 +57,8 @@ public sealed class HtmlDomDocument
         var nextElement = element with
         {
             Children = value.Length == 0 ? [] : [new HtmlDomText(value)],
-            TextContent = value,
-            InnerText = IsNonRenderedTextElement(element.LocalName) ? string.Empty : value
+            InitialTextContent = value,
+            InitialInnerText = IsNonRenderedTextElement(element.LocalName) ? string.Empty : value
         };
         ReplaceElement(nodeId, nextElement);
         return elementsByNodeId[nodeId];
@@ -238,8 +238,8 @@ public sealed class HtmlDomDocument
     private static HtmlDomElement RecalculateElement(HtmlDomElement element)
         => element with
         {
-            TextContent = BuildTextContent(element.Children),
-            InnerText = IsNonRenderedTextElement(element.LocalName)
+            InitialTextContent = BuildTextContent(element.Children),
+            InitialInnerText = IsNonRenderedTextElement(element.LocalName)
                 ? string.Empty
                 : BuildInnerText(element.Children)
         };
