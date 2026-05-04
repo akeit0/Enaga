@@ -1,4 +1,4 @@
 [submodule "okojo"]
 	path = okojo
 	url = https://github.com/akeit0/okojo
-	branch = v0.2
+	branch = fix-jq-code
