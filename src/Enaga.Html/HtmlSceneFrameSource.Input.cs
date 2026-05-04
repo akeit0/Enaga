@@ -1607,9 +1607,12 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
     {
         overlayCommit = nextCommit;
         BuildDynamicPaintDomCandidates(parsed);
-        BuildDynamicPaintSceneNodeCandidates();
+        BuildDynamicPaintSceneNodeCandidates(nextCommit);
 
         var changedHoverLinks = CollectChangedHoverLinks(parsed, width, height);
+        var currentHoverLinkRun = BuildCurrentHoverLinkRun(nextCommit);
+        AddCurrentHoverLinkRunCandidates(nextCommit, currentHoverLinkRun);
+        var currentHoverLinkColor = ResolveCurrentHoverLinkColor(parsed, nextCommit, changedHoverLinks, width, height);
         var paintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>(Math.Min(64, Math.Max(4, changedHoverLinks.Count * 4)));
         for (var index = 0; index < dynamicPaintSceneNodeIds.Count; index++)
         {
@@ -1620,13 +1623,24 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
             if (box.NodeKind != SceneNodeKind.Text ||
                 box.TextStyle is null ||
                 string.IsNullOrWhiteSpace(box.LinkHref) ||
-                !TryResolveNearestDomNodeId(nextCommit, sceneNodeId, out var domNodeId) ||
-                !TryFindHoverLinkTarget(domNodeId, box.LinkHref, changedHoverLinks, out var linkNodeId, out var hoverColor))
+                !TryResolveNearestDomNodeId(nextCommit, sceneNodeId, out var domNodeId))
             {
                 continue;
             }
 
-            if (hoveredDomNodeIds?.Contains(linkNodeId) != true ||
+            var hasExactHoverTarget = TryFindHoverLinkTarget(domNodeId, changedHoverLinks, out var linkNodeId, out var hoverColor);
+            var isCurrentHoverLinkRunNode = currentHoverLinkRun?.Contains(sceneNodeId) == true;
+            if (isCurrentHoverLinkRunNode && !string.IsNullOrWhiteSpace(currentHoverLinkColor))
+            {
+                hoverColor = currentHoverLinkColor;
+                hasExactHoverTarget = false;
+            }
+            else if (!hasExactHoverTarget)
+            {
+                continue;
+            }
+
+            if ((hasExactHoverTarget && hoveredDomNodeIds?.Contains(linkNodeId) != true) ||
                 string.Equals(box.TextStyle.Color, hoverColor, StringComparison.Ordinal))
             {
                 continue;
@@ -1648,6 +1662,114 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         if (!SceneDamageEstimator.PaintOverrideMapsEqual(previousVisibleCommit.PaintOverrides, overlayCommit.PaintOverrides))
             SceneDamageEstimator.AddPaintOverrideDirtyRects(previousVisibleCommit, overlayCommit, width, height, dynamicVisualDirtyRects);
         return true;
+    }
+
+    private string? ResolveCurrentHoverLinkColor(
+        HtmlParsedDocument parsed,
+        SceneLayoutCommit commit,
+        IReadOnlyDictionary<HtmlNodeId, HoverLinkPaint> changedHoverLinks,
+        int width,
+        int height)
+    {
+        foreach (var pair in changedHoverLinks)
+        {
+            if (hoveredDomNodeIds?.Contains(pair.Key) == true)
+                return pair.Value.HoverColor;
+        }
+
+        foreach (var pair in changedHoverLinks)
+            return pair.Value.HoverColor;
+
+        if (!TryResolveCurrentHoverLinkHref(commit, out var href))
+            return null;
+
+        foreach (var element in cachedDomElements.Values)
+        {
+            if (!string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase) ||
+                !element.Attributes.TryGetValue("href", out var elementHref) ||
+                !string.Equals(elementHref, href, StringComparison.Ordinal) ||
+                !TryBuildAncestorStyleContext(element.NodeId, out var ancestors, out var hoverStates) ||
+                !parsed.TryResolvePaintOnlyHoveredTextColor(element, ancestors, hoverStates, width, height, out var color) ||
+                string.IsNullOrWhiteSpace(color))
+            {
+                continue;
+            }
+
+            return color;
+        }
+
+        return null;
+    }
+
+    private bool TryResolveCurrentHoverLinkHref(SceneLayoutCommit commit, out string href)
+    {
+        if (hasPointerPosition &&
+            (TryHitTestLink(commit, lastPointerX, lastPointerY, out _, out href) ||
+             TryHitTestLinkFromLayout(commit, lastPointerX, lastPointerY, out _, out href)))
+        {
+            return true;
+        }
+
+        href = string.Empty;
+        return false;
+    }
+
+    private HashSet<SceneNodeId>? BuildCurrentHoverLinkRun(SceneLayoutCommit commit)
+    {
+        if (!hasPointerPosition)
+            return null;
+
+        SceneNodeId linkNodeId;
+        SceneNodeId hitNodeId;
+        string href;
+        if (!TryHitTestLink(commit, lastPointerX, lastPointerY, out linkNodeId, out href, out hitNodeId, out _) &&
+            TryHitTestLinkFromLayout(commit, lastPointerX, lastPointerY, out hitNodeId, out href))
+        {
+            linkNodeId = ResolveLinkNodeId(commit, hitNodeId, href);
+        }
+        else if (!linkNodeId.IsValid)
+        {
+            return null;
+        }
+
+        var result = new HashSet<SceneNodeId>();
+        AddSceneSubtreeCandidate(commit, linkNodeId, result);
+
+        if (commit.Nodes.TryGetValue(hitNodeId, out var hitNode) && hitNode.ParentId is { } hitParentId)
+            AddLinkHrefSiblingRun(commit, hitParentId, href, result);
+        if (commit.Nodes.TryGetValue(linkNodeId, out var linkNode) && linkNode.ParentId is { } linkParentId)
+            AddLinkHrefSiblingRun(commit, linkParentId, href, result);
+
+        return result.Count > 0 ? result : null;
+    }
+
+    private static void AddLinkHrefSiblingRun(
+        SceneLayoutCommit commit,
+        SceneNodeId parentId,
+        string href,
+        ICollection<SceneNodeId> candidates)
+    {
+        if (!commit.Nodes.TryGetValue(parentId, out var parent))
+            return;
+
+        for (var index = 0; index < parent.Children.Length; index++)
+        {
+            var childId = parent.Children[index];
+            if (commit.Layout.TryGetValue(childId, out var childBox) &&
+                string.Equals(childBox.LinkHref, href, StringComparison.Ordinal))
+            {
+                AddSceneSubtreeCandidate(commit, childId, candidates);
+            }
+        }
+    }
+
+    private void AddCurrentHoverLinkRunCandidates(SceneLayoutCommit commit, IReadOnlySet<SceneNodeId>? currentHoverLinkRun)
+    {
+        if (currentHoverLinkRun is null)
+            return;
+
+        foreach (var sceneNodeId in currentHoverLinkRun)
+            AddSceneSubtreeCandidate(commit, sceneNodeId);
     }
 
     private void AddDefaultControlDynamicPaintOverrides(
@@ -1743,7 +1865,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         }
     }
 
-    private void BuildDynamicPaintSceneNodeCandidates()
+    private void BuildDynamicPaintSceneNodeCandidates(SceneLayoutCommit commit)
     {
         dynamicPaintSceneNodeIds.Clear();
         foreach (var domNodeId in dynamicPaintDomCandidateIds)
@@ -1752,10 +1874,54 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 continue;
 
             for (var index = 0; index < sceneNodeIds.Count; index++)
-                dynamicPaintSceneNodeIds.Add(sceneNodeIds[index]);
+                AddSceneSubtreeCandidate(commit, sceneNodeIds[index]);
+        }
+
+        var hitTestIndex = GetHitTestIndex(commit);
+        HashSet<string>? candidateLinkHrefs = null;
+        foreach (var domNodeId in dynamicPaintDomCandidateIds)
+        {
+            if (cachedDomElements.TryGetValue(domNodeId, out var element) &&
+                string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase) &&
+                element.Attributes.TryGetValue("href", out var href) &&
+                !string.IsNullOrWhiteSpace(href))
+            {
+                candidateLinkHrefs ??= new HashSet<string>(StringComparer.Ordinal);
+                candidateLinkHrefs.Add(href);
+            }
+        }
+
+        for (var index = 0; index < hitTestIndex.EntryCount; index++)
+        {
+            var entry = hitTestIndex.Entries[index];
+            if (string.IsNullOrWhiteSpace(entry.Box.LinkHref) ||
+                candidateLinkHrefs?.Contains(entry.Box.LinkHref) != true)
+            {
+                continue;
+            }
+
+            AddSceneSubtreeCandidate(commit, entry.SceneNodeId);
         }
 
         LastDynamicPaintCandidateCount = dynamicPaintSceneNodeIds.Count;
+    }
+
+    private void AddSceneSubtreeCandidate(SceneLayoutCommit commit, SceneNodeId sceneNodeId)
+        => AddSceneSubtreeCandidate(commit, sceneNodeId, dynamicPaintSceneNodeIds);
+
+    private static void AddSceneSubtreeCandidate(SceneLayoutCommit commit, SceneNodeId sceneNodeId, ICollection<SceneNodeId> candidates)
+    {
+        if (candidates.Contains(sceneNodeId))
+            return;
+
+        candidates.Add(sceneNodeId);
+        if (!commit.Nodes.TryGetValue(sceneNodeId, out var node))
+        {
+            return;
+        }
+
+        for (var index = 0; index < node.Children.Length; index++)
+            AddSceneSubtreeCandidate(commit, node.Children[index], candidates);
     }
 
     private static string? ResolveDefaultButtonInteractionColor(
@@ -1865,9 +2031,7 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 continue;
             }
 
-            links[nodeId] = new HoverLinkPaint(
-                HtmlUrlResolver.Resolve(element.GetAttribute("href"), parsed.BasePath),
-                color);
+            links[nodeId] = new HoverLinkPaint(color);
         }
     }
 
@@ -1902,7 +2066,6 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
 
     private bool TryFindHoverLinkTarget(
         HtmlNodeId nodeId,
-        string linkHref,
         IReadOnlyDictionary<HtmlNodeId, HoverLinkPaint> changedHoverLinks,
         out HtmlNodeId linkNodeId,
         out string hoverColor)
@@ -1921,22 +2084,12 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 break;
         }
 
-        foreach (var pair in changedHoverLinks)
-        {
-            if (!string.Equals(pair.Value.LinkHref, linkHref, StringComparison.Ordinal))
-                continue;
-
-            linkNodeId = pair.Key;
-            hoverColor = pair.Value.HoverColor;
-            return true;
-        }
-
         linkNodeId = default;
         hoverColor = string.Empty;
         return false;
     }
 
-    private readonly record struct HoverLinkPaint(string? LinkHref, string HoverColor);
+    private readonly record struct HoverLinkPaint(string HoverColor);
 
     private bool TryResolveNearestDomNodeId(SceneLayoutCommit commit, SceneNodeId sceneNodeId, out HtmlNodeId domNodeId)
     {
@@ -1998,11 +2151,22 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         out IReadOnlySet<HtmlNodeId>? domNodeIds,
         bool includeAncestors = true)
     {
-        if (TryHitTestLink(commit, x, y, out var linkNodeId, out _, out _))
+        if (TryHitTestLinkFromLayout(commit, x, y, out var layoutLinkSceneNodeId, out var layoutLinkHref))
         {
-            if (TryResolveNearestDomNodeId(commit, linkNodeId, out var linkDomNodeId))
+            var layoutLinkRootId = ResolveLinkNodeId(commit, layoutLinkSceneNodeId, layoutLinkHref);
+            if (TryResolveNearestDomNodeId(commit, layoutLinkRootId, out var layoutLinkDomNodeId) ||
+                TryResolveNearestDomNodeId(commit, layoutLinkSceneNodeId, out layoutLinkDomNodeId))
             {
-                domNodeIds = ResolveDomNodePath(linkDomNodeId, includeAncestors);
+                domNodeIds = ResolveDomNodePath(commit, layoutLinkSceneNodeId, layoutLinkDomNodeId, includeAncestors);
+                return true;
+            }
+        }
+
+        if (TryHitTestLink(commit, x, y, out _, out var linkHref, out var linkHitNodeId, out var linkHitDomNodeId))
+        {
+            if (TryResolveHitLinkDomNodeId(commit, linkHitNodeId, linkHitDomNodeId, linkHref, out var linkDomNodeId))
+            {
+                domNodeIds = ResolveDomNodePath(commit, linkHitNodeId, linkDomNodeId, includeAncestors);
                 return true;
             }
         }
@@ -2046,6 +2210,44 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         return false;
     }
 
+    private bool TryHitTestLinkFromLayout(
+        SceneLayoutCommit commit,
+        float x,
+        float y,
+        out SceneNodeId sceneNodeId,
+        out string href)
+    {
+        sceneNodeId = default;
+        href = string.Empty;
+        SceneScreenBounds bestBounds = default;
+        var bestZOrder = -1;
+        var zOrder = 0;
+        foreach (var (id, box) in commit.Layout)
+        {
+            var currentZOrder = zOrder++;
+            if (string.IsNullOrWhiteSpace(box.LinkHref) ||
+                !ContainsPoint(box, x, y, tolerance: 4f) ||
+                !IsPointVisibleThroughScrollAncestors(commit, id, x, y))
+            {
+                continue;
+            }
+
+            if (!SceneScreenGeometry.TryGetNodeScreenBounds(commit, commit.Layout, id, out var bounds))
+                bounds = new SceneScreenBounds(box.AbsLeft, box.AbsTop, box.AbsLeft + box.Width, box.AbsTop + box.Height, 0);
+
+            if (!sceneNodeId.IsValid ||
+                SceneScreenBounds.IsHigherPriority(bounds, currentZOrder, bestBounds, bestZOrder))
+            {
+                sceneNodeId = id;
+                href = box.LinkHref;
+                bestBounds = bounds;
+                bestZOrder = currentZOrder;
+            }
+        }
+
+        return sceneNodeId.IsValid;
+    }
+
     private IReadOnlySet<HtmlNodeId>? ResolveDomNodePath(
         SceneLayoutCommit commit,
         SceneNodeId sceneNodeId,
@@ -2078,34 +2280,191 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
         => TryHitTestLink(commit, x, y, out nodeId, out href, out _);
 
     private bool TryHitTestLink(SceneLayoutCommit commit, float x, float y, out SceneNodeId nodeId, out string href, out SceneNodeId hitNodeId)
+        => TryHitTestLink(commit, x, y, out nodeId, out href, out hitNodeId, out _);
+
+    private bool TryHitTestLink(SceneLayoutCommit commit, float x, float y, out SceneNodeId nodeId, out string href, out SceneNodeId hitNodeId, out HtmlNodeId hitDomNodeId)
     {
         var hitTestIndex = GetHitTestIndex(commit);
         var candidateIndexes = hitTestIndex.Query(x, y, HtmlHitTestChannel.Link);
         for (var candidateIndex = candidateIndexes.Count - 1; candidateIndex >= 0; candidateIndex--)
         {
             var entry = hitTestIndex.Entries[candidateIndexes[candidateIndex]];
-            if (string.IsNullOrWhiteSpace(entry.Box.LinkHref))
-                continue;
+            if (TryAcceptLinkHit(commit, entry, x, y, out nodeId, out href, out hitNodeId, out hitDomNodeId))
+                return true;
+        }
 
-            if (!entry.ScreenRect.Contains(x, y) ||
-                !IsPointVisibleThroughScrollAncestors(commit, entry.SceneNodeId, x, y))
-            {
-                continue;
-            }
+        for (var index = hitTestIndex.EntryCount - 1; index >= 0; index--)
+        {
+            if (TryAcceptLinkHit(commit, hitTestIndex.Entries[index], x, y, out nodeId, out href, out hitNodeId, out hitDomNodeId))
+                return true;
+        }
 
+        nodeId = default;
+        href = string.Empty;
+        hitNodeId = default;
+        hitDomNodeId = default;
+        return false;
+    }
+
+    private bool TryAcceptLinkHit(
+        SceneLayoutCommit commit,
+        HtmlHitTestEntry entry,
+        float x,
+        float y,
+        out SceneNodeId nodeId,
+        out string href,
+        out SceneNodeId hitNodeId,
+        out HtmlNodeId hitDomNodeId)
+    {
+        if (!string.IsNullOrWhiteSpace(entry.Box.LinkHref) &&
+            entry.ScreenRect.Contains(x, y) &&
+            IsPointVisibleThroughScrollAncestors(commit, entry.SceneNodeId, x, y))
+        {
             nodeId = ResolveLinkNodeId(commit, entry.SceneNodeId, entry.Box.LinkHref);
             href = entry.Box.LinkHref;
             hitNodeId = entry.SceneNodeId;
+            hitDomNodeId = entry.DomNodeId;
             return true;
         }
 
         nodeId = default;
         href = string.Empty;
         hitNodeId = default;
+        hitDomNodeId = default;
         return false;
     }
 
-    private static SceneNodeId ResolveLinkNodeId(SceneLayoutCommit commit, SceneNodeId id, string href)
+    private bool TryResolveHitLinkDomNodeId(
+        SceneLayoutCommit commit,
+        SceneNodeId hitNodeId,
+        HtmlNodeId hitDomNodeId,
+        string href,
+        out HtmlNodeId linkDomNodeId)
+    {
+        var linkRootNodeId = ResolveLinkNodeId(commit, hitNodeId, href);
+        if (TryResolveNearestDomNodeId(commit, linkRootNodeId, out var linkRootDomNodeId) &&
+            (TryFindLinkDomNodeInPath(linkRootDomNodeId, href, out linkDomNodeId) ||
+             TryFindDescendantLinkDomNode(commit, hitNodeId, linkRootDomNodeId, href, out linkDomNodeId)))
+        {
+            return true;
+        }
+
+        if ((TryFindLinkDomNodeInPath(hitDomNodeId, href, out linkDomNodeId) &&
+             IsHitInDomSceneSubtree(commit, linkDomNodeId, hitNodeId)) ||
+            TryFindDescendantLinkDomNode(commit, hitNodeId, hitDomNodeId, href, out linkDomNodeId))
+        {
+            return true;
+        }
+
+        var currentSceneNodeId = hitNodeId;
+        while (currentSceneNodeId.IsValid)
+        {
+            if (TryResolveNearestDomNodeId(commit, currentSceneNodeId, out var domNodeId) &&
+                ((TryFindLinkDomNodeInPath(domNodeId, href, out linkDomNodeId) &&
+                  IsHitInDomSceneSubtree(commit, linkDomNodeId, hitNodeId)) ||
+                 TryFindDescendantLinkDomNode(commit, hitNodeId, domNodeId, href, out linkDomNodeId)))
+            {
+                return true;
+            }
+
+            if (!commit.Nodes.TryGetValue(currentSceneNodeId, out var node) || node.ParentId is not { } parentId)
+                break;
+
+            currentSceneNodeId = parentId;
+        }
+
+        linkDomNodeId = hitDomNodeId;
+        return linkDomNodeId.IsValid;
+    }
+
+    private bool TryFindLinkDomNodeInPath(HtmlNodeId domNodeId, string href, out HtmlNodeId linkDomNodeId)
+    {
+        var current = domNodeId;
+        while (current.IsValid)
+        {
+            if (IsLinkDomNode(current, href))
+            {
+                linkDomNodeId = current;
+                return true;
+            }
+
+            if (!cachedDomNodeParentIds.TryGetValue(current, out current))
+                break;
+        }
+
+        linkDomNodeId = default;
+        return false;
+    }
+
+    private bool TryFindDescendantLinkDomNode(
+        SceneLayoutCommit commit,
+        SceneNodeId hitNodeId,
+        HtmlNodeId domNodeId,
+        string href,
+        out HtmlNodeId linkDomNodeId)
+    {
+        if (domNodeId.IsValid &&
+            cachedDomElements.TryGetValue(domNodeId, out var element))
+        {
+            for (var index = 0; index < element.Children.Count; index++)
+            {
+                if (element.Children[index] is not HtmlDomElement child)
+                    continue;
+
+                if (IsLinkDomNode(child.NodeId, href) &&
+                    IsHitInDomSceneSubtree(commit, child.NodeId, hitNodeId))
+                {
+                    linkDomNodeId = child.NodeId;
+                    return true;
+                }
+
+                if (TryFindDescendantLinkDomNode(commit, hitNodeId, child.NodeId, href, out linkDomNodeId))
+                    return true;
+            }
+        }
+
+        linkDomNodeId = default;
+        return false;
+    }
+
+    private bool IsLinkDomNode(HtmlNodeId domNodeId, string href)
+        => cachedDomElements.TryGetValue(domNodeId, out var element) &&
+           string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase) &&
+           element.Attributes.TryGetValue("href", out var linkHref) &&
+           string.Equals(linkHref, href, StringComparison.Ordinal);
+
+    private bool IsHitInDomSceneSubtree(SceneLayoutCommit commit, HtmlNodeId domNodeId, SceneNodeId hitNodeId)
+    {
+        if (!cachedDomSceneNodeIds.TryGetValue(domNodeId, out var sceneNodeIds))
+            return false;
+
+        for (var index = 0; index < sceneNodeIds.Count; index++)
+        {
+            if (IsSceneAncestorOrSelf(commit, sceneNodeIds[index], hitNodeId))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsSceneAncestorOrSelf(SceneLayoutCommit commit, SceneNodeId ancestorId, SceneNodeId nodeId)
+    {
+        var current = nodeId;
+        while (current.IsValid)
+        {
+            if (current == ancestorId)
+                return true;
+
+            if (!commit.Nodes.TryGetValue(current, out var node) || node.ParentId is not { } parentId)
+                break;
+
+            current = parentId;
+        }
+
+        return false;
+    }
+
+    private SceneNodeId ResolveLinkNodeId(SceneLayoutCommit commit, SceneNodeId id, string href)
     {
         var currentId = id;
         while (commit.Nodes.TryGetValue(currentId, out var node) &&
@@ -2130,14 +2489,17 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
                 }
             }
 
-            if (currentIndex >= 0)
+            if (currentIndex >= 0 &&
+                TryResolveNearestDomNodeId(commit, currentId, out var currentDomNodeId))
             {
                 var firstLinkSiblingIndex = currentIndex;
                 for (var index = currentIndex - 1; index >= 0; index--)
                 {
                     var siblingId = siblingParent.Children[index];
                     if (!commit.Layout.TryGetValue(siblingId, out var siblingBox) ||
-                        !string.Equals(siblingBox.LinkHref, href, StringComparison.Ordinal))
+                        !string.Equals(siblingBox.LinkHref, href, StringComparison.Ordinal) ||
+                        !TryResolveNearestDomNodeId(commit, siblingId, out var siblingDomNodeId) ||
+                        siblingDomNodeId != currentDomNodeId)
                     {
                         break;
                     }
@@ -2176,6 +2538,12 @@ public sealed partial class HtmlSceneFrameSource : IInputSink, IPointerCursorSou
            x <= box.AbsLeft + box.Width &&
            y >= box.AbsTop &&
            y <= box.AbsTop + box.Height;
+
+    private static bool ContainsPoint(SceneLayoutBox box, float x, float y, float tolerance)
+        => x >= box.AbsLeft - tolerance &&
+           x <= box.AbsLeft + box.Width + tolerance &&
+           y >= box.AbsTop - tolerance &&
+           y <= box.AbsTop + box.Height + tolerance;
 
     private bool IsSelectSceneNode(SceneLayoutCommit commit, SceneNodeId sceneNodeId)
         => TryResolveNearestDomNodeId(commit, sceneNodeId, out var domNodeId) &&

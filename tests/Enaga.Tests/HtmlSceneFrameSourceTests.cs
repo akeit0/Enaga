@@ -2729,6 +2729,60 @@ public sealed class HtmlSceneFrameSourceTests
     }
 
     [Fact]
+    public void HtmlSceneFrameSource_LinkHoverPaintMatchesExactHoveredAnchorWhenHrefsRepeat()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument(
+                """
+                <body>
+                  <footer>
+                    <table>
+                      <tr>
+                        <td><a href="/protocols">Protocols</a></td>
+                        <td><a href="/protocols">Protocol Registries</a></td>
+                      </tr>
+                    </table>
+                  </footer>
+                </body>
+                """,
+                "a { color: #112233; } a:hover { color: #445566; }"),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var initial = source.RenderFrame(420, 180, TimeSpan.Zero);
+        var protocols = initial.Commit.Layout.Values.First(box => box.TextContent == "Protocols");
+        source.PointerMove(protocols.AbsLeft + 2, protocols.AbsTop + 2, 0, synthetic: false);
+        var hoveredProtocols = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(16));
+
+        var protocolRegistriesPrefix = hoveredProtocols.Commit.Layout.Values.First(box => box.TextContent == "Protocol");
+        source.PointerMove(protocolRegistriesPrefix.AbsLeft + 2, protocolRegistriesPrefix.AbsTop + 2, 0, synthetic: false);
+        var hoveredProtocolPrefix = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(32));
+
+        var protocolsIdAfterPrefixHover = hoveredProtocolPrefix.Commit.Layout.First(pair => pair.Value.TextContent == "Protocols").Key;
+        var protocolPrefixId = hoveredProtocolPrefix.Commit.Layout.First(pair => pair.Value.TextContent == "Protocol").Key;
+        var registriesIdAfterPrefixHover = hoveredProtocolPrefix.Commit.Layout.First(pair => pair.Value.TextContent?.Contains("Registries", StringComparison.Ordinal) == true).Key;
+        Assert.Equal("#112233", ResolveAppliedTextColor(hoveredProtocolPrefix.Commit, protocolsIdAfterPrefixHover));
+        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredProtocolPrefix.Commit, protocolPrefixId));
+        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredProtocolPrefix.Commit, registriesIdAfterPrefixHover));
+        Assert.Equal(0, source.LastDocumentCommitBuildCount);
+
+        source.PointerMove(419, 179, 0, synthetic: false);
+        var unhovered = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(48));
+        Assert.Empty(unhovered.Commit.PaintOverrides);
+
+        var registries = unhovered.Commit.Layout.Values.First(box => box.TextContent?.Contains("Registries", StringComparison.Ordinal) == true);
+        source.PointerMove(registries.AbsLeft + 2, registries.AbsTop + 2, 0, synthetic: false);
+        var hoveredRegistries = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(64));
+
+        var protocolsId = hoveredRegistries.Commit.Layout.First(pair => pair.Value.TextContent == "Protocols").Key;
+        var protocolId = hoveredRegistries.Commit.Layout.First(pair => pair.Value.TextContent == "Protocol").Key;
+        var registriesId = hoveredRegistries.Commit.Layout.First(pair => pair.Value.TextContent?.Contains("Registries", StringComparison.Ordinal) == true).Key;
+        Assert.Equal("#112233", ResolveAppliedTextColor(hoveredRegistries.Commit, protocolsId));
+        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredRegistries.Commit, protocolId));
+        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredRegistries.Commit, registriesId));
+        Assert.Equal(0, source.LastDocumentCommitBuildCount);
+    }
+
+    [Fact]
     public void HtmlSceneFrameSource_SkipsHoverRebuildWhenMovingWithinSameHoverDependentAncestor()
     {
         var source = new HtmlSceneFrameSource(
