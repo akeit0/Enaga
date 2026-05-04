@@ -21,6 +21,19 @@ public sealed class HtmlDocumentParser
             basePath);
     }
 
+    public IReadOnlyList<HtmlDomNode> ParseFragment(string? html)
+    {
+        if (string.IsNullOrEmpty(html))
+            return [];
+
+        var parsedDocument = htmlParser.ParseDocument("<body>" + html + "</body>");
+        var body = parsedDocument.Body ?? parsedDocument.DocumentElement;
+        if (body is null)
+            return [];
+
+        return ConvertChildNodes(body.ChildNodes, new HtmlDomNodeIdGenerator());
+    }
+
     private static IReadOnlyList<string> LoadAuthorStyleTexts(AngleSharp.Html.Dom.IHtmlDocument document, string? basePath)
     {
         var styles = new List<string>();
@@ -124,20 +137,7 @@ public sealed class HtmlDocumentParser
     private static HtmlDomElement ConvertElement(IElement element, HtmlDomNodeIdGenerator idGenerator)
     {
         var nodeId = idGenerator.Next();
-        var children = new List<HtmlDomNode>(element.ChildNodes.Length);
-        for (var index = 0; index < element.ChildNodes.Length; index++)
-        {
-            var child = element.ChildNodes[index];
-            switch (child)
-            {
-                case IElement childElement:
-                    children.Add(ConvertElement(childElement, idGenerator));
-                    break;
-                case IText text:
-                    children.Add(new HtmlDomText(text.Data));
-                    break;
-            }
-        }
+        var children = ConvertChildNodes(element.ChildNodes, idGenerator);
 
         var attributes = new Dictionary<string, string>(element.Attributes.Length, StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < element.Attributes.Length; index++)
@@ -156,6 +156,26 @@ public sealed class HtmlDocumentParser
             element.GetAttribute("class"),
             attributes,
             children);
+    }
+
+    private static IReadOnlyList<HtmlDomNode> ConvertChildNodes(INodeList childNodes, HtmlDomNodeIdGenerator idGenerator)
+    {
+        var children = new List<HtmlDomNode>(childNodes.Length);
+        for (var index = 0; index < childNodes.Length; index++)
+        {
+            var child = childNodes[index];
+            switch (child)
+            {
+                case IElement childElement:
+                    children.Add(ConvertElement(childElement, idGenerator));
+                    break;
+                case IText text:
+                    children.Add(new HtmlDomText(text.Data));
+                    break;
+            }
+        }
+
+        return children;
     }
 
     private static bool IsNonRenderedTextElement(string localName)

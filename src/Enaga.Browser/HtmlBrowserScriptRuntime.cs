@@ -42,6 +42,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private readonly Dictionary<HtmlNodeId, JsUserDataObject<HtmlDomElement>> elementObjects = [];
     private readonly Dictionary<HtmlNodeId, string> elementValues = [];
     private readonly Dictionary<int, IHostDelayedOperation> timerOperations = [];
+    private readonly HashSet<int> activeIntervalTimers = [];
     private JsUserDataObject<HtmlDomDocument>? documentObject;
     private JsPlainObject? locationObject;
     private int nextTimerId;
@@ -123,14 +124,21 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         if (script.Length == 0)
             return;
 
-        try
+        var driver = new JsHostFunction(runtime.MainRealm, (in CallInfo _) =>
         {
-            ExecuteScriptText(script, "javascript:href");
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"[Browser script:javascript-url] {FormatExceptionMessage(ex)}");
-        }
+            try
+            {
+                ExecuteScriptTextInline(script, "javascript:href");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[Browser script:javascript-url] {FormatExceptionMessage(ex)}");
+            }
+
+            return JsValue.Undefined;
+        }, "javascript:href", 0);
+        runtime.MainRealm.QueueHostTask(HostingTaskQueueKeys.Default, driver);
+        PumpEventLoopUntilIdle();
     }
 
     private void ExecuteScriptText(string text, string displayName)
@@ -138,6 +146,15 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         var program = JavaScriptParser.ParseScript(text, displayName);
         var compiledScript = JsCompiler.Compile(runtime.MainRealm, program);
         runtime.MainRealm.Execute(compiledScript);
+        MirrorWindowPropertiesToGlobal();
+        PumpEventLoopUntilIdle();
+        MirrorWindowPropertiesToGlobal();
+    }
+
+    private void ExecuteScriptTextInline(string text, string displayName)
+    {
+        var program = JavaScriptParser.ParseScript(text, displayName);
+        runtime.MainRealm.ExecuteProgramInline(program);
         MirrorWindowPropertiesToGlobal();
         PumpEventLoopUntilIdle();
         MirrorWindowPropertiesToGlobal();
@@ -262,7 +279,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private static string FormatExceptionMessage(Exception exception)
         => exception is JsRuntimeException runtimeException
             ? runtimeException.FullMessageWithStack()
-            : exception.Message;
+            : exception.ToString();
 
     private static (int Line, int Column)? TryGetExceptionLocation(Exception exception)
     {
@@ -597,6 +614,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         foreach (var operation in timerOperations.Values)
             operation.Dispose();
         timerOperations.Clear();
+        activeIntervalTimers.Clear();
         hostTaskScheduler.Dispose();
         runtime.Dispose();
     }
@@ -670,10 +688,10 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         var locationValue = JsValue.FromObject(CreateLocationObject(realm));
         var navigatorValue = JsValue.FromObject(CreateNavigatorObject(realm));
         var dataLayerValue = JsValue.FromObject(new JsArray(realm));
-        var setTimeoutValue = GetOrCreateGlobalFunction(realm, "setTimeout", () => JsValue.FromObject(CreateTimerFunction(realm, "setTimeout")));
-        var clearTimeoutValue = GetOrCreateGlobalFunction(realm, "clearTimeout", () => JsValue.FromObject(CreateClearTimerFunction(realm, "clearTimeout")));
-        var setIntervalValue = GetOrCreateGlobalFunction(realm, "setInterval", () => JsValue.FromObject(CreateTimerFunction(realm, "setInterval")));
-        var clearIntervalValue = GetOrCreateGlobalFunction(realm, "clearInterval", () => JsValue.FromObject(CreateClearTimerFunction(realm, "clearInterval")));
+        var setTimeoutValue = JsValue.FromObject(CreateTimerFunction(realm, "setTimeout", repeat: false));
+        var clearTimeoutValue = JsValue.FromObject(CreateClearTimerFunction(realm, "clearTimeout"));
+        var setIntervalValue = JsValue.FromObject(CreateTimerFunction(realm, "setInterval", repeat: true));
+        var clearIntervalValue = JsValue.FromObject(CreateClearTimerFunction(realm, "clearInterval"));
         var window = new JsUserDataObject<HtmlBrowserScriptRuntime>(realm, useDictionaryMode: true)
         {
             UserData = this
@@ -703,19 +721,13 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         realm.Global["parent"] = JsValue.FromObject(window);
         realm.Global["CSS"] = window["CSS"];
         realm.Global["getComputedStyle"] = window["getComputedStyle"];
+        realm.Global["setTimeout"] = setTimeoutValue;
+        realm.Global["clearTimeout"] = clearTimeoutValue;
+        realm.Global["setInterval"] = setIntervalValue;
+        realm.Global["clearInterval"] = clearIntervalValue;
     }
 
-    private static JsValue GetOrCreateGlobalFunction(JsRealm realm, string name, Func<JsValue> create)
-    {
-        if (realm.Global.TryGetValue(name, out var existing) && existing.TryGetObject(out _))
-            return existing;
-
-        var created = create();
-        realm.Global[name] = created;
-        return created;
-    }
-
-    private JsHostFunction CreateTimerFunction(JsRealm realm, string name)
+    private JsHostFunction CreateTimerFunction(JsRealm realm, string name, bool repeat)
         => new(realm, (in CallInfo info) =>
         {
             if (!info.GetArgumentOrDefault(0, JsValue.Undefined).TryGetObject(out var callbackObject) ||
@@ -726,17 +738,47 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
                 ? Math.Max(0, (int)info.GetArgumentOrDefault(1, JsValue.Undefined).NumberValue)
                 : 0;
             var timerId = Interlocked.Increment(ref nextTimerId);
-            timerOperations[timerId] = hostTaskScheduler.ScheduleDelayed(
-                TimeSpan.FromMilliseconds(delay),
-                WebTaskQueueKeys.Timers,
-                _ =>
-                {
-                    timerOperations.Remove(timerId);
-                    realm.Call(callback, JsValue.FromObject(realm.GlobalObject), []);
-                },
-                null);
+            var args = new JsValue[Math.Max(0, info.Arguments.Length - 2)];
+            for (var index = 0; index < args.Length; index++)
+                args[index] = info.Arguments[index + 2];
+
+            if (repeat)
+                activeIntervalTimers.Add(timerId);
+            ScheduleBrowserTimer(realm, callback, timerId, TimeSpan.FromMilliseconds(delay), args, repeat);
             return JsValue.FromInt32(timerId);
         }, name, 2);
+
+    private void ScheduleBrowserTimer(
+        JsRealm realm,
+        JsFunction callback,
+        int timerId,
+        TimeSpan delay,
+        JsValue[] args,
+        bool repeat)
+    {
+        var driver = new JsHostFunction(realm, (in CallInfo _) =>
+        {
+            if (!timerOperations.ContainsKey(timerId))
+                return JsValue.Undefined;
+
+            timerOperations.Remove(timerId);
+            realm.Call(callback, JsValue.FromObject(realm.GlobalObject), args);
+            if (repeat && activeIntervalTimers.Contains(timerId))
+                ScheduleBrowserTimer(realm, callback, timerId, delay, args, repeat);
+            return JsValue.Undefined;
+        }, repeat ? "setInterval callback" : "setTimeout callback", 0);
+        timerOperations[timerId] = hostTaskScheduler.ScheduleDelayed(
+            delay,
+            WebTaskQueueKeys.Timers,
+            _ =>
+            {
+                if (!timerOperations.ContainsKey(timerId))
+                    return;
+
+                realm.QueueHostTask(WebTaskQueueKeys.Timers, driver);
+            },
+            null);
+    }
 
     private JsHostFunction CreateClearTimerFunction(JsRealm realm, string name)
         => new(realm, (in CallInfo info) =>
@@ -744,6 +786,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             var timerId = info.GetArgumentOrDefault(0, JsValue.Undefined).IsNumber
                 ? (int)info.GetArgumentOrDefault(0, JsValue.Undefined).NumberValue
                 : 0;
+            activeIntervalTimers.Remove(timerId);
             if (timerOperations.Remove(timerId, out var operation))
                 operation.Cancel();
             return JsValue.Undefined;
@@ -1564,147 +1607,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         }, name, 1);
 
     private HtmlDomElement? SetElementInnerHtml(HtmlDomElement element, string html)
-    {
-        var trimmed = html.Trim();
-        if (TryParseElementHtmlSequence(trimmed, out var children))
-            return document.ReplaceChildren(element.NodeId, children);
-
-        if (TryParseSingleElementHtml(trimmed, out var localName, out var attributes))
-        {
-            var child = document.CreateElement(localName);
-            foreach (var attribute in attributes)
-            {
-                child = document.SetAttribute(child.NodeId, attribute.Key, attribute.Value) ?? child;
-            }
-
-            return document.ReplaceChildren(element.NodeId, [child]);
-        }
-
-        return document.SetTextContent(element.NodeId, html);
-    }
-
-    private bool TryParseElementHtmlSequence(string html, out IReadOnlyList<HtmlDomNode> children)
-    {
-        var parsedChildren = new List<HtmlDomNode>();
-        var index = 0;
-        while (index < html.Length)
-        {
-            while (index < html.Length && char.IsWhiteSpace(html[index]))
-                index++;
-            if (index >= html.Length)
-                break;
-            if (html[index] != '<' || index + 1 >= html.Length || html[index + 1] == '/')
-            {
-                children = [];
-                return false;
-            }
-
-            var tagEnd = html.IndexOf('>', index);
-            if (tagEnd < 0 ||
-                !TryParseSingleElementHtml(html[index..(tagEnd + 1)], out var localName, out var attributes))
-            {
-                children = [];
-                return false;
-            }
-
-            var child = document.CreateElement(localName);
-            foreach (var attribute in attributes)
-                child = document.SetAttribute(child.NodeId, attribute.Key, attribute.Value) ?? child;
-
-            var afterTag = tagEnd + 1;
-            if (!html[tagEnd - 1].Equals('/'))
-            {
-                var closeTag = "</" + localName + ">";
-                var closeIndex = html.IndexOf(closeTag, afterTag, StringComparison.OrdinalIgnoreCase);
-                if (closeIndex >= 0)
-                {
-                    var text = html[afterTag..closeIndex];
-                    if (text.Length > 0)
-                        child = document.SetTextContent(child.NodeId, text) ?? child;
-                    afterTag = closeIndex + closeTag.Length;
-                }
-            }
-
-            parsedChildren.Add(child);
-            index = afterTag;
-        }
-
-        children = parsedChildren;
-        return parsedChildren.Count > 0;
-    }
-
-    private static bool TryParseSingleElementHtml(
-        string html,
-        out string localName,
-        out Dictionary<string, string> attributes)
-    {
-        localName = string.Empty;
-        attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (!html.StartsWith('<') || html.StartsWith("</", StringComparison.Ordinal))
-            return false;
-
-        var tagEnd = html.IndexOf('>');
-        if (tagEnd <= 1)
-            return false;
-
-        var tag = html[1..tagEnd].Trim();
-        var spaceIndex = tag.IndexOfAny([' ', '\t', '\r', '\n', '/']);
-        localName = spaceIndex < 0 ? tag.TrimEnd('/') : tag[..spaceIndex];
-        if (string.IsNullOrWhiteSpace(localName))
-            return false;
-
-        var attributeText = spaceIndex < 0 ? string.Empty : tag[spaceIndex..].Trim().TrimEnd('/');
-        var index = 0;
-        while (index < attributeText.Length)
-        {
-            while (index < attributeText.Length && char.IsWhiteSpace(attributeText[index]))
-                index++;
-            var nameStart = index;
-            while (index < attributeText.Length &&
-                   !char.IsWhiteSpace(attributeText[index]) &&
-                   attributeText[index] != '=')
-            {
-                index++;
-            }
-
-            if (index == nameStart)
-                break;
-
-            var name = attributeText[nameStart..index];
-            while (index < attributeText.Length && char.IsWhiteSpace(attributeText[index]))
-                index++;
-
-            var value = string.Empty;
-            if (index < attributeText.Length && attributeText[index] == '=')
-            {
-                index++;
-                while (index < attributeText.Length && char.IsWhiteSpace(attributeText[index]))
-                    index++;
-
-                if (index < attributeText.Length && (attributeText[index] == '"' || attributeText[index] == '\''))
-                {
-                    var quote = attributeText[index++];
-                    var valueStart = index;
-                    while (index < attributeText.Length && attributeText[index] != quote)
-                        index++;
-                    value = attributeText[valueStart..Math.Min(index, attributeText.Length)];
-                    if (index < attributeText.Length)
-                        index++;
-                }
-                else
-                {
-                    var valueStart = index;
-                    while (index < attributeText.Length && !char.IsWhiteSpace(attributeText[index]))
-                        index++;
-                    value = attributeText[valueStart..index];
-                }
-            }
-
-            attributes[name] = value;
-        }
-
-        return true;
-    }
+        => document.ReplaceChildrenFromHtml(element.NodeId, html);
 
     private void NotifyDocumentMutated()
     {

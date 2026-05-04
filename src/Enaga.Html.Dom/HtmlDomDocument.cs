@@ -148,8 +148,21 @@ public sealed class HtmlDomDocument
         ReplaceElement(parentNodeId, nextParent);
         foreach (var child in children)
             if (child is HtmlDomElement childElement)
-                parentNodeIds[childElement.NodeId] = parentNodeId;
+                IndexElement(childElement, parentNodeId);
         return elementsByNodeId[parentNodeId];
+    }
+
+    public HtmlDomElement? ReplaceChildrenFromHtml(HtmlNodeId parentNodeId, string? html)
+    {
+        if (!elementsByNodeId.ContainsKey(parentNodeId))
+            return null;
+
+        var parsedChildren = new HtmlDocumentParser().ParseFragment(html);
+        var importedChildren = new HtmlDomNode[parsedChildren.Count];
+        for (var index = 0; index < parsedChildren.Count; index++)
+            importedChildren[index] = ImportNode(parsedChildren[index]);
+
+        return ReplaceChildren(parentNodeId, importedChildren);
     }
 
     public HtmlNodeId GetParentNodeId(HtmlNodeId nodeId)
@@ -262,6 +275,24 @@ public sealed class HtmlDomDocument
         });
         IndexClonedElement(clone, parentNodeId);
         return clone;
+    }
+
+    private HtmlDomNode ImportNode(HtmlDomNode node)
+        => node is HtmlDomElement element ? ImportElement(element) : node;
+
+    private HtmlDomElement ImportElement(HtmlDomElement element)
+    {
+        var importedNodeId = new HtmlNodeId(Interlocked.Increment(ref nextGeneratedNodeId));
+        var children = new HtmlDomNode[element.Children.Count];
+        for (var index = 0; index < element.Children.Count; index++)
+            children[index] = ImportNode(element.Children[index]);
+
+        return RecalculateElement(element with
+        {
+            NodeId = importedNodeId,
+            Attributes = new Dictionary<string, string>(element.Attributes, StringComparer.OrdinalIgnoreCase),
+            Children = children
+        });
     }
 
     private void IndexClonedElement(HtmlDomElement element, HtmlNodeId parentNodeId)

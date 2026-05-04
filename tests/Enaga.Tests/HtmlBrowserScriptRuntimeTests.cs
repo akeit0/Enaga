@@ -104,11 +104,48 @@ public sealed class HtmlBrowserScriptRuntimeTests
 
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
         while (DateTime.UtcNow < deadline && !renderWakeRequested)
+        {
             Thread.Sleep(10);
+            runtime.PumpEventLoopUntilIdle();
+        }
 
         Assert.True(renderWakeRequested);
         _ = source.RenderFrame(320, 200, TimeSpan.FromMilliseconds(16));
         Assert.Contains("timer", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EventLoopWake_RunsBrowserTimersWithArgsAndClearInterval()
+    {
+        var document = new HtmlDocument("""
+            <body>
+              <div id="status">idle</div>
+              <script>
+                let timeoutArgs = "";
+                setTimeout(function (prefix, suffix) {
+                  timeoutArgs = prefix + suffix;
+                }, 1, "args", "!");
+                let intervalCount = 0;
+                const intervalId = setInterval(function () {
+                  intervalCount++;
+                  clearInterval(intervalId);
+                  document.getElementById("status").textContent = timeoutArgs + ":" + intervalCount;
+                }, 50);
+              </script>
+            </body>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+        Assert.NotNull(runtime);
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
+        while (DateTime.UtcNow < deadline && !runtime.CurrentDocument.Html.Contains("args!:1", StringComparison.Ordinal))
+        {
+            Thread.Sleep(10);
+            runtime.PumpEventLoopUntilIdle();
+        }
+
+        Assert.Contains("args!:1", runtime.CurrentDocument.Html, StringComparison.Ordinal);
     }
 
     [Fact]
