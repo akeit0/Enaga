@@ -265,7 +265,7 @@ internal sealed partial class HtmlLayoutBuilder
         for (var index = 0; index < children.Length; index++)
         {
             var child = children[index];
-            var request = CreateLayoutRequest(child, contentWidth, contentHeight, parentIsFlexContainer: false, FlexDirection.Column, allowFlexShrink: false);
+            var request = CreateLayoutRequest(child, contentWidth, contentHeight, parentIsFlexContainer: false, FlexDirection.Column, CrossAlignment.Stretch, allowFlexShrink: false);
             if (child.Style.Float != HtmlFloat.None)
             {
                 var hasExplicitWidth = child.Style.HasExplicitWidth;
@@ -673,7 +673,7 @@ internal sealed partial class HtmlLayoutBuilder
         }
 
         var intrinsic = cell.Children.Length > 0
-            ? MeasureNodeIntrinsicSize(cell, availableWidth, availableHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row)
+            ? MeasureNodeIntrinsicSize(cell, availableWidth, availableHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row, parentAlignItems: CrossAlignment.Stretch)
             : (Width: 0f, Height: 0f);
         var minContentWidth = cell.Children.Length > 0
             ? Math.Min(MeasureMinContentWidth(cell, availableWidth, availableHeight), Math.Max(0, availableWidth))
@@ -693,7 +693,7 @@ internal sealed partial class HtmlLayoutBuilder
     private float MeasureTableCellHeight(HtmlSceneNode cell, float availableWidth, float availableHeight)
     {
         var layoutHeight = cell.Children.Length > 0
-            ? MeasureNodeLayoutHeightUncached(cell, availableWidth, availableHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row)
+            ? MeasureNodeLayoutHeightUncached(cell, availableWidth, availableHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row, parentAlignItems: CrossAlignment.Stretch)
             : 0f;
         var hasExplicitHeight = LayoutValue.IsSet(cell.Style.Height);
         var height = hasExplicitHeight ? cell.Style.Height : layoutHeight;
@@ -938,7 +938,7 @@ internal sealed partial class HtmlLayoutBuilder
         var parentIsFlexContainer = IsFlexContainer(parentStyle);
         var allowChildFlexShrink = ShouldAllowChildFlexShrink(parentStyle);
         for (var index = 0; index < resolvedChildren.Length; index++)
-            childRequests[index] = CreateLayoutRequest(resolvedChildren[index], parentContentWidth, parentContentHeight, parentIsFlexContainer, parentStyle.FlexDirection, allowChildFlexShrink);
+            childRequests[index] = CreateLayoutRequest(resolvedChildren[index], parentContentWidth, parentContentHeight, parentIsFlexContainer, parentStyle.FlexDirection, parentStyle.AlignItems, allowChildFlexShrink);
 
         childRequests = ApplyBlockMarginCollapse(parentStyle, childRequests);
 

@@ -196,6 +196,20 @@ public sealed class HtmlDomDocument
         return elements;
     }
 
+    public IReadOnlyList<HtmlDomElement> GetElementsByClassName(string className)
+    {
+        if (string.IsNullOrWhiteSpace(className))
+            return [];
+
+        var elements = new List<HtmlDomElement>();
+        CollectElements(RootElement, element =>
+        {
+            if (element.HasClass(className))
+                elements.Add(element);
+        });
+        return elements;
+    }
+
     public IReadOnlyList<HtmlDomElement> QuerySelectorAll(string selector)
     {
         if (string.IsNullOrWhiteSpace(selector))

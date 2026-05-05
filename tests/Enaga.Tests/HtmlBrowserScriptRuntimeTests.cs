@@ -6,6 +6,7 @@ using Enaga.Html;
 using Enaga.Html.Dom;
 using Enaga.React.OkojoRuntime;
 using Enaga.Rendering;
+using Enaga.Rendering.Skia;
 using Enaga.Scene;
 using Okojo.Objects;
 using Xunit;
@@ -371,6 +372,24 @@ public sealed class HtmlBrowserScriptRuntimeTests
     }
 
     [Fact]
+    public void CreateAndRun_ImplementsGetElementsByClassName()
+    {
+        var document = new HtmlDocument("""
+            <body>
+              <div class="badge">idle</div>
+              <script>
+                document.getElementsByClassName("badge")[0].textContent = "done";
+              </script>
+            </body>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+
+        Assert.NotNull(runtime);
+        Assert.Contains("<div class=\"badge\">done</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CreateAndRun_ClampsLongScriptErrorSourceLine()
     {
         var script = "const filler = '" + new string('x', 400) + "'; throw new Error('boom');";
@@ -530,6 +549,161 @@ public sealed class HtmlBrowserScriptRuntimeTests
         var styled = Assert.Single(commit.Layout.Values, box => box.BackgroundColor == "#123456");
 
         Assert.Equal(SceneNodeKind.View, styled.NodeKind);
+    }
+
+    [Fact]
+    public void DocumentMutation_RelayoutsCenteredInlineBlockBadge()
+    {
+        var document = new HtmlDocument("""
+            <html>
+              <head>
+                <style>
+                  body { margin: 0; padding: 0; }
+                  .main {
+                    margin: 0 auto;
+                    margin-top: 24px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    width: 220px;
+                  }
+                  .badge {
+                    display: inline-block;
+                    padding: 4px 8px;
+                    background: #008080;
+                    color: #ffffff;
+                    white-space: nowrap;
+                  }
+                </style>
+              </head>
+              <body>
+                <div id="main" class="main">
+                  <span id="badge" class="badge">idle</span>
+                </div>
+              </body>
+            </html>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+        Assert.NotNull(runtime);
+
+        var source = new HtmlSceneFrameSource(runtime.CurrentDocument, new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+        runtime.DocumentMutated += source.UpdateDocument;
+
+        var initial = source.RenderFrame(420, 180, TimeSpan.Zero);
+        var initialMainId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "main").Key;
+        var initialBadgeId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key;
+        var initialMain = initial.Commit.Layout[initialMainId];
+        var initialBadge = initial.Commit.Layout[initialBadgeId];
+        var initialBody = initial.Commit.Layout[initial.Commit.Nodes[initialMainId].ParentId!.Value];
+
+        Assert.Equal(initialBody.AbsLeft + (initialBody.Width - initialMain.Width) * 0.5f, initialMain.AbsLeft, precision: 1);
+        Assert.Equal(initialMain.AbsLeft + (initialMain.Width - initialBadge.Width) * 0.5f, initialBadge.AbsLeft, precision: 1);
+
+        runtime.ExecuteJavaScriptUrl("javascript:document.getElementById('badge').textContent = '実行されました';");
+
+        var updated = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(16));
+        var updatedMainId = updated.Commit.Nodes.Single(pair => pair.Value.Label == "main").Key;
+        var updatedBadgeId = updated.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key;
+        var updatedMain = updated.Commit.Layout[updatedMainId];
+        var updatedBadge = updated.Commit.Layout[updatedBadgeId];
+        var updatedBadgeText = updated.Commit.Layout.Values.Single(box => box.TextContent == "実行されました");
+
+        Assert.True(updatedBadge.Width > initialBadge.Width + 20, $"initialBadge.Width={initialBadge.Width} updatedBadge.Width={updatedBadge.Width}");
+        Assert.True(updatedBadge.Width >= updatedBadgeText.Width + 15, $"badge.Width={updatedBadge.Width} text.Width={updatedBadgeText.Width}");
+        Assert.Equal(initialMain.AbsLeft, updatedMain.AbsLeft, precision: 1);
+        Assert.Equal(updatedMain.AbsLeft + (updatedMain.Width - updatedBadge.Width) * 0.5f, updatedBadge.AbsLeft, precision: 1);
+    }
+
+    [Fact]
+    public void DocumentMutation_WithSkiaBackend_RelayoutsBootstrapStyleBadgeInsideHeading()
+    {
+        var document = new HtmlDocument("""
+            <html>
+              <head>
+                <style>
+                  body {
+                    margin: 0;
+                    font-family: Roboto,Helvetica,Arial,sans-serif;
+                    font-size: 1rem;
+                    line-height: 1.5;
+                  }
+                  h2 {
+                    margin-top: 0;
+                    margin-bottom: .5rem;
+                    font-family: inherit;
+                    font-weight: 400;
+                    line-height: 1.2;
+                    color: inherit;
+                    font-size: 2rem;
+                  }
+                  .main {
+                    margin: 0 auto;
+                    margin-top: 24px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    font-size: 25px;
+                    width: 500px;
+                  }
+                  .badge {
+                    display: inline-block;
+                    padding: .25em .4em;
+                    font-size: 75%;
+                    font-weight: 700;
+                    line-height: 1;
+                    text-align: center;
+                    white-space: nowrap;
+                    vertical-align: baseline;
+                    border-radius: .125rem;
+                  }
+                  .badge-primary {
+                    color: #fff;
+                    background-color: #009688;
+                  }
+                </style>
+              </head>
+              <body>
+                <div id="main" class="main">
+                  <h2 id="heading"><span id="badge" class="badge badge-primary">実行結果</span></h2>
+                </div>
+              </body>
+            </html>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+        Assert.NotNull(runtime);
+
+        using var backend = SkiaRuntimeBackendServices.Create();
+        var source = new HtmlSceneFrameSource(runtime.CurrentDocument, new HtmlOptions(BackendServices: backend));
+        runtime.DocumentMutated += source.UpdateDocument;
+
+        var initial = source.RenderFrame(780, 220, TimeSpan.Zero);
+        var initialMainId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "main").Key;
+        var initialHeadingId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "heading").Key;
+        var initialBadgeId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key;
+        var initialMain = initial.Commit.Layout[initialMainId];
+        var initialHeading = initial.Commit.Layout[initialHeadingId];
+        var initialBadge = initial.Commit.Layout[initialBadgeId];
+        var initialRoot = initial.Commit.Layout[initial.Commit.RootId];
+
+        Assert.Equal(initialRoot.AbsLeft + (initialRoot.Width - initialMain.Width) * 0.5f, initialMain.AbsLeft, precision: 1);
+        Assert.Equal(initialMain.AbsLeft + (initialMain.Width - initialHeading.Width) * 0.5f, initialHeading.AbsLeft, precision: 1);
+        Assert.Equal(initialHeading.AbsLeft + (initialHeading.Width - initialBadge.Width) * 0.5f, initialBadge.AbsLeft, precision: 1);
+
+        runtime.ExecuteJavaScriptUrl("javascript:document.getElementById('badge').textContent = '実行されました';");
+
+        var updated = source.RenderFrame(780, 220, TimeSpan.FromMilliseconds(16));
+        var updatedHeadingId = updated.Commit.Nodes.Single(pair => pair.Value.Label == "heading").Key;
+        var updatedBadgeId = updated.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key;
+        var updatedHeading = updated.Commit.Layout[updatedHeadingId];
+        var updatedBadge = updated.Commit.Layout[updatedBadgeId];
+        var updatedBadgeText = updated.Commit.Layout.Values.Single(box => box.TextContent == "実行されました");
+
+        Assert.True(updatedHeading.Width > initialHeading.Width + 20, $"initialHeading.Width={initialHeading.Width} updatedHeading.Width={updatedHeading.Width}");
+        Assert.True(updatedBadge.Width > initialBadge.Width + 20, $"initialBadge.Width={initialBadge.Width} updatedBadge.Width={updatedBadge.Width}");
+        Assert.True(updatedBadge.Width >= updatedBadgeText.Width + 8, $"badge.Width={updatedBadge.Width} text.Width={updatedBadgeText.Width}");
+        Assert.Equal(updatedHeading.AbsLeft + (updatedHeading.Width - updatedBadge.Width) * 0.5f, updatedBadge.AbsLeft, precision: 1);
     }
 
     [Fact]

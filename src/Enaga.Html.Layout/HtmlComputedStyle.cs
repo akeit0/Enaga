@@ -102,6 +102,7 @@ internal sealed partial class HtmlComputedStyle
     private HtmlViewportLengthFlags viewportLengthFlags;
     private HtmlContainerPercentLengthFlags containerPercentLengthFlags;
     private HtmlExplicitLengthFlags explicitLengthFlags;
+    private LayoutAutoMarginFlags autoMarginFlags;
     private float fontSizeReference;
     private float rootFontSize;
     private string? inheritedColor;
@@ -109,8 +110,17 @@ internal sealed partial class HtmlComputedStyle
     public bool IsHeightPercent => (UnitFlags & LayoutValueUnitFlags.HeightPercent) != 0;
     public bool IsMinWidthPercent => (UnitFlags & LayoutValueUnitFlags.MinWidthPercent) != 0;
     public bool IsMaxWidthPercent => (UnitFlags & LayoutValueUnitFlags.MaxWidthPercent) != 0;
+    public bool IsMarginLeftAuto => (autoMarginFlags & LayoutAutoMarginFlags.Left) != 0;
+    public bool IsMarginTopAuto => (autoMarginFlags & LayoutAutoMarginFlags.Top) != 0;
+    public bool IsMarginRightAuto => (autoMarginFlags & LayoutAutoMarginFlags.Right) != 0;
+    public bool IsMarginBottomAuto => (autoMarginFlags & LayoutAutoMarginFlags.Bottom) != 0;
+    public LayoutAutoMarginFlags AutoMarginFlags => autoMarginFlags;
     public bool HasExplicitWidth => IsLengthExplicit(HtmlLengthProperty.Width);
     public bool HasExplicitHeight => IsLengthExplicit(HtmlLengthProperty.Height);
+    public bool HasImplicitBlockWidthPercent =>
+        !HasExplicitWidth &&
+        IsWidthPercent &&
+        MathF.Abs(Width - Defaults.BlockWidthPercent) < 0.001f;
     public bool StopsLayoutDirtyPropagation =>
         (Containment & HtmlContainment.Size) != 0 ||
         (LayoutValue.IsSet(Width) &&
@@ -119,7 +129,10 @@ internal sealed partial class HtmlComputedStyle
          !IsHeightPercent &&
          (IsScrollContainer || ClipContent));
     public bool ShouldUseFullWidthByDefault => Display is HtmlDisplay.Block or HtmlDisplay.Flex && !LayoutValue.IsSet(Width);
-    public bool ShouldUseFullWidthByDefaultInParent(bool parentIsFlexContainer, FlexDirection parentFlexDirection = FlexDirection.Column)
+    public bool ShouldUseFullWidthByDefaultInParent(
+        bool parentIsFlexContainer,
+        FlexDirection parentFlexDirection = FlexDirection.Column,
+        CrossAlignment parentAlignItems = CrossAlignment.Stretch)
     {
         if (LayoutValue.IsSet(Width))
             return false;
@@ -130,7 +143,29 @@ internal sealed partial class HtmlComputedStyle
         if (!parentIsFlexContainer)
             return Display is HtmlDisplay.Block or HtmlDisplay.Flex;
 
-        return FlexLayout.ResolveAxis(parentFlexDirection) == LayoutAxis.Column;
+        if (FlexLayout.ResolveAxis(parentFlexDirection) != LayoutAxis.Column)
+            return false;
+
+        var resolvedCrossAlignment = AlignSelf == CrossAlignment.Auto
+            ? parentAlignItems
+            : AlignSelf;
+        return resolvedCrossAlignment == CrossAlignment.Stretch;
+    }
+    public bool ShouldTreatImplicitBlockWidthAsAutoInParent(
+        bool parentIsFlexContainer,
+        FlexDirection parentFlexDirection = FlexDirection.Column,
+        CrossAlignment parentAlignItems = CrossAlignment.Stretch)
+    {
+        if (!HasImplicitBlockWidthPercent || !parentIsFlexContainer)
+            return false;
+
+        if (FlexLayout.ResolveAxis(parentFlexDirection) != LayoutAxis.Column)
+            return false;
+
+        var resolvedCrossAlignment = AlignSelf == CrossAlignment.Auto
+            ? parentAlignItems
+            : AlignSelf;
+        return resolvedCrossAlignment != CrossAlignment.Stretch;
     }
     public bool CanCollapseTextOnlyContent =>
         string.IsNullOrWhiteSpace(BackgroundColor) &&
@@ -202,11 +237,12 @@ internal sealed partial class HtmlComputedStyle
            Same(left.MaxWidth, right.MaxWidth) &&
            Same(left.MinHeight, right.MinHeight) &&
            Same(left.MaxHeight, right.MaxHeight) &&
-           Same(left.MarginLeft, right.MarginLeft) &&
-           Same(left.MarginTop, right.MarginTop) &&
-           Same(left.MarginRight, right.MarginRight) &&
-           Same(left.MarginBottom, right.MarginBottom) &&
-           Same(left.PaddingLeft, right.PaddingLeft) &&
+            Same(left.MarginLeft, right.MarginLeft) &&
+            Same(left.MarginTop, right.MarginTop) &&
+            Same(left.MarginRight, right.MarginRight) &&
+            Same(left.MarginBottom, right.MarginBottom) &&
+            left.autoMarginFlags == right.autoMarginFlags &&
+            Same(left.PaddingLeft, right.PaddingLeft) &&
            Same(left.PaddingTop, right.PaddingTop) &&
            Same(left.PaddingRight, right.PaddingRight) &&
            Same(left.PaddingBottom, right.PaddingBottom) &&
@@ -309,6 +345,7 @@ internal sealed partial class HtmlComputedStyle
         hash.Add(MarginTop);
         hash.Add(MarginRight);
         hash.Add(MarginBottom);
+        hash.Add(autoMarginFlags);
         hash.Add(PaddingLeft);
         hash.Add(PaddingTop);
         hash.Add(PaddingRight);
@@ -402,11 +439,12 @@ internal sealed partial class HtmlComputedStyle
            Same(left.MaxWidth, right.MaxWidth) &&
            Same(left.MinHeight, right.MinHeight) &&
            Same(left.MaxHeight, right.MaxHeight) &&
-           Same(left.MarginLeft, right.MarginLeft) &&
-           Same(left.MarginTop, right.MarginTop) &&
-           Same(left.MarginRight, right.MarginRight) &&
-           Same(left.MarginBottom, right.MarginBottom) &&
-           Same(left.PaddingLeft, right.PaddingLeft) &&
+            Same(left.MarginLeft, right.MarginLeft) &&
+            Same(left.MarginTop, right.MarginTop) &&
+            Same(left.MarginRight, right.MarginRight) &&
+            Same(left.MarginBottom, right.MarginBottom) &&
+            left.autoMarginFlags == right.autoMarginFlags &&
+            Same(left.PaddingLeft, right.PaddingLeft) &&
            Same(left.PaddingTop, right.PaddingTop) &&
            Same(left.PaddingRight, right.PaddingRight) &&
            Same(left.PaddingBottom, right.PaddingBottom) &&
@@ -643,6 +681,10 @@ internal sealed partial class HtmlComputedStyle
         PreferIntrinsicWidth = true;
         FlexGrow = 0;
         FlexShrink = 0;
+        // Inline-block should behave like width:auto by default rather than inheriting the
+        // engine's synthetic block-width:100% fallback.
+        Width = Defaults.UnsetLength;
+        UnitFlags &= ~LayoutValueUnitFlags.WidthPercent;
     }
 
     internal void ApplyInlineBoxDefaults()
@@ -2186,14 +2228,14 @@ internal sealed partial class HtmlComputedStyle
         if (partCount == 0)
             return;
 
-        var first = ParseLengthValue(normalized[parts[0]], top);
-        var second = partCount > 1 ? ParseLengthValue(normalized[parts[1]], right) : first;
-        var third = partCount > 2 ? ParseLengthValue(normalized[parts[2]], bottom) : first;
-        var fourth = partCount > 3 ? ParseLengthValue(normalized[parts[3]], left) : second;
-        ApplyLength(top, first, 0);
-        ApplyLength(right, second, 0);
-        ApplyLength(bottom, third, 0);
-        ApplyLength(left, fourth, 0);
+        var first = normalized[parts[0]];
+        var second = partCount > 1 ? normalized[parts[1]] : first;
+        var third = partCount > 2 ? normalized[parts[2]] : first;
+        var fourth = partCount > 3 ? normalized[parts[3]] : second;
+        SetLength(first, top);
+        SetLength(second, right);
+        SetLength(third, bottom);
+        SetLength(fourth, left);
     }
 
     private void ApplyTwoValueSpacing(ReadOnlySpan<char> normalized, HtmlLengthProperty start, HtmlLengthProperty end)
@@ -2203,10 +2245,10 @@ internal sealed partial class HtmlComputedStyle
         if (partCount == 0)
             return;
 
-        var first = ParseLengthValue(normalized[parts[0]], start);
-        var second = partCount > 1 ? ParseLengthValue(normalized[parts[1]], end) : first;
-        ApplyLength(start, first, 0);
-        ApplyLength(end, second, 0);
+        var first = normalized[parts[0]];
+        var second = partCount > 1 ? normalized[parts[1]] : first;
+        SetLength(first, start);
+        SetLength(second, end);
     }
 
     private HtmlLengthProperty ResolveInlineStartMargin()
@@ -2268,6 +2310,7 @@ internal sealed partial class HtmlComputedStyle
                 SetLengthPropertyValue(property, 0);
                 SetLengthPropertyUnit(property, CssLengthUnit.Px);
                 explicitLengthFlags |= ResolveExplicitLengthFlag(property);
+                SetAutoMargin(property, true);
                 break;
         }
     }
@@ -2499,8 +2542,20 @@ internal sealed partial class HtmlComputedStyle
             return;
 
         explicitLengthFlags |= ResolveExplicitLengthFlag(property);
+        SetAutoMargin(property, false);
         SetLengthPropertyValue(property, parsed.ValueOrDefault(fallback));
         SetLengthPropertyUnit(property, parsed.Unit);
+    }
+
+    private void SetAutoMargin(HtmlLengthProperty property, bool enabled)
+    {
+        var flag = ResolveAutoMarginFlag(property);
+        if (flag == LayoutAutoMarginFlags.None)
+            return;
+
+        autoMarginFlags = enabled
+            ? autoMarginFlags | flag
+            : autoMarginFlags & ~flag;
     }
 
     private float GetLengthPropertyValue(HtmlLengthProperty property)
@@ -2693,6 +2748,16 @@ internal sealed partial class HtmlComputedStyle
             HtmlLengthProperty.MaxHeight => LayoutValueUnitFlags.MaxHeightPercent,
             HtmlLengthProperty.FlexBasis => LayoutValueUnitFlags.FlexBasisPercent,
             _ => LayoutValueUnitFlags.None
+        };
+
+    private static LayoutAutoMarginFlags ResolveAutoMarginFlag(HtmlLengthProperty property)
+        => property switch
+        {
+            HtmlLengthProperty.MarginLeft => LayoutAutoMarginFlags.Left,
+            HtmlLengthProperty.MarginTop => LayoutAutoMarginFlags.Top,
+            HtmlLengthProperty.MarginRight => LayoutAutoMarginFlags.Right,
+            HtmlLengthProperty.MarginBottom => LayoutAutoMarginFlags.Bottom,
+            _ => LayoutAutoMarginFlags.None
         };
 
     private static HtmlViewportLengthFlags ResolveViewportFlag(HtmlLengthProperty property)

@@ -453,6 +453,43 @@ public sealed class HtmlSceneFrameSourceTests
     }
 
     [Fact]
+    public void HtmlSceneFrameSource_UsesPointerCursorAndActivatesStyledJavascriptLinks()
+    {
+        const string href = "javascript:run()";
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument("""
+                <html>
+                  <head>
+                    <style>
+                      .notice { padding: 12px; border: 1px solid #88a; }
+                      .notice .action { font-weight: 500; color: #2244cc; }
+                    </style>
+                  </head>
+                  <body>
+                    <div class="notice">
+                      <a id="run" href="javascript:run()" class="action">Run action</a>
+                    </div>
+                  </body>
+                </html>
+                """),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+        string? activated = null;
+        source.LinkActivated += link => activated = link;
+
+        var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
+        var linkId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "run").Key;
+        var linkBox = frame.Commit.Layout[linkId];
+        source.PointerMove(linkBox.AbsLeft + 4, linkBox.AbsTop + 4, 0, synthetic: false);
+        Assert.Equal(PointerCursorKind.Pointer, source.CurrentCursor);
+
+        source.PointerDown(0, 1, synthetic: false);
+        source.PointerUp(0, 0, synthetic: false);
+
+        Assert.Equal(href, source.LastActivatedLinkHref);
+        Assert.Equal(href, activated);
+    }
+
+    [Fact]
     public void RenderFrame_AddsBasicListMarkers()
     {
         var source = new HtmlSceneFrameSource(
@@ -1419,6 +1456,27 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(row.AbsLeft + row.Width - 10 - first.Width, first.AbsLeft, precision: 0);
         Assert.True(second.AbsLeft < first.AbsLeft);
         Assert.Equal(column.AbsLeft + column.Width - columnChild.Width, columnChild.AbsLeft, precision: 0);
+    }
+
+    [Fact]
+    public void RenderFrame_CentersAutoWidthItemsInColumnFlexWhenAlignItemsCenter()
+    {
+        var source = new HtmlSceneFrameSource(
+            new Enaga.Html.HtmlDocument("""
+                <body>
+                  <div id="column" style="display: flex; flex-direction: column; align-items: center; width: 240px;">
+                    <div id="pill" style="padding: 8px; border-width: 1px; border-style: solid;">center me</div>
+                  </div>
+                </body>
+                """),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+
+        var frame = source.RenderFrame(360, 220, TimeSpan.Zero);
+        var column = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "column").Key];
+        var pill = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "pill").Key];
+
+        Assert.True(pill.Width < column.Width - 1, $"pill width {pill.Width} should be narrower than column width {column.Width}");
+        Assert.Equal(column.AbsLeft + (column.Width - pill.Width) * 0.5f, pill.AbsLeft, precision: 1);
     }
 
     [Fact]

@@ -108,6 +108,7 @@ internal sealed partial class HtmlLayoutBuilder
         float availableHeight,
         bool parentIsFlexContainer,
         FlexDirection parentFlexDirection = FlexDirection.Column,
+        CrossAlignment parentAlignItems = CrossAlignment.Stretch,
         bool allowFlexShrink = true)
     {
         var style = node.Style;
@@ -118,6 +119,12 @@ internal sealed partial class HtmlLayoutBuilder
         var minHeight = style.MinHeight;
         var maxHeight = style.MaxHeight;
         var units = style.UnitFlags;
+        if (style.ShouldTreatImplicitBlockWidthAsAutoInParent(parentIsFlexContainer, parentFlexDirection, parentAlignItems))
+        {
+            width = HtmlComputedStyle.Defaults.UnsetLength;
+            units &= ~LayoutValueUnitFlags.WidthPercent;
+        }
+
         if (node.NodeKind == SceneNodeKind.Image &&
             style.IntrinsicImageWidth > 0 &&
             style.IntrinsicImageHeight > 0 &&
@@ -224,7 +231,7 @@ internal sealed partial class HtmlLayoutBuilder
                 height = preferredHeight;
         }
 
-        var useFullWidthByDefault = style.ShouldUseFullWidthByDefaultInParent(parentIsFlexContainer, parentFlexDirection);
+        var useFullWidthByDefault = style.ShouldUseFullWidthByDefaultInParent(parentIsFlexContainer, parentFlexDirection, parentAlignItems);
         var parentIsRowFlexContainer =
             parentIsFlexContainer &&
             FlexLayout.ResolveAxis(parentFlexDirection) == LayoutAxis.Row;
@@ -238,7 +245,7 @@ internal sealed partial class HtmlLayoutBuilder
 
         if (node.Children.Length > 0)
         {
-            var intrinsic = MeasureNodeIntrinsicSize(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection);
+            var intrinsic = MeasureNodeIntrinsicSize(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection, parentAlignItems);
             if (parentIsRowFlexContainer && (!LayoutValue.IsSet(style.Width) || rowFlexGrowBasisZeroAutoWidth))
             {
                 var minContentWidth = MeasureMinContentWidth(node, availableWidth, availableHeight);
@@ -292,7 +299,8 @@ internal sealed partial class HtmlLayoutBuilder
             FlexGrow: parentIsFlexContainer ? style.FlexGrow : 0,
             FlexShrink: parentIsFlexContainer && allowFlexShrink ? style.FlexShrink : 0,
             FlexBasis: flexBasis,
-            Units: units);
+            Units: units,
+            AutoMargins: style.AutoMarginFlags);
     }
 
     private float ResolveAutomaticFlexItemMinWidth(
@@ -822,28 +830,42 @@ internal sealed partial class HtmlLayoutBuilder
         return false;
     }
 
-    private float MeasureNodeLayoutHeight(HtmlSceneNode node, float availableWidth, float availableHeight, bool parentIsFlexContainer = false, FlexDirection parentFlexDirection = FlexDirection.Column)
+    private float MeasureNodeLayoutHeight(
+        HtmlSceneNode node,
+        float availableWidth,
+        float availableHeight,
+        bool parentIsFlexContainer = false,
+        FlexDirection parentFlexDirection = FlexDirection.Column,
+        CrossAlignment parentAlignItems = CrossAlignment.Stretch)
     {
         if (node.Children.Length == 0)
             return MeasureAutoHeightForResolvedWidth(node, availableWidth, availableHeight);
 
-        var cacheKey = CreateLayoutMeasureCacheKey(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection, LayoutRunMode.PerformHiddenLayout);
+        var cacheKey = CreateLayoutMeasureCacheKey(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection, parentAlignItems, LayoutRunMode.PerformHiddenLayout);
         if (measurementCache.TryGetLayoutHeight(cacheKey, out var cachedHeight))
             return cachedHeight;
 
-        var measuredHeight = MeasureNodeLayoutHeightUncached(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection);
+        var measuredHeight = MeasureNodeLayoutHeightUncached(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection, parentAlignItems);
         measurementCache.SetLayoutHeight(cacheKey, measuredHeight);
         return measuredHeight;
     }
 
-    private float MeasureNodeLayoutHeightUncached(HtmlSceneNode node, float availableWidth, float availableHeight, bool parentIsFlexContainer, FlexDirection parentFlexDirection)
+    private float MeasureNodeLayoutHeightUncached(
+        HtmlSceneNode node,
+        float availableWidth,
+        float availableHeight,
+        bool parentIsFlexContainer,
+        FlexDirection parentFlexDirection,
+        CrossAlignment parentAlignItems)
     {
         var style = node.Style;
-        var explicitWidth = ResolveExplicitOuterSize(style, style.Width, style.IsWidthPercent, availableWidth, horizontal: true);
+        var explicitWidth = style.ShouldTreatImplicitBlockWidthAsAutoInParent(parentIsFlexContainer, parentFlexDirection, parentAlignItems)
+            ? HtmlComputedStyle.Defaults.UnsetLength
+            : ResolveExplicitOuterSize(style, style.Width, style.IsWidthPercent, availableWidth, horizontal: true);
         var explicitHeight = ResolveExplicitOuterSize(style, style.Height, style.IsHeightPercent, availableHeight, horizontal: false);
         var containerWidth = LayoutValue.IsSet(explicitWidth)
             ? explicitWidth
-            : style.ShouldUseFullWidthByDefaultInParent(parentIsFlexContainer, parentFlexDirection)
+            : style.ShouldUseFullWidthByDefaultInParent(parentIsFlexContainer, parentFlexDirection, parentAlignItems)
                 ? availableWidth
                 : 0;
         var containerHeight = LayoutValue.IsSet(explicitHeight) ? explicitHeight : 0;
@@ -892,7 +914,7 @@ internal sealed partial class HtmlLayoutBuilder
             var nodeIsFlexContainer = IsFlexContainer(style);
             var allowChildFlexShrink = ShouldAllowChildFlexShrink(style);
             for (var index = 0; index < resolvedChildren.Length; index++)
-                childRequests[index] = CreateLayoutRequest(resolvedChildren[index], childAvailableWidth, childAvailableHeight, nodeIsFlexContainer, style.FlexDirection, allowChildFlexShrink);
+                childRequests[index] = CreateLayoutRequest(resolvedChildren[index], childAvailableWidth, childAvailableHeight, nodeIsFlexContainer, style.FlexDirection, style.AlignItems, allowChildFlexShrink);
 
             childRequests = ApplyBlockMarginCollapse(style, childRequests);
             if (FlexLayout.ResolveAxis(style.FlexDirection) == LayoutAxis.Row)
@@ -930,21 +952,29 @@ internal sealed partial class HtmlLayoutBuilder
         }
     }
 
-    private (float Width, float Height) MeasureNodeIntrinsicSize(HtmlSceneNode node, float availableWidth, float availableHeight, bool parentIsFlexContainer = false, FlexDirection parentFlexDirection = FlexDirection.Column)
+    private (float Width, float Height) MeasureNodeIntrinsicSize(
+        HtmlSceneNode node,
+        float availableWidth,
+        float availableHeight,
+        bool parentIsFlexContainer = false,
+        FlexDirection parentFlexDirection = FlexDirection.Column,
+        CrossAlignment parentAlignItems = CrossAlignment.Stretch)
     {
         if (node.Children.Length == 0)
             return (0, 0);
 
-        var cacheKey = CreateLayoutMeasureCacheKey(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection, LayoutRunMode.ComputeSize);
+        var cacheKey = CreateLayoutMeasureCacheKey(node, availableWidth, availableHeight, parentIsFlexContainer, parentFlexDirection, parentAlignItems, LayoutRunMode.ComputeSize);
         if (measurementCache.TryGetIntrinsicSize(cacheKey, out var cached))
             return cached;
 
         var style = node.Style;
-        var explicitWidth = ResolveExplicitOuterSize(style, style.Width, style.IsWidthPercent, availableWidth, horizontal: true);
+        var explicitWidth = style.ShouldTreatImplicitBlockWidthAsAutoInParent(parentIsFlexContainer, parentFlexDirection, parentAlignItems)
+            ? HtmlComputedStyle.Defaults.UnsetLength
+            : ResolveExplicitOuterSize(style, style.Width, style.IsWidthPercent, availableWidth, horizontal: true);
         var explicitHeight = ResolveExplicitOuterSize(style, style.Height, style.IsHeightPercent, availableHeight, horizontal: false);
         var containerWidth = LayoutValue.IsSet(explicitWidth)
             ? explicitWidth
-            : style.ShouldUseFullWidthByDefaultInParent(parentIsFlexContainer, parentFlexDirection)
+            : style.ShouldUseFullWidthByDefaultInParent(parentIsFlexContainer, parentFlexDirection, parentAlignItems)
                 ? availableWidth
                 : 0;
         var containerHeight = LayoutValue.IsSet(explicitHeight) ? explicitHeight : 0;
@@ -1007,7 +1037,7 @@ internal sealed partial class HtmlLayoutBuilder
             var nodeIsFlexContainer = IsFlexContainer(style);
             var allowChildFlexShrink = ShouldAllowChildFlexShrink(style);
             for (var index = 0; index < resolvedChildren.Length; index++)
-                childRequests[index] = CreateLayoutRequest(resolvedChildren[index], childAvailableWidth, childAvailableHeight, nodeIsFlexContainer, style.FlexDirection, allowChildFlexShrink);
+                childRequests[index] = CreateLayoutRequest(resolvedChildren[index], childAvailableWidth, childAvailableHeight, nodeIsFlexContainer, style.FlexDirection, style.AlignItems, allowChildFlexShrink);
 
             childRequests = ApplyBlockMarginCollapse(style, childRequests);
 
@@ -1071,6 +1101,7 @@ internal sealed partial class HtmlLayoutBuilder
         float availableHeight,
         bool parentIsFlexContainer,
         FlexDirection parentFlexDirection,
+        CrossAlignment parentAlignItems,
         LayoutRunMode runMode)
     {
         var quantizedWidth = QuantizeMeasureKey(availableWidth);
@@ -1090,7 +1121,7 @@ internal sealed partial class HtmlLayoutBuilder
             node.LayoutVersion,
             input,
             CreateLayoutContainerStyle(node.Style),
-            CreateMeasureContextVersion(quantizedWidth, quantizedHeight, parentIsFlexContainer, parentFlexDirection, runMode));
+            CreateMeasureContextVersion(quantizedWidth, quantizedHeight, parentIsFlexContainer, parentFlexDirection, parentAlignItems, runMode));
     }
 
     private static uint CreateMeasureContextVersion(
@@ -1098,6 +1129,7 @@ internal sealed partial class HtmlLayoutBuilder
         int quantizedHeight,
         bool parentIsFlexContainer,
         FlexDirection parentFlexDirection,
+        CrossAlignment parentAlignItems,
         LayoutRunMode runMode)
     {
         var hash = new HashCode();
@@ -1105,6 +1137,7 @@ internal sealed partial class HtmlLayoutBuilder
         hash.Add(quantizedHeight);
         hash.Add(parentIsFlexContainer);
         hash.Add(parentFlexDirection);
+        hash.Add(parentAlignItems);
         hash.Add(runMode);
         return unchecked((uint)hash.ToHashCode());
     }
@@ -1191,7 +1224,7 @@ internal sealed partial class HtmlLayoutBuilder
     private float MeasureAutoHeightForResolvedWidth(HtmlSceneNode node, float resolvedWidth, float availableHeight)
     {
         if (node.Children.Length > 0)
-            return MeasureNodeIntrinsicSize(node, resolvedWidth, availableHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row).Height;
+            return MeasureNodeIntrinsicSize(node, resolvedWidth, availableHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row, parentAlignItems: CrossAlignment.Stretch).Height;
 
         if (node.NodeKind != SceneNodeKind.Text || string.IsNullOrEmpty(node.TextContent))
             return 0;

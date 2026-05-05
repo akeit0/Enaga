@@ -253,16 +253,21 @@ internal sealed partial class HtmlLayoutBuilder
             contentHeight,
             parentIsFlexContainer: true,
             FlexDirection.Row,
+            CrossAlignment.Start,
             allowFlexShrink: false);
 
         var width = LayoutValue.IsSet(request.Width) ? request.Width : 0;
         var height = LayoutValue.IsSet(request.Height) ? request.Height : 0;
         if (child.Children.Length > 0 && height <= 0)
-            height = MeasureNodeLayoutHeight(child, Math.Max(width, contentWidth), contentHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row);
+            height = MeasureNodeLayoutHeight(child, Math.Max(width, contentWidth), contentHeight, parentIsFlexContainer: true, parentFlexDirection: FlexDirection.Row, parentAlignItems: CrossAlignment.Start);
 
         if (child.NodeKind == SceneNodeKind.Text)
         {
-            var font = textStyleCache.GetFont(child.Style, 16, 400);
+            var textStyle = textStyleCache.GetInlineMeasureStyle(child.Style);
+            var measured = MeasureInlineText(child.TextContent ?? string.Empty, textStyle, child.Style.LineHeight);
+            width = measured.Width;
+            height = measured.Height;
+            var font = textStyle.Font;
             var lineHeight = ResolveNormalLineHeight(font, child.Style.LineHeight);
             height = Math.Max(height, lineHeight);
             var ascent = Math.Min(height, font.Size);
@@ -352,9 +357,16 @@ internal sealed partial class HtmlLayoutBuilder
 
     private static bool IsInlineFormattingContext(HtmlComputedStyle parentStyle, HtmlSceneNode[] children)
     {
-        if (parentStyle.Display != HtmlDisplay.Flex ||
-            FlexLayout.ResolveAxis(parentStyle.FlexDirection) != LayoutAxis.Row ||
-            children.Length == 0)
+        if (children.Length == 0)
+            return false;
+
+        if (parentStyle.Display == HtmlDisplay.Flex &&
+            FlexLayout.ResolveAxis(parentStyle.FlexDirection) != LayoutAxis.Row)
+        {
+            return false;
+        }
+
+        if (parentStyle.Display is not HtmlDisplay.Block and not HtmlDisplay.Flex and not HtmlDisplay.Inline and not HtmlDisplay.InlineBlock)
         {
             return false;
         }

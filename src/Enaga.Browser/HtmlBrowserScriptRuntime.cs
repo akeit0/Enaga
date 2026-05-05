@@ -1046,6 +1046,11 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             var localName = info.GetArgumentStringOrDefault(0, string.Empty);
             return JsValue.FromObject(CreateElementArray(info.Realm, document.GetElementsByTagName(localName)));
         }, "getElementsByTagName", 1)), OpenFlags);
+        obj.DefineDataProperty("getElementsByClassName", JsValue.FromObject(new JsHostFunction(realm, (in CallInfo info) =>
+        {
+            var className = info.GetArgumentStringOrDefault(0, string.Empty);
+            return JsValue.FromObject(CreateElementArray(info.Realm, document.GetElementsByClassName(className)));
+        }, "getElementsByClassName", 1)), OpenFlags);
         obj.DefineDataProperty("addEventListener", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo _) => JsValue.Undefined, "addEventListener", 2)), OpenFlags);
         obj.DefineDataProperty("removeEventListener", JsValue.FromObject(new JsHostFunction(realm, static (in CallInfo _) => JsValue.Undefined, "removeEventListener", 2)), OpenFlags);
         obj.DefineDataProperty("implementation", JsValue.FromObject(CreateDocumentImplementationObject(realm)), OpenFlags);

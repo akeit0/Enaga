@@ -316,17 +316,47 @@ public sealed class LayoutCalculator
                 var occupiedMainSize = ResolveOccupiedMainSize(entry, isColumn ? resolvedHeights[index] : resolvedWidths[index], isColumn, autoMainMarginSize);
                 var crossSize = occupiedCrossSizes[index];
                 var crossStart = ResolveCrossStart(entry.CrossAlign, lineAvailableCross, crossSize, isCrossAxisReversed);
+                var crossStartMargin = isColumn ? entry.MarginLeft : entry.MarginTop;
+                if (HasAutoCrossMargins(entry, isColumn))
+                {
+                    var itemCrossSize = isColumn ? resolvedWidths[index] : resolvedHeights[index];
+                    var fixedCrossStartMargin = isColumn
+                        ? entry.AutoMarginLeft ? 0 : entry.MarginLeft
+                        : entry.AutoMarginTop ? 0 : entry.MarginTop;
+                    var fixedCrossEndMargin = isColumn
+                        ? entry.AutoMarginRight ? 0 : entry.MarginRight
+                        : entry.AutoMarginBottom ? 0 : entry.MarginBottom;
+                    var remainingCross = Math.Max(0, lineAvailableCross - itemCrossSize - fixedCrossStartMargin - fixedCrossEndMargin);
+                    if (isColumn)
+                    {
+                        crossStartMargin = entry.AutoMarginLeft && entry.AutoMarginRight
+                            ? fixedCrossStartMargin + remainingCross * 0.5f
+                            : entry.AutoMarginLeft
+                                ? fixedCrossStartMargin + remainingCross
+                                : fixedCrossStartMargin;
+                    }
+                    else
+                    {
+                        crossStartMargin = entry.AutoMarginTop && entry.AutoMarginBottom
+                            ? fixedCrossStartMargin + remainingCross * 0.5f
+                            : entry.AutoMarginTop
+                                ? fixedCrossStartMargin + remainingCross
+                                : fixedCrossStartMargin;
+                    }
+
+                    crossStart = 0;
+                }
                 var mainStart = ResolveMainStart(startMain, cursor, occupiedMainSize, availableMainSize, isMainAxisReversed);
                 var mainStartMargin = ResolveMainStartMargin(entry, isColumn, autoMainMarginSize);
 
                 if (!entry.IsSpacer)
                 {
                     var left = isColumn
-                        ? paddingLeft + lineStartCross + lineCursor + crossStart + entry.MarginLeft + entry.OffsetLeft
+                        ? paddingLeft + lineStartCross + lineCursor + crossStart + crossStartMargin + entry.OffsetLeft
                         : paddingLeft + mainStart + mainStartMargin + entry.OffsetLeft;
                     var top = isColumn
                         ? paddingTop + mainStart + mainStartMargin + entry.OffsetTop
-                        : paddingTop + lineStartCross + lineCursor + crossStart + entry.MarginTop + entry.OffsetTop;
+                        : paddingTop + lineStartCross + lineCursor + crossStart + crossStartMargin + entry.OffsetTop;
                     frames[index] = new LayoutFrameData(left, top, resolvedWidths[index], resolvedHeights[index]);
                 }
 
@@ -748,6 +778,13 @@ public sealed class LayoutCalculator
         return isColumn
             ? entry.AutoMarginBottom ? autoMarginSize : entry.MarginBottom
             : entry.AutoMarginRight ? autoMarginSize : entry.MarginRight;
+    }
+
+    private static bool HasAutoCrossMargins(in StackLayoutEntry entry, bool isColumn)
+    {
+        return isColumn
+            ? entry.AutoMarginLeft || entry.AutoMarginRight
+            : entry.AutoMarginTop || entry.AutoMarginBottom;
     }
 
     private static float ResolveOccupiedMainSize(in StackLayoutEntry entry, float mainSize, bool isColumn, float autoMarginSize = 0)
