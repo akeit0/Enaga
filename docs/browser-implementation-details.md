@@ -6,6 +6,8 @@ This document records implementation-level mechanics, compatibility shims, and d
 
 Primary implementation points:
 
+- `src\Enaga.Browser\HtmlBrowserDocumentLoader.cs`
+- `src\Enaga.Browser\HtmlBrowserDocumentLoadOptions.cs`
 - `src\Enaga.Browser\HtmlBrowserScriptRuntime.cs`
 - `src\Enaga.Browser\BrowserStorageArea.cs`
 - `src\Enaga.Browser\BrowserStorageRegistry.cs`
@@ -18,6 +20,36 @@ Primary implementation points:
 - `src\Enaga.Rendering.Skia\WebFontCache.cs`
 
 ## Request compatibility shims
+
+## Browser page loading boundary
+
+### Page loading is now separate from JS runtime execution
+
+`HtmlBrowserScriptRuntime` is meant to stay focused on:
+
+- JS execution
+- DOM bindings
+- timers and host-task re-entry
+- browser-style event-loop pumping
+
+Document fetch/load policy now has a separate entry point:
+
+- `HtmlBrowserDocumentLoader`
+
+That loader owns the browser-facing "load a page, then optionally attach script runtime" flow:
+
+1. normalize the requested source
+2. load HTML and linked/explicit CSS through `HtmlDocumentLoader`
+3. optionally create `HtmlBrowserScriptRuntime`
+4. return `HtmlBrowserLoadedDocument`
+
+The option split is deliberate:
+
+- `HtmlDocumentHttpClientOptions` shapes main document and stylesheet HTTP requests
+- `HtmlBrowserScriptRuntimeOptions` shapes runtime/network behavior after the document is loaded
+- `HtmlBrowserDocumentLoadOptions` ties those together for browser-facing callers such as hosts and samples
+
+This keeps sample applications from owning browser-page loading policy directly, while still leaving UI-only concerns such as toolbars, history presentation, and status documents outside the library.
 
 ### Browser-shaped User-Agent strings
 
@@ -47,6 +79,15 @@ The strings are intentionally browser-shaped but still Enaga-branded. That is an
 - Enaga-branded enough that logs still show the traffic came from Enaga
 - conservative enough not to claim a specific Chrome/Firefox/Edge version that would unlock behavior Enaga does not support yet
 
+Current browser-runtime requests can override this through `HtmlBrowserScriptRuntimeOptions.RequestProfile`. The request profile currently carries the browser-facing identity/header defaults used consistently for:
+
+- `navigator.userAgent`
+- external script requests
+- `fetch`
+- worker module requests
+
+`HtmlBrowserScriptRuntime` no longer owns those header defaults directly. The runtime delegates browser-style request shaping to `BrowserRequestProfile` + `BrowserNetworkSession`, which keeps request identity and cookie-bearing HTTP state separate from the JS/event-loop runner itself.
+
 ### Browser-like request headers
 
 Requests are shaped to look browser-originated, not just generic `HttpClient` traffic. Depending on the resource type, Enaga adds combinations of:
@@ -59,6 +100,12 @@ Requests are shaped to look browser-originated, not just generic `HttpClient` tr
 - `Sec-Fetch-Site`
 
 This is used to reduce server-side branching onto bot/non-browser code paths.
+
+Inside the browser runtime, this shaping is now centralized instead of being spread across timer/DOM/runtime code:
+
+- `BrowserRequestProfile` defines default browser-facing identity such as `User-Agent` and `Accept-Language`
+- `BrowserHttpRequestFactory` applies those defaults to concrete requests
+- `BrowserNetworkSession` owns the shared `HttpClient` and cookie container for script loading, `fetch`, and worker module loads
 
 Implementation detail: these headers are **compatibility hints**, not the output of a full browser policy engine. In particular, `Sec-Fetch-*`, referrer handling, and same-origin/cross-origin behavior are still heuristic in several paths.
 

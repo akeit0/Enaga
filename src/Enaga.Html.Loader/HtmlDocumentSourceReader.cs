@@ -13,13 +13,14 @@ public static partial class HtmlDocumentLoader
     private static async Task<LoadedTextSource> ReadTextSourceAsync(
         string source,
         LoadedTextSource? relativeTo,
+        HttpClient httpClient,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(source))
             throw new ArgumentException("Document source must not be empty.", nameof(source));
 
         if (TryResolveHttpUri(source, relativeTo?.BaseUri, out var httpUri))
-            return await ReadHttpTextSourceAsync(httpUri, cancellationToken).ConfigureAwait(false);
+            return await ReadHttpTextSourceAsync(httpUri, httpClient, cancellationToken).ConfigureAwait(false);
 
         var path = ResolveLocalPath(source, relativeTo);
         var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
@@ -31,17 +32,18 @@ public static partial class HtmlDocumentLoader
             new Uri(fullPath));
     }
 
-    private static async Task<LoadedTextSource> ReadHttpTextSourceAsync(Uri uri, CancellationToken cancellationToken)
-        => await ReadHttpTextSourceAsync(uri, referer: null, cookieGateRetryCount: 0, cancellationToken).ConfigureAwait(false);
+    private static async Task<LoadedTextSource> ReadHttpTextSourceAsync(Uri uri, HttpClient httpClient, CancellationToken cancellationToken)
+        => await ReadHttpTextSourceAsync(uri, httpClient, referer: null, cookieGateRetryCount: 0, cancellationToken).ConfigureAwait(false);
 
     private static async Task<LoadedTextSource> ReadHttpTextSourceAsync(
         Uri uri,
+        HttpClient httpClient,
         Uri? referer,
         int cookieGateRetryCount,
         CancellationToken cancellationToken)
     {
         using var request = CreateHttpRequest(uri, referer);
-        using var response = await SharedHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
         var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
@@ -53,7 +55,7 @@ public static partial class HtmlDocumentLoader
             HasSetCookieHeader(response) &&
             TryResolveCookieGateLink(text, finalUri, out var cookieGateUri))
         {
-            return await ReadHttpTextSourceAsync(cookieGateUri, finalUri, cookieGateRetryCount + 1, cancellationToken).ConfigureAwait(false);
+            return await ReadHttpTextSourceAsync(cookieGateUri, httpClient, finalUri, cookieGateRetryCount + 1, cancellationToken).ConfigureAwait(false);
         }
 
         var baseUri = GetBaseUri(finalUri);

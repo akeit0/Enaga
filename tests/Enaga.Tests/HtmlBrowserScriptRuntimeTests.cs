@@ -278,6 +278,28 @@ public sealed class HtmlBrowserScriptRuntimeTests
     }
 
     [Fact]
+    public void CreateAndRun_AllowsCustomUserAgentOption()
+    {
+        const string customUserAgent = "Mozilla/5.0 (compatible; EnagaBrowserTest/1.0)";
+        var document = new HtmlDocument("""
+            <body>
+              <div id="status"></div>
+              <script>
+                document.getElementById("status").textContent = navigator.userAgent;
+              </script>
+            </body>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
+            document,
+            "inline:test.html",
+            new HtmlBrowserScriptRuntimeOptions(customUserAgent));
+
+        Assert.NotNull(runtime);
+        Assert.Contains($"<div id=\"status\">{customUserAgent}</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CreateAndRun_ExposesWindowAssignmentsAsGlobalsForLaterScripts()
     {
         var document = new HtmlDocument("""
@@ -405,6 +427,80 @@ public sealed class HtmlBrowserScriptRuntimeTests
 
         Assert.NotNull(runtime);
         Assert.Contains("<div id=\"status\">remote-loaded</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateAndRun_UsesCustomUserAgentForRemoteExternalScripts()
+    {
+        const string customUserAgent = "Mozilla/5.0 (compatible; EnagaBrowserScriptTest/1.0)";
+        string? serverReferer = null;
+        using var server = new TestHttpServer(request =>
+        {
+            if (request.Path == "/static/_js/iana.js?version=2" &&
+                request.Headers.TryGetValue("User-Agent", out var userAgent) &&
+                string.Equals(userAgent, customUserAgent, StringComparison.Ordinal) &&
+                request.Headers.TryGetValue("Referer", out var referer) &&
+                string.Equals(referer, serverReferer, StringComparison.Ordinal))
+            {
+                return TestHttpResponse.Ok("document.getElementById('status').textContent = 'custom-ua';");
+            }
+
+            return TestHttpResponse.Forbidden();
+        });
+        serverReferer = server.Url("/domains");
+
+        var document = new HtmlDocument("""
+            <body>
+              <div id="status"></div>
+              <script src="./static/_js/iana.js?version=2"></script>
+            </body>
+            """, BasePath: server.Url("/"));
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
+            document,
+            serverReferer,
+            new HtmlBrowserScriptRuntimeOptions(customUserAgent));
+
+        Assert.NotNull(runtime);
+        Assert.Contains("<div id=\"status\">custom-ua</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateAndRun_UsesRequestProfileAcceptLanguageForRemoteExternalScripts()
+    {
+        const string customUserAgent = "Mozilla/5.0 (compatible; EnagaBrowserScriptTest/1.0)";
+        const string customAcceptLanguage = "ja-JP,ja;q=0.9,en;q=0.7";
+        TestHttpRequest? capturedRequest = null;
+        using var server = new TestHttpServer(request =>
+        {
+            if (request.Path == "/static/_js/iana.js?version=3")
+            {
+                capturedRequest = request;
+                return TestHttpResponse.Ok("document.getElementById('status').textContent = 'custom-language';");
+            }
+
+            return TestHttpResponse.Forbidden();
+        });
+
+        var document = new HtmlDocument("""
+            <body>
+              <div id="status"></div>
+              <script src="./static/_js/iana.js?version=3"></script>
+            </body>
+            """, BasePath: server.Url("/"));
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
+            document,
+            server.Url("/domains"),
+            new HtmlBrowserScriptRuntimeOptions(new BrowserRequestProfile(customUserAgent, customAcceptLanguage)));
+
+        Assert.NotNull(runtime);
+        Assert.Contains("<div id=\"status\">custom-language</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.NotNull(capturedRequest);
+        Assert.Equal(customUserAgent, capturedRequest!.Headers["User-Agent"]);
+        Assert.Equal(
+            customAcceptLanguage.Replace(" ", string.Empty, StringComparison.Ordinal),
+            capturedRequest.Headers["Accept-Language"].Replace(" ", string.Empty, StringComparison.Ordinal));
     }
 
     [Fact]

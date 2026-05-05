@@ -1,3 +1,4 @@
+using Enaga.Browser;
 using Enaga.Html;
 using Enaga.Html.Loader;
 using Enaga.Hosting;
@@ -24,7 +25,7 @@ internal static class Program
         var options = ParseOptions(args);
         var timeProvider = TimeProvider.System;
         var backendServices = SkiaRuntimeBackendServices.Create();
-        var loadedDocument = SampleBrowserDocumentController.LoadDocument(options.DocumentSource, options.StyleSheetSource, options.EnableScripts);
+        var loadedDocument = SampleBrowserDocumentController.LoadDocument(options.DocumentSource, options.StyleSheetSource, options.DocumentLoadOptions);
         var htmlSource = new HtmlSceneFrameSource(
             loadedDocument.Document,
             new Enaga.Html.HtmlOptions(
@@ -42,7 +43,7 @@ internal static class Program
             options.DocumentSource,
             options.StyleSheetSource,
             options.WatchFiles,
-            options.EnableScripts,
+            options.DocumentLoadOptions,
             loadedDocument.ScriptRuntime);
         htmlSource.LinkActivated += documentController.HandleActivatedLink;
         htmlSource.ElementClicked += documentController.HandleElementClicked;
@@ -78,6 +79,8 @@ internal static class Program
         var inputLog = false;
         var showUrlBar = true;
         var enableScripts = true;
+        string? userAgent = null;
+        string? acceptLanguage = null;
         var graphicsBackend = OperatingSystem.IsMacOS()
             ? RenderGraphicsBackend.Metal
             : RenderGraphicsBackend.Vulkan;
@@ -104,7 +107,7 @@ internal static class Program
                     htmlPathSpecified = true;
                     break;
                 case "--url" when index + 1 < args.Length:
-                    documentSource = args[++index];
+                    documentSource = NormalizeDocumentSource(args[++index]);
                     htmlPathSpecified = true;
                     break;
                 case "--css" when index + 1 < args.Length:
@@ -134,6 +137,12 @@ internal static class Program
                 case "--no-js":
                     enableScripts = false;
                     break;
+                case "--user-agent" when index + 1 < args.Length:
+                    userAgent = args[++index];
+                    break;
+                case "--accept-language" when index + 1 < args.Length:
+                    acceptLanguage = args[++index];
+                    break;
                 case "--opengl":
                     graphicsBackend = RenderGraphicsBackend.OpenGl;
                     break;
@@ -152,9 +161,25 @@ internal static class Program
         if (OperatingSystem.IsMacOS() && graphicsBackend == RenderGraphicsBackend.Vulkan)
             graphicsBackend = RenderGraphicsBackend.Metal;
 
+        var scriptRuntimeOptions = userAgent is null && acceptLanguage is null
+            ? null
+            : new HtmlBrowserScriptRuntimeOptions(new BrowserRequestProfile(
+                userAgent ?? BrowserRequestProfile.Default.UserAgent,
+                acceptLanguage ?? BrowserRequestProfile.Default.AcceptLanguage));
+        var documentHttpClientOptions = userAgent is null && acceptLanguage is null
+            ? null
+            : HtmlDocumentHttpClientOptions.Default with
+            {
+                UserAgent = userAgent ?? HtmlDocumentHttpClientOptions.Default.UserAgent,
+                AcceptLanguage = acceptLanguage ?? HtmlDocumentHttpClientOptions.Default.AcceptLanguage
+            };
+        var documentLoadOptions = new HtmlBrowserDocumentLoadOptions(
+            EnableScripts: enableScripts,
+            DocumentHttpClientOptions: documentHttpClientOptions,
+            ScriptRuntimeOptions: scriptRuntimeOptions);
         var canWatch = HtmlDocumentLoader.IsLocalFileSource(documentSource) &&
                        (styleSheetSource is null || HtmlDocumentLoader.IsLocalFileSource(styleSheetSource));
-        return new SampleBrowserOptions(windowTitle, windowWidth, windowHeight, documentSource, styleSheetSource, graphicsBackend, watchFiles && canWatch, inputLog, showUrlBar, enableScripts);
+        return new SampleBrowserOptions(windowTitle, windowWidth, windowHeight, documentSource, styleSheetSource, graphicsBackend, watchFiles && canWatch, inputLog, showUrlBar, documentLoadOptions);
     }
 
     private sealed record SampleBrowserOptions(
@@ -167,18 +192,10 @@ internal static class Program
         bool WatchFiles,
         bool InputLog,
         bool ShowUrlBar,
-        bool EnableScripts);
+        HtmlBrowserDocumentLoadOptions DocumentLoadOptions);
 
     private static string NormalizeDocumentSource(string source)
-    {
-        if (Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.IsFile))
-        {
-            return source;
-        }
-
-        return Path.GetFullPath(source);
-    }
+        => HtmlBrowserDocumentLoader.NormalizeNavigationSource(source);
 
     private static string ResolveDefaultDocumentPath(string fileName)
     {

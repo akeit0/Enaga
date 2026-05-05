@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Globalization;
-using System.Net;
 using System.Text;
 using Okojo.Runtime;
 
@@ -8,21 +6,21 @@ namespace Enaga.Browser;
 
 internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader
 {
-    private const string WorkerUserAgent = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Enaga.Browser/1.0 Safari/537.36";
     private const string WorkerAcceptHeader = "text/javascript, application/javascript, application/ecmascript, */*;q=0.8";
-    private static readonly HttpClient HttpClient = CreateHttpClient();
 
     private readonly string documentSource;
     private readonly string? basePath;
+    private readonly BrowserNetworkSession networkSession;
     // NOTE: Okojo's module loader calls LoadSource with only the resolved id, so Enaga keeps a
     // best-effort requester map from ResolveSpecifier. This lets worker fetches send a sensible
     // Referer and Sec-Fetch-* shape even though there is no full browser navigation/origin policy yet.
     private readonly ConcurrentDictionary<string, string?> requestContextByResolvedId = new(StringComparer.Ordinal);
 
-    public BrowserWorkerModuleLoader(string documentSource, string? basePath)
+    public BrowserWorkerModuleLoader(string documentSource, string? basePath, BrowserNetworkSession networkSession)
     {
         this.documentSource = documentSource;
         this.basePath = basePath;
+        this.networkSession = networkSession;
     }
 
     public string ResolveSpecifier(string specifier, string? referrer)
@@ -54,7 +52,7 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader
 
         using var request = CreateHttpRequest(targetUri, requestContext);
 
-        using var response = HttpClient.Send(request);
+        using var response = networkSession.HttpClient.Send(request);
         response.EnsureSuccessStatusCode();
         return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
     }
@@ -70,22 +68,19 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader
         return Path.GetFullPath(resolvedId);
     }
 
-    private static HttpRequestMessage CreateHttpRequest(Uri targetUri, string? requestContext)
+    private HttpRequestMessage CreateHttpRequest(Uri targetUri, string? requestContext)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, targetUri);
-        request.Headers.TryAddWithoutValidation("User-Agent", WorkerUserAgent);
-        request.Headers.TryAddWithoutValidation("Accept", WorkerAcceptHeader);
-        request.Headers.TryAddWithoutValidation("Accept-Language", CreateAcceptLanguageHeader());
-        request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "worker");
-
         var referer = TryResolveHttpReferer(requestContext);
-        if (referer is not null)
-            request.Headers.Referrer = referer;
-
         var (fetchMode, fetchSite) = GetFetchContext(targetUri, referer);
-        request.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", fetchMode);
-        request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", fetchSite);
-        return request;
+        return networkSession.CreateRequest(
+            HttpMethod.Get,
+            targetUri,
+            new BrowserHttpRequestOptions(
+                WorkerAcceptHeader,
+                referer,
+                FetchDestination: "worker",
+                FetchMode: fetchMode,
+                FetchSite: fetchSite));
     }
 
     private static Uri? TryResolveHttpReferer(string? requestContext)
@@ -148,26 +143,4 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader
         return true;
     }
 
-    private static HttpClient CreateHttpClient()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
-            AllowAutoRedirect = true,
-            UseCookies = true,
-            CookieContainer = new CookieContainer()
-        };
-        return new HttpClient(handler);
-    }
-
-    private static string CreateAcceptLanguageHeader()
-    {
-        var culture = CultureInfo.CurrentUICulture;
-        var language = string.IsNullOrWhiteSpace(culture.Name) ? "en-US" : culture.Name;
-        var neutral = culture.TwoLetterISOLanguageName;
-        if (string.IsNullOrWhiteSpace(neutral) || string.Equals(neutral, language, StringComparison.OrdinalIgnoreCase))
-            return $"{language},en;q=0.8";
-
-        return $"{language},{neutral};q=0.9,en;q=0.8";
-    }
 }

@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Enaga.Html\Enaga.Html.csproj" />
     <ProjectReference Include="..\Enaga.Html.Dom\Enaga.Html.Dom.csproj" />
+    <ProjectReference Include="..\Enaga.Html.Loader\Enaga.Html.Loader.csproj" />
   </ItemGroup>
 
   <ItemGroup>

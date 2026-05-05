@@ -7,18 +7,33 @@ public static partial class HtmlDocumentLoader
     public static HtmlDocument Load(string documentSource, string? styleSheetSource = null)
         => LoadAsync(documentSource, styleSheetSource).GetAwaiter().GetResult();
 
+    public static HtmlDocument Load(
+        string documentSource,
+        string? styleSheetSource,
+        HtmlDocumentHttpClientOptions? httpClientOptions)
+        => LoadAsync(documentSource, styleSheetSource, httpClientOptions).GetAwaiter().GetResult();
+
     public static async Task<HtmlDocument> LoadAsync(
         string documentSource,
         string? styleSheetSource = null,
         CancellationToken cancellationToken = default)
+        => await LoadAsync(documentSource, styleSheetSource, httpClientOptions: null, cancellationToken).ConfigureAwait(false);
+
+    public static async Task<HtmlDocument> LoadAsync(
+        string documentSource,
+        string? styleSheetSource,
+        HtmlDocumentHttpClientOptions? httpClientOptions,
+        CancellationToken cancellationToken = default)
     {
-        var document = await ReadTextSourceAsync(documentSource, null, cancellationToken).ConfigureAwait(false);
+        using var httpClientLease = httpClientOptions is null ? null : CreateHttpClient(httpClientOptions);
+        var httpClient = httpClientLease ?? SharedHttpClient;
+        var document = await ReadTextSourceAsync(documentSource, null, httpClient, cancellationToken).ConfigureAwait(false);
         var styleSheets = new List<string>();
-        await LoadLinkedStyleSheetsAsync(document, styleSheets, cancellationToken).ConfigureAwait(false);
+        await LoadLinkedStyleSheetsAsync(document, styleSheets, httpClient, cancellationToken).ConfigureAwait(false);
 
         if (!string.IsNullOrWhiteSpace(styleSheetSource))
         {
-            var explicitStyleSheet = await ReadTextSourceAsync(styleSheetSource, document, cancellationToken).ConfigureAwait(false);
+            var explicitStyleSheet = await ReadTextSourceAsync(styleSheetSource, document, httpClient, cancellationToken).ConfigureAwait(false);
             styleSheets.Add(explicitStyleSheet.Text);
         }
 
@@ -29,11 +44,18 @@ public static partial class HtmlDocumentLoader
     }
 
     public static bool TryLoad(string documentSource, string? styleSheetSource, out HtmlDocument document)
+        => TryLoad(documentSource, styleSheetSource, httpClientOptions: null, out document);
+
+    public static bool TryLoad(
+        string documentSource,
+        string? styleSheetSource,
+        HtmlDocumentHttpClientOptions? httpClientOptions,
+        out HtmlDocument document)
     {
         document = default!;
         try
         {
-            document = Load(documentSource, styleSheetSource);
+            document = Load(documentSource, styleSheetSource, httpClientOptions);
             return true;
         }
         catch (IOException)

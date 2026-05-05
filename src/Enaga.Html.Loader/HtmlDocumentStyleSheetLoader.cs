@@ -10,6 +10,7 @@ public static partial class HtmlDocumentLoader
     private static async Task LoadLinkedStyleSheetsAsync(
         LoadedTextSource documentSource,
         List<string> styleSheets,
+        HttpClient httpClient,
         CancellationToken cancellationToken)
     {
         var document = await HtmlParser.ParseDocumentAsync(documentSource.Text, cancellationToken).ConfigureAwait(false);
@@ -21,7 +22,7 @@ public static partial class HtmlDocumentLoader
                 continue;
             }
 
-            var styleSheet = await ReadTextSourceAsync(element.GetAttribute("href")!, documentSource, cancellationToken).ConfigureAwait(false);
+            var styleSheet = await ReadTextSourceAsync(element.GetAttribute("href")!, documentSource, httpClient, cancellationToken).ConfigureAwait(false);
             styleSheets.Add(styleSheet.Text);
         }
     }

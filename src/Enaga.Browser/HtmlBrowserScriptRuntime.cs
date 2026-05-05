@@ -1,7 +1,6 @@
 using Enaga.Html.Dom;
 using Enaga.Html;
 using System.Globalization;
-using System.Net;
 using System.Text;
 using System.Text.Json;
 using Okojo;
@@ -19,8 +18,6 @@ public delegate bool HtmlBrowserTextInputValueResolver(string elementId, out str
 public sealed class HtmlBrowserScriptRuntime : IDisposable
 {
     private static readonly JsShapePropertyFlags OpenFlags = JsShapePropertyFlags.Open;
-    private static readonly HttpClient ScriptHttpClient = CreateScriptHttpClient();
-    private const string ScriptUserAgent = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Enaga.Browser/1.0 Safari/537.36";
     private const string ScriptAcceptHeader = "text/javascript, application/javascript, application/ecmascript, */*;q=0.8";
     private const string FetchAcceptHeader = "*/*";
     private static readonly HostTaskQueueKey[] SEventLoopQueueOrder =
@@ -38,6 +35,8 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private readonly string documentSource;
     private readonly string? styleSheet;
     private readonly string? basePath;
+    private readonly BrowserRequestProfile requestProfile;
+    private readonly BrowserNetworkSession networkSession;
     private readonly BrowserStorageArea localStorage;
     private readonly BrowserStorageArea sessionStorage = new();
     private readonly Dictionary<HtmlNodeId, List<JsFunction>> clickListeners = [];
@@ -52,18 +51,25 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     private sealed record BrowserScriptText(string Text, string DisplayName, string? Source);
 
-    private HtmlBrowserScriptRuntime(HtmlDomDocument document, string documentSource, string? styleSheet, string? basePath)
+    private HtmlBrowserScriptRuntime(
+        HtmlDomDocument document,
+        string documentSource,
+        string? styleSheet,
+        string? basePath,
+        HtmlBrowserScriptRuntimeOptions options)
     {
         this.document = document;
         this.documentSource = documentSource;
         this.styleSheet = styleSheet;
         this.basePath = basePath;
+        requestProfile = options.RequestProfile;
+        networkSession = new BrowserNetworkSession(requestProfile);
         localStorage = BrowserStorageRegistry.GetLocalStorageArea(documentSource, basePath);
         CurrentDocument = new HtmlDocument(document.ToHtml(), styleSheet, basePath);
         hostTaskScheduler = new BrowserHostTaskScheduler(() => EventLoopWorkQueued?.Invoke());
         runtime = JsRuntime.Create(builder => {
             builder.UseLowLevelHost(host => host.UseTaskScheduler(hostTaskScheduler));
-            builder.UseModuleSourceLoader(new BrowserWorkerModuleLoader(documentSource, basePath));
+            builder.UseModuleSourceLoader(new BrowserWorkerModuleLoader(documentSource, basePath, networkSession));
             builder.UseWebDelayScheduler(hostTaskScheduler);
             builder.UseWebTimerQueue(WebTaskQueueKeys.Timers);
             builder.UseFetchCompletionQueue(WebTaskQueueKeys.Network);
@@ -98,12 +104,16 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     public event Action<string>? NavigationRequested;
 
-    public static HtmlBrowserScriptRuntime? CreateAndRun(HtmlDocument document, string documentSource)
+    public static HtmlBrowserScriptRuntime? CreateAndRun(
+        HtmlDocument document,
+        string documentSource,
+        HtmlBrowserScriptRuntimeOptions? options = null)
     {
+        options ??= HtmlBrowserScriptRuntimeOptions.Default;
         var parsed = new HtmlDocumentParser().Parse(document.Html, document.BasePath);
-        var scripts = LoadExecutableScriptTexts(parsed.AuthorScripts, parsed.BasePath, documentSource);
         var styleSheet = MergeStyleSheets(parsed.AuthorStyleTexts, document.StyleSheet);
-        var scriptRuntime = new HtmlBrowserScriptRuntime(parsed.ToDomDocument(), documentSource, styleSheet, document.BasePath);
+        var scriptRuntime = new HtmlBrowserScriptRuntime(parsed.ToDomDocument(), documentSource, styleSheet, document.BasePath, options);
+        var scripts = scriptRuntime.LoadExecutableScriptTexts(parsed.AuthorScripts);
         for (var index = 0; index < scripts.Count; index++)
         {
             try
@@ -166,7 +176,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         MirrorWindowPropertiesToGlobal();
     }
 
-    private static IReadOnlyList<BrowserScriptText> LoadExecutableScriptTexts(IReadOnlyList<HtmlDomScript> scripts, string? basePath, string documentSource)
+    private IReadOnlyList<BrowserScriptText> LoadExecutableScriptTexts(IReadOnlyList<HtmlDomScript> scripts)
     {
         if (scripts.Count == 0)
             return [];
@@ -236,7 +246,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         return path;
     }
 
-    private static string ReadExternalScriptText(string resolvedSource, Uri? referer)
+    private string ReadExternalScriptText(string resolvedSource, Uri? referer)
     {
         if (Uri.TryCreate(resolvedSource, UriKind.Absolute, out var absoluteUri))
         {
@@ -322,50 +332,15 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         return (text, prefix.Length + zeroBasedColumn - windowStart);
     }
 
-    private static string ReadRemoteScriptText(Uri uri, Uri? referer)
+    private string ReadRemoteScriptText(Uri uri, Uri? referer)
     {
-        using var request = CreateBrowserHttpRequest(HttpMethod.Get, uri, ScriptAcceptHeader, referer, fetchDestination: "script");
-        using var response = ScriptHttpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
+        using var request = networkSession.CreateRequest(
+            HttpMethod.Get,
+            uri,
+            new BrowserHttpRequestOptions(ScriptAcceptHeader, referer, FetchDestination: "script"));
+        using var response = networkSession.HttpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
         return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-    }
-
-    private static HttpClient CreateScriptHttpClient()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            AllowAutoRedirect = true,
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
-            CookieContainer = new CookieContainer(),
-            UseCookies = true
-        };
-        var client = new HttpClient(handler);
-        client.DefaultRequestHeaders.UserAgent.ParseAdd(ScriptUserAgent);
-        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.8");
-        return client;
-    }
-
-    private static HttpRequestMessage CreateBrowserHttpRequest(HttpMethod method, Uri uri, string accept, Uri? referer, string? fetchDestination)
-    {
-        var request = new HttpRequestMessage(method, uri);
-        ApplyBrowserRequestHeaders(request, accept, referer, fetchDestination);
-        return request;
-    }
-
-    private static void ApplyBrowserRequestHeaders(HttpRequestMessage request, string accept, Uri? referer, string? fetchDestination)
-    {
-        if (!request.Headers.UserAgent.Any())
-            request.Headers.UserAgent.ParseAdd(ScriptUserAgent);
-        if (!request.Headers.Accept.Any())
-            request.Headers.Accept.ParseAdd(accept);
-        if (!request.Headers.AcceptLanguage.Any())
-            request.Headers.AcceptLanguage.ParseAdd("en-US,en;q=0.8");
-        if (referer is not null)
-            request.Headers.Referrer = referer;
-        if (!string.IsNullOrWhiteSpace(fetchDestination))
-            request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", fetchDestination);
-        request.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", "no-cors");
-        request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "same-origin");
     }
 
     private static Uri? ResolveRequestReferer(string? basePath, string documentSource)
@@ -412,7 +387,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     {
         var method = HttpMethod.Get;
         string? bodyText = null;
-        var request = CreateBrowserHttpRequest(method, new Uri(url), FetchAcceptHeader, ResolveRequestReferer(basePath, documentSource), fetchDestination: "empty");
+        var request = new HttpRequestMessage(method, new Uri(url));
         if (initValue.TryGetObject(out var initObj))
         {
             if (initObj.TryGetProperty("method", out var methodValue) && !methodValue.IsUndefined)
@@ -447,6 +422,12 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             }
         }
 
+        networkSession.ApplyDefaultHeaders(
+            request,
+            new BrowserHttpRequestOptions(
+                FetchAcceptHeader,
+                ResolveRequestReferer(basePath, documentSource),
+                FetchDestination: "empty"));
         return request;
     }
 
@@ -622,6 +603,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         timerOperations.Clear();
         activeIntervalTimers.Clear();
         hostTaskScheduler.Dispose();
+        networkSession.Dispose();
         runtime.Dispose();
     }
 
@@ -832,7 +814,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             return JsValue.FromObject(style);
         }, "getComputedStyle", 1);
 
-    private static JsPlainObject CreateNavigatorObject(JsRealm realm)
+    private JsPlainObject CreateNavigatorObject(JsRealm realm)
     {
         var language = CultureInfo.CurrentUICulture.Name;
         if (string.IsNullOrWhiteSpace(language))
@@ -848,8 +830,8 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         }
 
         var navigator = new JsPlainObject(realm);
-        navigator.DefineDataProperty("userAgent", JsValue.FromString(ScriptUserAgent), OpenFlags);
-        navigator.DefineDataProperty("appVersion", JsValue.FromString(ScriptUserAgent), OpenFlags);
+        navigator.DefineDataProperty("userAgent", JsValue.FromString(requestProfile.UserAgent), OpenFlags);
+        navigator.DefineDataProperty("appVersion", JsValue.FromString(requestProfile.UserAgent), OpenFlags);
         navigator.DefineDataProperty("platform", JsValue.FromString(GetNavigatorPlatform()), OpenFlags);
         navigator.DefineDataProperty("language", JsValue.FromString(language), OpenFlags);
         navigator.DefineDataProperty("languages", JsValue.FromObject(languages), OpenFlags);
@@ -958,7 +940,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         }
 
         using var request = BuildFetchRequest(resolvedUrl, init);
-        using var response = await ScriptHttpClient.SendAsync(request).ConfigureAwait(false);
+        using var response = await networkSession.HttpClient.SendAsync(request).ConfigureAwait(false);
         var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
         return JsValue.FromObject(CreateFetchResponse(
             realm,

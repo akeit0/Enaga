@@ -94,6 +94,7 @@ public sealed class HtmlBrowserWorkerTests
     [Fact]
     public void Worker_RemoteModuleRequests_UseRequesterAwareHeaders()
     {
+        const string customUserAgent = "Mozilla/5.0 (compatible; EnagaBrowserWorkerTest/1.0)";
         List<TestHttpRequest> requests = [];
         using var server = new TestHttpServer(request =>
         {
@@ -127,7 +128,10 @@ public sealed class HtmlBrowserWorkerTests
             </body>
             """);
 
-        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, documentUrl);
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
+            document,
+            documentUrl,
+            new HtmlBrowserScriptRuntimeOptions(customUserAgent));
 
         Assert.NotNull(runtime);
         PumpUntil(runtime, html => html.Contains("<div id=\"status\">remote:ping</div>", StringComparison.Ordinal));
@@ -141,7 +145,7 @@ public sealed class HtmlBrowserWorkerTests
             depRequest = Assert.Single(requests, req => req.Path == "/page/dep.js");
         }
 
-        Assert.Contains("Mozilla/5.0", workerRequest.Headers["User-Agent"], StringComparison.Ordinal);
+        Assert.Equal(customUserAgent, workerRequest.Headers["User-Agent"]);
         Assert.Equal("worker", workerRequest.Headers["Sec-Fetch-Dest"]);
         Assert.Equal("same-origin", workerRequest.Headers["Sec-Fetch-Mode"]);
         Assert.Equal("same-origin", workerRequest.Headers["Sec-Fetch-Site"]);
@@ -151,6 +155,7 @@ public sealed class HtmlBrowserWorkerTests
         Assert.Equal("same-origin", depRequest.Headers["Sec-Fetch-Mode"]);
         Assert.Equal("same-origin", depRequest.Headers["Sec-Fetch-Site"]);
         Assert.Equal(workerUrl, depRequest.Headers["Referer"]);
+        Assert.Equal(customUserAgent, depRequest.Headers["User-Agent"]);
         Assert.DoesNotContain(depUrl, workerRequest.Headers["Referer"], StringComparison.Ordinal);
     }
 

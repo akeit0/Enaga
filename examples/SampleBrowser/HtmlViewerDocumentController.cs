@@ -14,7 +14,7 @@ internal sealed class SampleBrowserDocumentController : IDisposable
     private readonly HtmlSceneFrameSource source;
     private readonly SampleBrowserToolbarSource? toolbarSource;
     private readonly bool watchFiles;
-    private readonly bool enableScripts;
+    private readonly HtmlBrowserDocumentLoadOptions documentLoadOptions;
     private readonly object sync = new();
     private readonly List<HistoryEntry> history = [];
     private HtmlDocumentFileWatcher? watcher;
@@ -31,13 +31,13 @@ internal sealed class SampleBrowserDocumentController : IDisposable
         string documentSource,
         string? styleSheetSource,
         bool watchFiles,
-        bool enableScripts,
+        HtmlBrowserDocumentLoadOptions documentLoadOptions,
         HtmlBrowserScriptRuntime? scriptRuntime)
     {
         this.source = source;
         this.toolbarSource = toolbarSource;
         this.watchFiles = watchFiles;
-        this.enableScripts = enableScripts;
+        this.documentLoadOptions = documentLoadOptions;
         currentDocumentSource = documentSource;
         currentStyleSheetSource = styleSheetSource;
         history.Add(new HistoryEntry(documentSource, styleSheetSource));
@@ -47,8 +47,11 @@ internal sealed class SampleBrowserDocumentController : IDisposable
         ResetWatcher();
     }
 
-    public static SampleBrowserLoadedDocument LoadDocument(string documentSource, string? styleSheetSource, bool enableScripts)
-        => ProcessLoadedDocument(HtmlDocumentLoader.Load(documentSource, styleSheetSource), documentSource, enableScripts);
+    public static HtmlBrowserLoadedDocument LoadDocument(
+        string documentSource,
+        string? styleSheetSource,
+        HtmlBrowserDocumentLoadOptions documentLoadOptions)
+        => HtmlBrowserDocumentLoader.Load(documentSource, styleSheetSource, documentLoadOptions);
 
     public void HandleActivatedLink(string href)
     {
@@ -180,7 +183,7 @@ internal sealed class SampleBrowserDocumentController : IDisposable
 
     private Task NavigateAsync(string documentSource, string? styleSheetSource, HistoryUpdate historyUpdate)
     {
-        var normalizedSource = NormalizeNavigationSource(documentSource);
+        var normalizedSource = HtmlBrowserDocumentLoader.NormalizeNavigationSource(documentSource);
         if (string.IsNullOrWhiteSpace(normalizedSource))
             return Task.CompletedTask;
 
@@ -226,16 +229,15 @@ internal sealed class SampleBrowserDocumentController : IDisposable
         {
             try
             {
-                var loaded = HtmlDocumentLoader.Load(normalizedSource, styleSheetSource);
+                var loaded = HtmlBrowserDocumentLoader.Load(normalizedSource, styleSheetSource, documentLoadOptions);
                 Enaga.Html.HtmlDocument wrapped;
                 lock (sync)
                 {
                     if (disposed || version != navigationVersion)
                         return;
 
-                    var processed = ProcessLoadedDocument(loaded, normalizedSource, enableScripts);
-                    ReplaceScriptRuntime(processed.ScriptRuntime);
-                    wrapped = processed.Document;
+                    ReplaceScriptRuntime(loaded.ScriptRuntime);
+                    wrapped = loaded.Document;
                     UpdateToolbarState();
                 }
 
@@ -276,10 +278,7 @@ internal sealed class SampleBrowserDocumentController : IDisposable
                 currentStyleSheetSource,
                 () =>
                 {
-                    var processed = ProcessLoadedDocument(
-                        HtmlDocumentLoader.Load(currentDocumentSource, currentStyleSheetSource),
-                        currentDocumentSource,
-                        enableScripts);
+                    var processed = HtmlBrowserDocumentLoader.Load(currentDocumentSource, currentStyleSheetSource, documentLoadOptions);
                     lock (sync)
                         ReplaceScriptRuntime(processed.ScriptRuntime);
                     return processed.Document;
@@ -344,42 +343,10 @@ internal sealed class SampleBrowserDocumentController : IDisposable
     private void UpdateToolbarState(string? message = null)
         => toolbarSource?.SetState(currentDocumentSource, historyIndex > 0, historyIndex < history.Count - 1, message);
 
-    private static SampleBrowserLoadedDocument ProcessLoadedDocument(
-        Enaga.Html.HtmlDocument document,
-        string documentSource,
-        bool enableScripts)
-    {
-        var scriptRuntime = enableScripts
-            ? HtmlBrowserScriptRuntime.CreateAndRun(document, documentSource)
-            : null;
-
-        return new SampleBrowserLoadedDocument(scriptRuntime?.CurrentDocument ?? document, scriptRuntime);
-    }
-
     private static Enaga.Html.HtmlDocument CreateStatusDocument(string message)
     {
         var html = $"<body><main class=\"html-viewer-status\"><p>{EscapeHtml(message)}</p></main></body>";
         return new Enaga.Html.HtmlDocument(html);
-    }
-
-    private static string NormalizeNavigationSource(string source)
-    {
-        var trimmed = source.Trim();
-        if (trimmed.Length == 0)
-            return string.Empty;
-
-        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.IsFile))
-        {
-            return trimmed;
-        }
-
-        if (File.Exists(trimmed))
-            return Path.GetFullPath(trimmed);
-
-        return trimmed.Contains('.') && !trimmed.Contains('\\') && !trimmed.Contains('/')
-            ? "https://" + trimmed
-            : Path.GetFullPath(trimmed);
     }
 
     private static void OpenExternal(string href)
@@ -410,5 +377,3 @@ internal sealed class SampleBrowserDocumentController : IDisposable
 
     private sealed record HistoryEntry(string DocumentSource, string? StyleSheetSource);
 }
-
-internal sealed record SampleBrowserLoadedDocument(Enaga.Html.HtmlDocument Document, HtmlBrowserScriptRuntime? ScriptRuntime);
