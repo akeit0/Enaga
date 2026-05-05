@@ -2,6 +2,8 @@
 
 This document describes how Enaga implements browser-like behavior for loading, scripting, layout, rendering, and native presentation. It is intended for readers who already understand HTML, CSS, JavaScript, and parsing concepts, so it focuses on Enaga-specific architecture, technology choices, integration boundaries, and known gaps.
 
+For implementation-level mechanics and compatibility workarounds, see `docs\browser-implementation-details.md`.
+
 Enaga is not a wrapper around an existing browser engine. It is a custom renderer and browser-adjacent runtime built on .NET, with selected third-party libraries for parsing, graphics, and native windowing.
 
 ## Scope
@@ -112,6 +114,7 @@ This architecture also keeps window rendering and offscreen texture rendering as
 
 - `window`, `self`, `document`, `location`, `navigator`, `console`, `fetch`, timers, and selected DOM APIs.
 - `localStorage` and `sessionStorage` with synchronous Web Storage-style `length`, `key(index)`, `getItem`, `setItem`, `removeItem`, and `clear`.
+- `Worker` backed by Okojo worker agents, background hosts, worker message queues, `postMessage`, `onmessage`, module imports, `SharedArrayBuffer`, and `Atomics`.
 - Classic inline and external scripts when script execution is enabled.
 - `onclick` and `addEventListener("click", ...)` dispatch for host-reported clicks.
 - DOM mutation APIs such as `textContent`, `innerText`, `innerHTML`, `value`, `setAttribute`, `removeAttribute`, `appendChild`, and `insertBefore`.
@@ -222,6 +225,28 @@ Important limitations:
 - Direct property access such as `localStorage.name = "value"` is not modeled as storage mutation.
 - File-document origin behavior is a pragmatic directory-based grouping, not a full browser origin model.
 
+## Worker support
+
+Enaga enables Okojo's Web Worker support in the browser runtime:
+
+- `new Worker(url)` and `new Worker(url, { type: "module" })`.
+- Document-relative local and HTTP(S) worker script loading.
+- Worker module imports resolved relative to the worker module URL.
+- Main-to-worker and worker-to-main `postMessage`.
+- `onmessage` on both the `Worker` wrapper and worker global scope.
+- Okojo's structured-clone subset for message payloads.
+- `SharedArrayBuffer` and `Atomics` from Okojo's multi-agent runtime.
+- Background worker hosts so worker agents can process messages independently from the main realm.
+
+Important limitations:
+
+- Worker scripts are evaluated through Okojo's module loader. Classic worker syntax that is also valid in modules works, but full classic-worker semantics are not implemented.
+- Shared workers are not implemented.
+- Service workers are not implemented.
+- Worker `addEventListener`, `removeEventListener`, `MessageEvent` parity, `importScripts`, dedicated worker lifecycle events, and browser security policy checks are incomplete.
+- Worker `fetch` and timers are inherited from the current runtime modules but are not yet a full browser worker environment.
+- There is no CORS, CSP, origin isolation, COOP/COEP, or cross-origin worker policy enforcement.
+
 ## Navigation model
 
 `SampleBrowserDocumentController` provides a simple navigation shell:
@@ -263,7 +288,7 @@ Not currently implemented or incomplete:
 - Mixed content blocking.
 - Permissions Policy.
 - Service workers.
-- Web workers / shared workers.
+- Shared workers.
 - WebSocket.
 - WebRTC.
 - HTTP cache semantics.

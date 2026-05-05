@@ -2,6 +2,8 @@
 
 `src\Enaga.Browser` is the reusable browser-adjacent layer used by `examples\SampleBrowser`. It is intentionally small: rendering still belongs to `Enaga.Html`, native windows still belong to `Enaga.Windowing.Silk`, and `SampleBrowser` remains a temporary UI shell for navigation, toolbar, and smoke testing.
 
+Implementation-level browser/runtime mechanics and workarounds are documented separately in `docs\browser-implementation-details.md`.
+
 ## Current functionality
 
 ### Script runtime

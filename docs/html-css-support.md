@@ -39,10 +39,11 @@ This document lists the current Enaga HTML renderer and browser-runtime support.
 
 | API | Current support |
 | --- | --- |
-| Globals | `window`, `self`, `document`, `location`, `console`, `fetch`. |
+| Globals | `window`, `self`, `document`, `location`, `console`, `fetch`, `localStorage`, `sessionStorage`, `Worker`. |
 | Event loop | Okojo host tasks, timers, messages, network completions, and promise continuations are pumped by the browser/runtime bridge. |
 | `location` | `href`, assignment navigation, `replace(url)`, and `toString()`. `replace` requests navigation without pushing history in SampleBrowser. |
 | `fetch` | `fetch` and `window.fetch`; relative URL resolution; local file and HTTP(S) reads; minimal `Response` with `ok`, `status`, `statusText`, `url`, `headers.get/has`, `text()`, `json()`, and `arrayBuffer()`. |
+| Workers | Dedicated `Worker` with document-relative module loading, `postMessage`, `onmessage`, module imports, Okojo `SharedArrayBuffer`, and `Atomics`. Shared workers and service workers are not supported. |
 | Document APIs | `body`, `getElementById`, `querySelector` for simple `#id`, `.class`, and tag selectors, `getElementsByTagName`, `createElement`. |
 | Element APIs | `id`, `className`, `localName`, `tagName`, `textContent`, `innerText`, `value`, `getAttribute`, `setAttribute`, `removeAttribute`, `appendChild`, `onclick`, `addEventListener("click")`, `removeEventListener("click")`. |
 

@@ -63,11 +63,14 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         hostTaskScheduler = new BrowserHostTaskScheduler(() => EventLoopWorkQueued?.Invoke());
         runtime = JsRuntime.Create(builder => {
             builder.UseLowLevelHost(host => host.UseTaskScheduler(hostTaskScheduler));
+            builder.UseModuleSourceLoader(new BrowserWorkerModuleLoader(documentSource, basePath));
             builder.UseWebDelayScheduler(hostTaskScheduler);
             builder.UseWebTimerQueue(WebTaskQueueKeys.Timers);
             builder.UseFetchCompletionQueue(WebTaskQueueKeys.Network);
             builder.UseFetch();
+            builder.UseWebWorkers();
             builder.UseWebRuntimeGlobals();
+            builder.UseRealmSetup(realm => InstallBrowserWorkerRealmGlobals(realm, documentSource));
         });
         hostPump = runtime.CreateHostPump();
         InstallConsole(runtime.MainRealm, documentSource);
@@ -683,6 +686,15 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         consoleObject.DefineDataProperty("warn", JsValue.FromObject(CreateConsoleFunction(realm, "warn", Console.Error, documentSource)), OpenFlags);
         consoleObject.DefineDataProperty("error", JsValue.FromObject(CreateConsoleFunction(realm, "error", Console.Error, documentSource)), OpenFlags);
         realm.Global["console"] = JsValue.FromObject(consoleObject);
+    }
+
+    private static void InstallBrowserWorkerRealmGlobals(JsRealm realm, string documentSource)
+    {
+        if (realm.Agent.Kind != JsAgentKind.Worker)
+            return;
+
+        InstallConsole(realm, documentSource);
+        realm.Global["self"] = JsValue.FromObject(realm.GlobalObject);
     }
 
     private void InstallWindow(JsRealm realm)
