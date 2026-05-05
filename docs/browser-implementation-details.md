@@ -41,6 +41,12 @@ Current locations:
 - worker module loading
 - image loading
 
+The strings are intentionally browser-shaped but still Enaga-branded. That is an implementation compromise:
+
+- browser-shaped enough to avoid obvious unknown-client code paths
+- Enaga-branded enough that logs still show the traffic came from Enaga
+- conservative enough not to claim a specific Chrome/Firefox/Edge version that would unlock behavior Enaga does not support yet
+
 ### Browser-like request headers
 
 Requests are shaped to look browser-originated, not just generic `HttpClient` traffic. Depending on the resource type, Enaga adds combinations of:
@@ -54,6 +60,20 @@ Requests are shaped to look browser-originated, not just generic `HttpClient` tr
 
 This is used to reduce server-side branching onto bot/non-browser code paths.
 
+Implementation detail: these headers are **compatibility hints**, not the output of a full browser policy engine. In particular, `Sec-Fetch-*`, referrer handling, and same-origin/cross-origin behavior are still heuristic in several paths.
+
+### Request clients are intentionally separate
+
+Enaga does not currently route all network traffic through one unified browser network stack. Different areas use separate `HttpClient` instances and often separate cookie containers:
+
+- document/style loading
+- script loading and `fetch`
+- worker module loading
+- image loading
+- font loading
+
+This is simpler to evolve and test, but it means browser-like sharing behavior is incomplete. For example, a document request and an image request are not guaranteed to observe the same cookie jar or policy surface.
+
 ### Cookie-gate retry
 
 `HtmlDocumentLoader` includes a targeted one-hop retry for cookie-gated pages:
@@ -63,6 +83,17 @@ This is used to reduce server-side branching onto bot/non-browser code paths.
 3. if the response effectively points to a same-document gate link, follow it once
 
 This is not a full browser navigation model. It is a narrow workaround for simple cookie-wall and interstitial patterns.
+
+### Encoding handling favors "load something useful"
+
+Document text decoding combines:
+
+- BOM detection
+- charset from HTTP headers
+- charset declared in the document
+- UTF-8 fallback
+
+This is an implementation choice biased toward recovering a readable document rather than surfacing strict browser-parity decode states.
 
 ## DOM mutation strategy
 
@@ -77,6 +108,12 @@ Current DOM mutation is snapshot-oriented:
 
 This is intentionally conservative. It favors correctness and consistency across script-visible DOM and renderer state over fine-grained incremental invalidation.
 
+Practical consequence:
+
+- DOM listeners and host-side state must survive document snapshot replacement
+- renderer behavior is easier to keep coherent with the DOM
+- mutation cost is higher than a true incremental DOM/layout invalidation path
+
 ### `innerHTML` uses fragment parsing, not ad-hoc string splitting
 
 `innerHTML` assignment is implemented through HTML fragment parsing and DOM replacement, not manual token splitting. This was necessary because mixed/nested fragments were otherwise rendered as literal text or detached incorrectly.
@@ -86,6 +123,19 @@ Current shape:
 - parse fragment with `HtmlDocumentParser.ParseFragment(...)`
 - import parsed children into `HtmlDomDocument`
 - rebuild node indexing so later JS access still works
+
+This exists because string-based replacement broke real-world pages that use mixed text + nested tags inside `innerHTML`.
+
+### JS wrapper identity is cached by DOM node id
+
+`HtmlBrowserScriptRuntime` keeps a cache of JS wrapper objects keyed by `HtmlNodeId`. This is a practical identity layer so repeated DOM lookups usually return the same wrapper object for the same live node.
+
+That cache is only as strong as the current snapshot model:
+
+- if a node survives mutations with the same node id, wrapper identity is preserved
+- if a mutation replaces/imports nodes, new wrappers may be created
+
+This is another deliberate compromise until there is a more direct mutable DOM-to-renderer path.
 
 ## Event dispatch and click handling
 
@@ -100,9 +150,20 @@ The renderer decides which `HtmlDomElement` was hit. The script runtime then:
 
 This is not a full DOM event system. It is a targeted implementation for the current pointer/click path.
 
+Missing pieces by design:
+
+- capture phase
+- bubbling controls
+- `preventDefault`
+- `stopPropagation`
+- composed paths
+- rich pointer/keyboard event payloads
+
 ### Anchor activation is preserved separately from control handling
 
 There is explicit logic to avoid clearing pending link activation just because pointer-up occurred on a descendant or nearby interactive path. This was added after anchor navigation regressed while form-control handling expanded.
+
+This is one of several places where Enaga treats link activation and control activation as related but separate state machines.
 
 ## Script execution details
 
@@ -121,9 +182,17 @@ This applies to:
 
 The key rule is: **do not call back into JS from arbitrary scheduler callbacks without re-entering through Okojo's host-task path**.
 
+### `window` assignments are mirrored onto globals between script turns
+
+After script execution, Enaga mirrors enumerable own properties from `window` onto the realm global object. This is an implementation convenience so pages that expect `window.foo = ...` to become visible as `foo` in later scripts continue to work.
+
+This is not a full browser global-object model, but it is a high-value compatibility shim for real-world scripts.
+
 ### External scripts are loaded in document order
 
 The current browser runtime loads and executes discovered classic scripts in source order. This is intentionally simpler than the full browser algorithm for `async`, `defer`, parser blocking, and preload interactions.
+
+Module scripts are still treated separately and are not folded into this classic-script path.
 
 ## Timers
 
@@ -138,6 +207,24 @@ Implementation shape:
 3. queue a host task back into the realm
 4. invoke the callback from that host task
 5. reschedule if it is an interval and still active
+
+Current implementation detail: interval activity is tracked separately from the delayed-operation dictionary so `clearInterval` can suppress rescheduling even if the callback has already been dequeued.
+
+## Event loop pumping
+
+### Browser-runtime work is pumped in a fixed queue order
+
+The current preferred host queue order is:
+
+1. timers
+2. messages
+3. network
+4. default host tasks
+5. rendering
+
+This is a practical ordering chosen to keep browser-like async work progressing while still allowing host-driven repaint/update hooks to run afterward.
+
+It is not yet claiming standards-level browser event loop parity.
 
 ## Storage implementation
 
@@ -176,6 +263,8 @@ The JS layer is not a proxy-backed dynamic storage object. Enaga exposes:
 
 Direct property writes like `localStorage.foo = "x"` do not currently mutate the backing storage area.
 
+That behavior is intentional because Enaga currently exposes storage as a small explicit API surface, not as a fully proxied Web Storage host object.
+
 ## Worker implementation
 
 ### Workers are enabled through Okojo's built-in worker-agent support
@@ -198,6 +287,14 @@ Current behavior:
 - worker module imports resolve relative to the worker module referrer
 - remote worker requests use browser-shaped headers
 
+Implementation detail: Okojo's module loader gives Enaga the **resolved id** when loading source, not the original requester. Because of that, `BrowserWorkerModuleLoader` keeps a best-effort map from resolved module id to the referrer/requester that produced it. This is used to recover:
+
+- `Referer`
+- `Sec-Fetch-Mode`
+- `Sec-Fetch-Site`
+
+This is still approximate. There is no full worker-origin policy engine yet.
+
 ### Worker environment is intentionally small
 
 Worker globals currently depend on Okojo worker support plus Enaga's extra setup:
@@ -210,6 +307,16 @@ Worker globals currently depend on Okojo worker support plus Enaga's extra setup
 - Okojo `Atomics`
 
 This is enough for dedicated-worker message flows, but not a full browser worker runtime.
+
+### Worker scripts currently go through module-style loading
+
+Even `new Worker("./worker.js")` currently routes through Okojo's worker/module loading path. In practice that means:
+
+- scripts that are also valid as modules work well
+- module imports work
+- browser-classic-worker features like `importScripts(...)` are not implemented
+
+This is a deliberate implementation shortcut because Okojo's worker/module infrastructure is already robust enough to support multi-agent execution, imports, and shared memory.
 
 ## Fetch and network behavior
 
@@ -237,6 +344,12 @@ The Response-like wrapper exposes:
 
 This is deliberately smaller than the standard Fetch API.
 
+### Local fetch is a direct file read shortcut
+
+If a fetch target resolves to a local file, Enaga bypasses HTTP and returns a Response-like object from direct file reads. Content type is inferred from file extension with a small explicit table.
+
+That is intentionally practical rather than standards-complete.
+
 ## Resource loading details
 
 ### Images
@@ -250,9 +363,37 @@ Remote image loading is asynchronous and cache-backed:
 
 Pending-image placeholders are intentionally suppressed when there is no explicit placeholder to avoid large dummy rectangles during normal loading.
 
+There are therefore three meaningful image states in the renderer path:
+
+- pending without placeholder
+- ready
+- failed with fallback/error presentation
+
 ### Fonts
 
 Remote fonts are cached separately from document/script requests. This is a renderer resource cache, not a full browser font subsystem.
+
+## Form state and value resolution
+
+### Renderer state can override static DOM attributes
+
+For some controls, Enaga resolves values from multiple sources in this order:
+
+1. runtime-side live value cache
+2. host-provided live text resolver
+3. DOM text/attribute state
+
+This exists because the renderer can hold a newer user-edited value than the original serialized DOM snapshot.
+
+### `<select>` and radio behavior is partly enforced outside a full browser form engine
+
+Some form semantics are implemented as targeted rules:
+
+- selected option persistence is treated as live state
+- same-name radio buttons are made exclusive
+- GET form submission serializes current live values into a navigation URL
+
+These rules were added to support real saved pages before a standards-complete form/control model exists.
 
 ## URL handling details
 
@@ -266,6 +407,12 @@ URL resolution keeps certain schemes and special forms intact instead of normali
 - fragments
 
 This is necessary because those paths are dispatched by host/browser logic rather than fetched as documents.
+
+### Navigation requests are host requests, not immediate document replacement
+
+`location.href`, `location.replace(...)`, clicked links, and form GET submits do not directly swap the renderer document inside the JS runtime. Instead they raise browser-host navigation intent which `SampleBrowser` or another host decides how to apply.
+
+This separation keeps the reusable runtime/browser layer distinct from the example application's history and window shell.
 
 ## Form/control fidelity workarounds
 
