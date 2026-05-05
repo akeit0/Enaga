@@ -79,13 +79,28 @@ public sealed partial class HtmlSceneFrameSource : ISceneFrameSource, IRenderWak
     {
         lock (sync)
         {
+            var canApplyDomMutation =
+                document.DomDocument is not null &&
+                ReferenceEquals(document.DomDocument, nextDocument.DomDocument);
             document = nextDocument;
             parsedDocument = null;
-            cachedBaseCommit = null;
-            cachedCommit = null;
-            cachedDomRelationshipCapacity = 0;
-            Invalidate(BaseCommitInvalidation | HtmlPipelineInvalidation.HitTest, HtmlRenderDamageBits.FullFrame | HtmlRenderDamageBits.Document);
-            ResetInteractiveState();
+            if (canApplyDomMutation)
+            {
+                Invalidate(
+                    HtmlPipelineInvalidation.Layout |
+                    HtmlPipelineInvalidation.Fragments |
+                    HtmlPipelineInvalidation.DisplayList |
+                    HtmlPipelineInvalidation.HitTest,
+                    HtmlRenderDamageBits.DirtyRects);
+            }
+            else
+            {
+                cachedBaseCommit = null;
+                cachedCommit = null;
+                cachedDomRelationshipCapacity = 0;
+                Invalidate(BaseCommitInvalidation | HtmlPipelineInvalidation.HitTest, HtmlRenderDamageBits.FullFrame | HtmlRenderDamageBits.Document);
+                ResetInteractiveState();
+            }
         }
 
         RenderWakeRequested?.Invoke();

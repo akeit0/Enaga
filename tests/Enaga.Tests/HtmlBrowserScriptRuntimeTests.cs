@@ -618,6 +618,40 @@ public sealed class HtmlBrowserScriptRuntimeTests
     }
 
     [Fact]
+    public void DocumentMutation_UpdatesRendererFromDomModelWithoutRuntimeReload()
+    {
+        var document = new HtmlDocument("""
+            <html>
+              <head>
+                <style>
+                  body { margin: 0; }
+                  #status { display: inline-block; padding: 4px; }
+                </style>
+              </head>
+              <body>
+                <div id="status">idle</div>
+              </body>
+            </html>
+            """);
+
+        using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
+        Assert.NotNull(runtime);
+        Assert.NotNull(runtime.CurrentDocument.DomDocument);
+
+        var source = new HtmlSceneFrameSource(runtime.CurrentDocument);
+        runtime.DocumentMutated += source.UpdateDocument;
+        _ = source.RenderFrame(320, 120, TimeSpan.Zero);
+
+        runtime.ExecuteJavaScriptUrl("javascript:document.getElementById('status').textContent = 'updated text';");
+
+        var updated = source.RenderFrame(320, 120, TimeSpan.FromMilliseconds(16));
+
+        Assert.Contains(updated.Commit.Layout.Values, box => box.TextContent == "updated text");
+        Assert.False(updated.DamageReasons.HasFlag(SceneDamageReason.RuntimeReload), updated.DamageReasons.ToString());
+        Assert.Contains("updated text", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DocumentMutation_WithSkiaBackend_RelayoutsBootstrapStyleBadgeInsideHeading()
     {
         var document = new HtmlDocument("""

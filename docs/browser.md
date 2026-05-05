@@ -60,9 +60,10 @@ Click dispatch is host-driven. The renderer reports clicked `HtmlDomElement` ide
   - executable inline classic script text
 - `HtmlDomDocument` indexes elements by id and node id.
 - Text and attribute mutations rebuild affected immutable element records.
-- `HtmlDomDocument.ToHtml()` serializes the current DOM snapshot back to HTML.
+- `HtmlDocument` can carry the live `HtmlDomDocument` so renderer updates do not need to serialize and parse the whole HTML document again.
+- `HtmlDomDocument.ToHtml()` is still available for debug/export and `CurrentDocument.Html` consumers.
 
-The current repaint path is simple and conservative: DOM mutations produce a new `Enaga.HtmlDocument`, then the host calls `HtmlSceneFrameSource.UpdateDocument(...)`.
+The current repaint path keeps the browser DOM model as renderer input: DOM mutations update the indexed DOM, then the host calls `HtmlSceneFrameSource.UpdateDocument(...)`. `HtmlSceneFrameSource` reuses node ids/version stores to route the change through layout dirty nodes and fragment damage instead of treating every mutation as a full runtime reload.
 
 ### Loading
 

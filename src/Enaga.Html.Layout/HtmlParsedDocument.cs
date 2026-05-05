@@ -51,10 +51,39 @@ internal sealed class HtmlDocumentParser
 
     public HtmlParsedDocument Parse(HtmlDocument document)
     {
+        if (document.DomDocument is { } domDocument)
+        {
+            return new HtmlParsedDocument(
+                domDocument.RootElement,
+                HtmlStyleSheet.Parse(CollectAuthorStyleTexts(domDocument.RootElement), document.StyleSheet),
+                document.BasePath ?? domDocument.BasePath);
+        }
+
         var parsed = domParser.Parse(document.Html, document.BasePath);
         return new HtmlParsedDocument(
             parsed.RootElement,
             HtmlStyleSheet.Parse(parsed.AuthorStyleTexts, document.StyleSheet),
             parsed.BasePath);
+    }
+
+    private static IReadOnlyList<string> CollectAuthorStyleTexts(HtmlDomElement root)
+    {
+        List<string>? styles = null;
+        Collect(root, ref styles);
+        return styles ?? [];
+
+        static void Collect(HtmlDomElement element, ref List<string>? styles)
+        {
+            if (string.Equals(element.LocalName, "style", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(element.TextContent))
+            {
+                styles ??= [];
+                styles.Add(element.TextContent);
+            }
+
+            foreach (var child in element.Children)
+                if (child is HtmlDomElement childElement)
+                    Collect(childElement, ref styles);
+        }
     }
 }

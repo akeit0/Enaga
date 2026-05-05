@@ -48,6 +48,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private JsPlainObject? locationObject;
     private int nextTimerId;
     private ulong documentVersion;
+    private ulong lastNotifiedDomVersion;
 
     private sealed record BrowserScriptText(string Text, string DisplayName, string? Source);
 
@@ -65,7 +66,8 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         requestProfile = options.RequestProfile;
         networkSession = new BrowserNetworkSession(requestProfile);
         localStorage = BrowserStorageRegistry.GetLocalStorageArea(documentSource, basePath);
-        CurrentDocument = new HtmlDocument(document.ToHtml(), styleSheet, basePath);
+        CurrentDocument = new HtmlDocument(document, styleSheet, basePath);
+        lastNotifiedDomVersion = document.Version;
         hostTaskScheduler = new BrowserHostTaskScheduler(() => EventLoopWorkQueued?.Invoke());
         var workerModuleLoader = new BrowserWorkerModuleLoader(documentSource, basePath, networkSession);
         runtime = JsRuntime.Create(builder => {
@@ -1652,11 +1654,11 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
 
     private void NotifyDocumentMutated()
     {
-        var nextHtml = document.ToHtml();
-        if (string.Equals(CurrentDocument.Html, nextHtml, StringComparison.Ordinal))
+        if (lastNotifiedDomVersion == document.Version)
             return;
 
-        CurrentDocument = new HtmlDocument(nextHtml, styleSheet, basePath);
+        lastNotifiedDomVersion = document.Version;
+        CurrentDocument = new HtmlDocument(document, styleSheet, basePath);
         documentVersion++;
         DocumentMutated?.Invoke(CurrentDocument);
     }

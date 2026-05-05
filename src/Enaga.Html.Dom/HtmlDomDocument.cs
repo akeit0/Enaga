@@ -20,6 +20,8 @@ public sealed class HtmlDomDocument
 
     public string? BasePath { get; }
 
+    public ulong Version { get; private set; }
+
     public HtmlDomElement? Body => string.Equals(RootElement.LocalName, "body", StringComparison.OrdinalIgnoreCase)
         ? RootElement
         : QuerySelector("body");
@@ -71,6 +73,12 @@ public sealed class HtmlDomDocument
             return null;
 
         var value = text ?? string.Empty;
+        if (element.Children.Count == (value.Length == 0 ? 0 : 1) &&
+            (value.Length == 0 || element.Children[0] is HtmlDomText existingText && string.Equals(existingText.Text, value, StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
         var nextElement = element with
         {
             Children = value.Length == 0 ? [] : [new HtmlDomText(value)],
@@ -90,6 +98,12 @@ public sealed class HtmlDomDocument
         }
 
         var normalizedName = name.Trim();
+        if (element.Attributes.TryGetValue(normalizedName, out var existingValue) &&
+            string.Equals(existingValue, value ?? string.Empty, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
         var attributes = new Dictionary<string, string>(element.Attributes, StringComparer.OrdinalIgnoreCase)
         {
             [normalizedName] = value ?? string.Empty
@@ -114,7 +128,9 @@ public sealed class HtmlDomDocument
 
         var normalizedName = name.Trim();
         var attributes = new Dictionary<string, string>(element.Attributes, StringComparer.OrdinalIgnoreCase);
-        attributes.Remove(normalizedName);
+        if (!attributes.Remove(normalizedName))
+            return null;
+
         var nextElement = element with
         {
             Attributes = attributes,
@@ -328,11 +344,13 @@ public sealed class HtmlDomDocument
                 elementsById[nextElement.Id] = nextElement;
             nextGeneratedNodeId = Math.Max(nextGeneratedNodeId, nextElement.NodeId.Value);
             PropagateDetachedChildReplacement(nodeId, nextElement);
+            Version++;
             return;
         }
 
         RootElement = nextRoot;
         RebuildIndexes();
+        Version++;
     }
 
     private void PropagateDetachedChildReplacement(HtmlNodeId childNodeId, HtmlDomElement replacement)

@@ -94,8 +94,8 @@ Script-enabled documents add this loop:
 1. `HtmlBrowserScriptRuntime` creates an Okojo realm.
 2. Browser-like globals and DOM wrappers are installed.
 3. Classic scripts are executed.
-4. DOM mutations produce a new `HtmlDocument` snapshot.
-5. The host updates `HtmlSceneFrameSource`, causing the renderer to rebuild/repaint.
+4. DOM mutations update the indexed `HtmlDomDocument` and increment its version.
+5. The host updates `HtmlSceneFrameSource` with a DOM-backed `HtmlDocument`, allowing renderer-side layout/fragment dirty tracking instead of forcing every mutation through a full HTML snapshot reload.
 
 ## Native rendering model
 

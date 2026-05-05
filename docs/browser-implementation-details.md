@@ -144,22 +144,24 @@ This is an implementation choice biased toward recovering a readable document ra
 
 ## DOM mutation strategy
 
-### Mutations rebuild document HTML snapshots
+### Mutations keep the DOM model as the renderer input
 
-Current DOM mutation is snapshot-oriented:
+Current browser-runtime DOM mutation is DOM-model-oriented:
 
 1. JavaScript mutates the custom DOM model
-2. the DOM is serialized back to HTML
-3. a fresh `HtmlDocument` snapshot becomes the renderer input
-4. the host updates `HtmlSceneFrameSource`
+2. the runtime increments the DOM document version
+3. `HtmlDocument` carries the live `HtmlDomDocument`
+4. the host updates `HtmlSceneFrameSource` with that DOM-backed document
+5. the renderer reparses style metadata from the DOM model and reuses layout/version state for dirty-node layout
 
-This is intentionally conservative. It favors correctness and consistency across script-visible DOM and renderer state over fine-grained incremental invalidation.
+`CurrentDocument.Html` still serializes from the DOM when callers ask for HTML text, which keeps tests/debugging and HTML export paths usable. Mutation notification itself no longer calls `HtmlDomDocument.ToHtml()` just to hand a new string snapshot to the renderer.
 
 Practical consequence:
 
-- DOM listeners and host-side state must survive document snapshot replacement
-- renderer behavior is easier to keep coherent with the DOM
-- mutation cost is higher than a true incremental DOM/layout invalidation path
+- JS-visible DOM and renderer input share the same node ids
+- renderer updates caused by DOM mutation do not set the runtime-reload/full-document damage path
+- existing scene/layout version stores can mark only affected nodes, ancestors, fragments, and hit-test data dirty
+- serializing the whole document is now reserved for `HtmlDocument.Html` consumers, not the normal render wake path
 
 ### `innerHTML` uses fragment parsing, not ad-hoc string splitting
 
@@ -177,12 +179,12 @@ This exists because string-based replacement broke real-world pages that use mix
 
 `HtmlBrowserScriptRuntime` keeps a cache of JS wrapper objects keyed by `HtmlNodeId`. This is a practical identity layer so repeated DOM lookups usually return the same wrapper object for the same live node.
 
-That cache is only as strong as the current snapshot model:
+That cache follows the DOM node id lifetime:
 
 - if a node survives mutations with the same node id, wrapper identity is preserved
 - if a mutation replaces/imports nodes, new wrappers may be created
 
-This is another deliberate compromise until there is a more direct mutable DOM-to-renderer path.
+This works with the DOM-backed renderer path because wrapper cache keys and renderer node mapping both use `HtmlNodeId`.
 
 ## Event dispatch and click handling
 
