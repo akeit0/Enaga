@@ -54,7 +54,7 @@ This document lists the current Enaga HTML renderer and browser-runtime support.
 | Simple selectors | Type, universal, id, class, attribute selectors, and limited pseudo-class matching. |
 | Combinators | Descendant and child (`>`). |
 | Pseudo-classes | `:hover` and `:active` for renderer pointer state. |
-| Attribute selectors | `[attr]`, `[attr=value]`, `[attr~=value]`, `[attr|=value]`, `[attr^=value]`, `[attr$=value]`, `[attr*=value]`, and the ASCII case-insensitive `i` flag. |
+| Attribute selectors | `[attr]`, `[attr=value]`, `[attr~=value]`, `[attr\|=value]`,`[attr^=value]`,`[attr$=value]`,`[attr*=value]`, and the ASCII case-insensitive`i` flag. |
 | Unsupported selectors | Sibling combinators, most structural pseudo-classes, and pseudo-elements except scrollbar rewriting. |
 | Media queries | `@media` with `screen`/`all`, `min-width`, `max-width`, `min-height`, and `max-height` in `px`, `em`, and `rem`. `print` and `not` queries do not match. |
 | Scrollbar pseudo-elements | `::-webkit-scrollbar`, `::-webkit-scrollbar-track`, and `::-webkit-scrollbar-thumb` are rewritten to internal scrollbar style properties. |
