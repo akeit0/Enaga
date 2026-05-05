@@ -111,6 +111,7 @@ This architecture also keeps window rendering and offscreen texture rendering as
 `Enaga.Browser.HtmlBrowserScriptRuntime` embeds Okojo and exposes a minimal browser-like environment:
 
 - `window`, `self`, `document`, `location`, `navigator`, `console`, `fetch`, timers, and selected DOM APIs.
+- `localStorage` and `sessionStorage` with synchronous Web Storage-style `length`, `key(index)`, `getItem`, `setItem`, `removeItem`, and `clear`.
 - Classic inline and external scripts when script execution is enabled.
 - `onclick` and `addEventListener("click", ...)` dispatch for host-reported clicks.
 - DOM mutation APIs such as `textContent`, `innerText`, `innerHTML`, `value`, `setAttribute`, `removeAttribute`, `appendChild`, and `insertBefore`.
@@ -197,6 +198,30 @@ Important limitations:
 - There is no storage partitioning, third-party cookie policy, SameSite enforcement layer, or user-facing cookie management UI beyond what .NET applies at request time.
 - There is no full browser origin model around cookies.
 
+## Storage support
+
+Enaga currently supports a small, synchronous Web Storage subset:
+
+- `localStorage`
+- `sessionStorage`
+- `length`
+- `key(index)`
+- `getItem(key)`
+- `setItem(key, value)`
+- `removeItem(key)`
+- `clear()`
+
+`sessionStorage` is scoped to one `HtmlBrowserScriptRuntime` instance. `localStorage` is shared in process by resolved origin, so separate runtime instances for the same HTTP(S) origin can see the same values.
+
+Important limitations:
+
+- Storage is in-memory only.
+- Storage is not persisted to disk.
+- There is no quota enforcement.
+- There are no `storage` events.
+- Direct property access such as `localStorage.name = "value"` is not modeled as storage mutation.
+- File-document origin behavior is a pragmatic directory-based grouping, not a full browser origin model.
+
 ## Navigation model
 
 `SampleBrowserDocumentController` provides a simple navigation shell:
@@ -219,8 +244,6 @@ The project intentionally implements browser behavior incrementally. The followi
 
 Not currently implemented:
 
-- `localStorage`
-- `sessionStorage`
 - IndexedDB
 - Cache API
 - Origin-private file system

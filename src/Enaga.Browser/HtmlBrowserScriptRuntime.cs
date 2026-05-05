@@ -38,6 +38,8 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private readonly string documentSource;
     private readonly string? styleSheet;
     private readonly string? basePath;
+    private readonly BrowserStorageArea localStorage;
+    private readonly BrowserStorageArea sessionStorage = new();
     private readonly Dictionary<HtmlNodeId, List<JsFunction>> clickListeners = [];
     private readonly Dictionary<HtmlNodeId, JsUserDataObject<HtmlDomElement>> elementObjects = [];
     private readonly Dictionary<HtmlNodeId, string> elementValues = [];
@@ -56,6 +58,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         this.documentSource = documentSource;
         this.styleSheet = styleSheet;
         this.basePath = basePath;
+        localStorage = BrowserStorageRegistry.GetLocalStorageArea(documentSource, basePath);
         CurrentDocument = new HtmlDocument(document.ToHtml(), styleSheet, basePath);
         hostTaskScheduler = new BrowserHostTaskScheduler(() => EventLoopWorkQueued?.Invoke());
         runtime = JsRuntime.Create(builder => {
@@ -688,6 +691,8 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         var locationValue = JsValue.FromObject(CreateLocationObject(realm));
         var navigatorValue = JsValue.FromObject(CreateNavigatorObject(realm));
         var dataLayerValue = JsValue.FromObject(new JsArray(realm));
+        var localStorageValue = JsValue.FromObject(BrowserStorageJsBindings.CreateStorageObject(realm, localStorage));
+        var sessionStorageValue = JsValue.FromObject(BrowserStorageJsBindings.CreateStorageObject(realm, sessionStorage));
         var setTimeoutValue = JsValue.FromObject(CreateTimerFunction(realm, "setTimeout", repeat: false));
         var clearTimeoutValue = JsValue.FromObject(CreateClearTimerFunction(realm, "clearTimeout"));
         var setIntervalValue = JsValue.FromObject(CreateTimerFunction(realm, "setInterval", repeat: true));
@@ -702,6 +707,8 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         window.DefineDataProperty("location", locationValue, OpenFlags);
         window.DefineDataProperty("navigator", navigatorValue, OpenFlags);
         window.DefineDataProperty("dataLayer", dataLayerValue, OpenFlags);
+        window.DefineDataProperty("localStorage", localStorageValue, OpenFlags);
+        window.DefineDataProperty("sessionStorage", sessionStorageValue, OpenFlags);
         window.DefineDataProperty("top", JsValue.FromObject(window), OpenFlags);
         window.DefineDataProperty("parent", JsValue.FromObject(window), OpenFlags);
         window.DefineDataProperty("CSS", JsValue.FromObject(CreateCssObject(realm)), OpenFlags);
@@ -717,6 +724,8 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         realm.Global["location"] = locationValue;
         realm.Global["navigator"] = navigatorValue;
         realm.Global["dataLayer"] = dataLayerValue;
+        realm.Global["localStorage"] = localStorageValue;
+        realm.Global["sessionStorage"] = sessionStorageValue;
         realm.Global["top"] = JsValue.FromObject(window);
         realm.Global["parent"] = JsValue.FromObject(window);
         realm.Global["CSS"] = window["CSS"];
