@@ -67,9 +67,11 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         localStorage = BrowserStorageRegistry.GetLocalStorageArea(documentSource, basePath);
         CurrentDocument = new HtmlDocument(document.ToHtml(), styleSheet, basePath);
         hostTaskScheduler = new BrowserHostTaskScheduler(() => EventLoopWorkQueued?.Invoke());
+        var workerModuleLoader = new BrowserWorkerModuleLoader(documentSource, basePath, networkSession);
         runtime = JsRuntime.Create(builder => {
             builder.UseLowLevelHost(host => host.UseTaskScheduler(hostTaskScheduler));
-            builder.UseModuleSourceLoader(new BrowserWorkerModuleLoader(documentSource, basePath, networkSession));
+            builder.UseModuleSourceLoader(workerModuleLoader);
+            builder.UseWorkerScriptSourceLoader(workerModuleLoader);
             builder.UseWebDelayScheduler(hostTaskScheduler);
             builder.UseWebTimerQueue(WebTaskQueueKeys.Timers);
             builder.UseFetchCompletionQueue(WebTaskQueueKeys.Network);
@@ -162,18 +164,14 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         var program = JavaScriptParser.ParseScript(text, displayName);
         var compiledScript = JsCompiler.Compile(runtime.MainRealm, program);
         runtime.MainRealm.Execute(compiledScript);
-        MirrorWindowPropertiesToGlobal();
         PumpEventLoopUntilIdle();
-        MirrorWindowPropertiesToGlobal();
     }
 
     private void ExecuteScriptTextInline(string text, string displayName)
     {
         var program = JavaScriptParser.ParseScript(text, displayName);
         runtime.MainRealm.ExecuteProgramInline(program);
-        MirrorWindowPropertiesToGlobal();
         PumpEventLoopUntilIdle();
-        MirrorWindowPropertiesToGlobal();
     }
 
     private IReadOnlyList<BrowserScriptText> LoadExecutableScriptTexts(IReadOnlyList<HtmlDomScript> scripts)
@@ -434,10 +432,16 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
     private static bool TryReadLocalFetch(string resolvedUrl, out byte[] bytes, out string contentType)
     {
         string? path = null;
-        if (Uri.TryCreate(resolvedUrl, UriKind.Absolute, out var uri))
+        if (Path.IsPathFullyQualified(resolvedUrl) || Path.IsPathRooted(resolvedUrl))
+        {
+            path = resolvedUrl;
+        }
+        else if (Uri.TryCreate(resolvedUrl, UriKind.Absolute, out var uri))
         {
             if (uri.IsFile)
                 path = uri.LocalPath;
+            else if (uri.Scheme.Length == 1 && Path.IsPathFullyQualified(resolvedUrl))
+                path = resolvedUrl;
             else
             {
                 bytes = [];
@@ -615,7 +619,10 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             try
             {
                 if (!HostTurnRunner.RunTurn(hostTaskScheduler, hostPump, SEventLoopQueueOrder))
+                {
+                    hostPump.PumpUntilIdle();
                     return documentVersion != initialDocumentVersion;
+                }
             }
             catch (Exception ex)
             {
@@ -691,11 +698,9 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         var clearTimeoutValue = JsValue.FromObject(CreateClearTimerFunction(realm, "clearTimeout"));
         var setIntervalValue = JsValue.FromObject(CreateTimerFunction(realm, "setInterval", repeat: true));
         var clearIntervalValue = JsValue.FromObject(CreateClearTimerFunction(realm, "clearInterval"));
-        var window = new JsUserDataObject<HtmlBrowserScriptRuntime>(realm, useDictionaryMode: true)
-        {
-            UserData = this
-        };
+        var window = realm.GlobalObject;
         window.DefineDataProperty("window", JsValue.FromObject(window), OpenFlags);
+        window.DefineDataProperty("globalThis", JsValue.FromObject(window), OpenFlags);
         window.DefineDataProperty("self", JsValue.FromObject(window), OpenFlags);
         window.DefineDataProperty("document", documentValue, OpenFlags);
         window.DefineDataProperty("location", locationValue, OpenFlags);
@@ -713,6 +718,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         window.DefineDataProperty("clearInterval", clearIntervalValue, OpenFlags);
 
         realm.Global["window"] = JsValue.FromObject(window);
+        realm.Global["globalThis"] = JsValue.FromObject(window);
         realm.Global["self"] = JsValue.FromObject(window);
         realm.Global["document"] = documentValue;
         realm.Global["location"] = locationValue;
@@ -728,6 +734,7 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
         realm.Global["clearTimeout"] = clearTimeoutValue;
         realm.Global["setInterval"] = setIntervalValue;
         realm.Global["clearInterval"] = clearIntervalValue;
+
     }
 
     private JsHostFunction CreateTimerFunction(JsRealm realm, string name, bool repeat)
@@ -906,25 +913,15 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             return info.Realm.WrapTask(task);
         }, "fetch", 2));
         realm.Global["fetch"] = fetchValue;
-        if (realm.Global["window"].TryGetObject(out var window))
-            window.DefineDataProperty("fetch", fetchValue, OpenFlags);
-    }
-
-    private void MirrorWindowPropertiesToGlobal()
-    {
-        var realm = runtime.MainRealm;
-        if (!realm.Global["window"].TryGetObject(out var window))
-            return;
-
-        var names = window.GetEnumerableOwnPropertyNames();
-        for (var index = 0; index < names.Count; index++)
-            if (window.TryGetProperty(names[index], out var value))
-                realm.Global[names[index]] = value;
+        realm.GlobalObject.DefineDataProperty("fetch", fetchValue, OpenFlags);
     }
 
     private async Task<JsValue> FetchAsync(JsRealm realm, string url, JsValue init)
     {
         var resolvedUrl = ResolveResourceUrl(url);
+        if (!IsHttpUrl(resolvedUrl) && !Path.IsPathRooted(resolvedUrl))
+            resolvedUrl = ResolveLocalPathAgainstDocument(resolvedUrl);
+
         if (TryReadLocalFetch(resolvedUrl, out var localBytes, out var localContentType))
         {
             return JsValue.FromObject(CreateFetchResponse(
@@ -951,14 +948,48 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             CollectHeaders(response)));
     }
 
+    private static bool IsHttpUrl(string url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+           (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+    private string ResolveLocalPathAgainstDocument(string path)
+    {
+        var baseValue = !string.IsNullOrWhiteSpace(basePath) ? basePath : documentSource;
+        if (Path.IsPathRooted(baseValue))
+        {
+            var baseDirectory = Directory.Exists(baseValue)
+                ? baseValue
+                : Path.GetDirectoryName(baseValue) ?? Environment.CurrentDirectory;
+            return Path.GetFullPath(Path.Combine(baseDirectory, Uri.UnescapeDataString(path)));
+        }
+
+        return Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, Uri.UnescapeDataString(path)));
+    }
+
     private string ResolveResourceUrl(string url)
     {
         var trimmed = url.Trim();
+        if (Path.IsPathFullyQualified(trimmed) || Path.IsPathRooted(trimmed))
+            return Path.GetFullPath(trimmed);
+
         if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absolute))
-            return absolute.ToString();
+        {
+            if (absolute.IsFile)
+                return absolute.LocalPath;
+            if (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps)
+                return absolute.ToString();
+        }
 
         if (!string.IsNullOrWhiteSpace(basePath))
         {
+            if (Path.IsPathFullyQualified(basePath) || Path.IsPathRooted(basePath))
+            {
+                var baseDirectory = Directory.Exists(basePath)
+                    ? basePath
+                    : Path.GetDirectoryName(basePath) ?? Environment.CurrentDirectory;
+                return Path.GetFullPath(Path.Combine(baseDirectory, Uri.UnescapeDataString(trimmed)));
+            }
+
             if (Uri.TryCreate(basePath, UriKind.Absolute, out var baseUri))
             {
                 if (baseUri.IsFile)
@@ -969,7 +1000,9 @@ public sealed class HtmlBrowserScriptRuntime : IDisposable
             return Path.GetFullPath(Path.Combine(basePath, Uri.UnescapeDataString(trimmed)));
         }
 
-        if (Uri.TryCreate(documentSource, UriKind.Absolute, out var documentUri))
+        if (!Path.IsPathFullyQualified(documentSource) &&
+            !Path.IsPathRooted(documentSource) &&
+            Uri.TryCreate(documentSource, UriKind.Absolute, out var documentUri))
             return new Uri(documentUri, trimmed).ToString();
 
         var documentDirectory = Path.GetDirectoryName(Path.GetFullPath(documentSource));

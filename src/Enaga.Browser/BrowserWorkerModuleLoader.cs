@@ -4,7 +4,7 @@ using Okojo.Runtime;
 
 namespace Enaga.Browser;
 
-internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader
+internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader, IWorkerScriptSourceLoader
 {
     private const string WorkerAcceptHeader = "text/javascript, application/javascript, application/ecmascript, */*;q=0.8";
 
@@ -56,6 +56,12 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader
         response.EnsureSuccessStatusCode();
         return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
     }
+
+    public string ResolveScript(string path, string? referrer = null)
+        => ResolveSpecifier(path, referrer);
+
+    public string LoadScript(string path, string? referrer = null)
+        => LoadSource(path);
 
     private string? GetInitialRequestContext()
         => !string.IsNullOrWhiteSpace(basePath) ? basePath : documentSource;

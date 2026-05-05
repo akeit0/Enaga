@@ -92,6 +92,49 @@ public sealed class HtmlBrowserWorkerTests
     }
 
     [Fact]
+    public void Worker_SupportsClassicImportScripts()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var scriptDirectory = Path.Combine(tempDirectory, "scripts");
+        Directory.CreateDirectory(scriptDirectory);
+        File.WriteAllText(Path.Combine(scriptDirectory, "dep.js"), """
+            self.importedValue = "classic";
+            """);
+        File.WriteAllText(Path.Combine(scriptDirectory, "worker.js"), """
+            importScripts("./dep.js");
+            onmessage = function (event) {
+              postMessage(importedValue + ":" + event.data + ":" + (self === globalThis));
+            };
+            """);
+
+        try
+        {
+            var document = new HtmlDocument("""
+                <body>
+                  <div id="status">idle</div>
+                  <script>
+                    const worker = new Worker("./scripts/worker.js");
+                    worker.onmessage = function (event) {
+                      document.getElementById("status").textContent = event.data;
+                    };
+                    worker.postMessage("ping");
+                  </script>
+                </body>
+                """, BasePath: tempDirectory);
+
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, Path.Combine(tempDirectory, "index.html"));
+
+            Assert.NotNull(runtime);
+            PumpUntil(runtime, html => html.Contains("<div id=\"status\">classic:ping:true</div>", StringComparison.Ordinal));
+            Assert.Contains("<div id=\"status\">classic:ping:true</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Worker_RemoteModuleRequests_UseRequesterAwareHeaders()
     {
         const string customUserAgent = "Mozilla/5.0 (compatible; EnagaBrowserWorkerTest/1.0)";

@@ -229,11 +229,19 @@ This applies to:
 
 The key rule is: **do not call back into JS from arbitrary scheduler callbacks without re-entering through Okojo's host-task path**.
 
-### `window` assignments are mirrored onto globals between script turns
+### `window` is the browser global object
 
-After script execution, Enaga mirrors enumerable own properties from `window` onto the realm global object. This is an implementation convenience so pages that expect `window.foo = ...` to become visible as `foo` in later scripts continue to work.
+The main browser realm now uses Okojo's `GlobalObject` as the browser `window` object. Enaga defines:
 
-This is not a full browser global-object model, but it is a high-value compatibility shim for real-world scripts.
+- `window`
+- `self`
+- `globalThis`
+- `top`
+- `parent`
+
+as the same object in the main realm. This means browser identity checks such as `window === globalThis` and `self === window` are true, and `window.foo = ...` writes to the same object that later bare global lookups can see.
+
+Implementation detail: browser globals such as `fetch`, timers, `document`, `navigator`, and storage are written through the global binding surface as well as the global object property surface. This is necessary because Okojo's generic web runtime may install default globals first; the browser runtime must replace those bindings instead of merely adding a same-named ordinary object slot.
 
 ### External scripts are loaded in document order
 
@@ -323,18 +331,21 @@ Enaga does not implement a separate worker VM. It wires Okojo's existing worker 
 - web worker constructor
 - worker host/background host
 
-### Worker script loading uses a browser-specific module loader
+### Worker script loading uses a browser-specific loader
 
-`BrowserWorkerModuleLoader` exists so worker entry/module resolution follows browser-document rules instead of generic process-relative rules.
+`BrowserWorkerModuleLoader` exists so worker entry scripts, `importScripts(...)`, and module imports follow browser-document rules instead of generic process-relative rules.
 
 Current behavior:
 
 - local file workers resolve relative to document path/base path
 - HTTP(S) workers resolve relative to document URL/base URL
+- classic worker `importScripts(...)` resolves relative to the currently executing worker script
 - worker module imports resolve relative to the worker module referrer
 - remote worker requests use browser-shaped headers
 
-Implementation detail: Okojo's module loader gives Enaga the **resolved id** when loading source, not the original requester. Because of that, `BrowserWorkerModuleLoader` keeps a best-effort map from resolved module id to the referrer/requester that produced it. This is used to recover:
+Implementation detail: Okojo now carries worker script type through the worker host boundary. `new Worker("./worker.js")` creates a classic worker, while `new Worker("./worker.js", { type: "module" })` creates a module worker. Classic workers load script text through `IWorkerScriptSourceLoader`; module workers still use the module loader path.
+
+For module loading, Okojo's module loader gives Enaga the **resolved id** when loading source, not the original requester. Because of that, `BrowserWorkerModuleLoader` keeps a best-effort map from resolved module id to the referrer/requester that produced it. This is used to recover:
 
 - `Referer`
 - `Sec-Fetch-Mode`
@@ -349,21 +360,12 @@ Worker globals currently depend on Okojo worker support plus Enaga's extra setup
 - `self`
 - `onmessage`
 - `postMessage`
+- `importScripts`
 - console
 - Okojo `SharedArrayBuffer`
 - Okojo `Atomics`
 
-This is enough for dedicated-worker message flows, but not a full browser worker runtime.
-
-### Worker scripts currently go through module-style loading
-
-Even `new Worker("./worker.js")` currently routes through Okojo's worker/module loading path. In practice that means:
-
-- scripts that are also valid as modules work well
-- module imports work
-- browser-classic-worker features like `importScripts(...)` are not implemented
-
-This is a deliberate implementation shortcut because Okojo's worker/module infrastructure is already robust enough to support multi-agent execution, imports, and shared memory.
+This is enough for dedicated-worker message flows and classic script inclusion, but not a full browser worker runtime. There is still no full worker-origin policy engine, structured clone implementation for arbitrary objects, worker lifecycle/event model parity, or Service Worker support.
 
 ## Fetch and network behavior
 

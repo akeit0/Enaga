@@ -307,7 +307,9 @@ public sealed class HtmlBrowserScriptRuntimeTests
             <body>
               <div id="status"></div>
               <script>
-                window.libraryValue = "available";
+                window.libraryValue = window === globalThis && self === window
+                  ? "available"
+                  : "wrong-global";
               </script>
               <script>
                 document.getElementById("status").textContent = libraryValue;
@@ -732,6 +734,14 @@ public sealed class HtmlBrowserScriptRuntimeTests
             using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, Path.Combine(tempDirectory, "login.html"));
 
             Assert.NotNull(runtime);
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+            while (DateTime.UtcNow < deadline &&
+                   !runtime.CurrentDocument.Html.Contains("<div id=\"status\">relative</div>", StringComparison.Ordinal))
+            {
+                Thread.Sleep(10);
+                runtime.PumpEventLoopUntilIdle();
+            }
+
             Assert.Contains("<div id=\"status\">relative</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
         }
         finally
