@@ -256,6 +256,9 @@ public sealed class NativeWindowApp : IDisposable
             hostUpdatePending = false;
             if (physicalDirtyRects.IsEmpty)
             {
+                if (surfaceManager.RequiresPresentOnRenderWithoutDamage)
+                    surfaceManager.Present(physicalDirtyRects);
+
                 ApplyRenderCadence(IdleFramesPerSecond);
                 RecordRenderDiagnostics(timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds, surfaceManager.LastDiagnostics);
                 return;

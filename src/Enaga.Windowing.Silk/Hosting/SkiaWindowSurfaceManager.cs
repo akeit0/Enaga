@@ -28,6 +28,8 @@ internal sealed class SkiaWindowSurfaceManager : IDisposable
 
     public bool HasSurface => surface is not null;
 
+    public bool RequiresPresentOnRenderWithoutDamage => surface?.RequiresPresentOnRenderWithoutDamage == true;
+
     public SKCanvas Canvas => surface?.Canvas ?? throw new InvalidOperationException("Skia window surface is not initialized.");
 
     public PresentDiagnosticsSnapshot LastDiagnostics => surface?.LastDiagnostics ?? default;

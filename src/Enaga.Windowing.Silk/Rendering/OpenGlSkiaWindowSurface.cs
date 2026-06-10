@@ -32,6 +32,8 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
 
     public GRContext? Context => context;
 
+    public bool RequiresPresentOnRenderWithoutDamage => true;
+
     public PresentDiagnosticsSnapshot LastDiagnostics { get; private set; }
 
     public void Initialize(Vector2D<int> size)

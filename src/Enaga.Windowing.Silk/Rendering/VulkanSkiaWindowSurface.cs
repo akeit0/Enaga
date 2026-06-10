@@ -76,6 +76,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
 
     public GRContext? Context => context;
 
+    public bool RequiresPresentOnRenderWithoutDamage => false;
+
     public PresentDiagnosticsSnapshot LastDiagnostics { get; private set; }
 
     public void Initialize(Vector2D<int> size)
