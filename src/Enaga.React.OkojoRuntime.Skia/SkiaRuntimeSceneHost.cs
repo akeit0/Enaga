@@ -1,11 +1,12 @@
 using System.Runtime.InteropServices;
-using Enaga.Input;
 using Enaga.React.OkojoRuntime;
+using Enaga.Input;
 using Enaga.Rendering;
+using Enaga.Rendering.Skia;
 using Okojo;
 using SkiaSharp;
 
-namespace Enaga.Rendering.Skia;
+namespace Enaga.React.OkojoRuntime.Skia;
 
 public sealed class SkiaRuntimeSceneHost
     : ISceneFrameSource,

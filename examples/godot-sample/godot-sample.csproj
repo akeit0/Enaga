@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Enaga.Rendering.Skia\Enaga.Rendering.Skia.csproj" />
     <ProjectReference Include="..\..\src\Enaga.React.OkojoRuntime\Enaga.React.OkojoRuntime.csproj" />
+    <ProjectReference Include="..\..\src\Enaga.React.OkojoRuntime.Skia\Enaga.React.OkojoRuntime.Skia.csproj" />
     <ProjectReference
       Include="..\..\src\Enaga.Overlay.Windows\Enaga.Overlay.Windows.csproj" />
     <Reference Include="Okojo" HintPath="..\..\okojo\src\Okojo\bin\Release\net10.0\Okojo.dll" />

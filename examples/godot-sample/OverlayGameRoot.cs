@@ -6,6 +6,7 @@ using Enaga.Overlay.Windows;
 using Enaga.Rendering;
 using Enaga.Rendering.Skia;
 using Enaga.React.OkojoRuntime;
+using Enaga.React.OkojoRuntime.Skia;
 using System;
 using System.IO;
 using System.Text;

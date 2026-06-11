@@ -31,8 +31,4 @@
     </AssemblyAttribute>
   </ItemGroup>
 
-  <ItemGroup>
-    <Compile Remove="SkiaRuntimeSceneHost.cs" />
-  </ItemGroup>
-
 </Project>

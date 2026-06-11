@@ -2,6 +2,7 @@ using Enaga.Rendering.Skia;
 using Enaga.Rendering;
 using Enaga.Hosting;
 using Enaga.React.OkojoRuntime;
+using Enaga.React.OkojoRuntime.Skia;
 
 namespace Enaga.SampleApp;
 

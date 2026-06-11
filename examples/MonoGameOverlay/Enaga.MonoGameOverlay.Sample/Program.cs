@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Okojo.Annotations;
 using Enaga.React.OkojoRuntime;
+using Enaga.React.OkojoRuntime.Skia;
 using System.Runtime.InteropServices;
 using Enaga.Overlay.Windows;
 using Enaga.Rendering.Skia;

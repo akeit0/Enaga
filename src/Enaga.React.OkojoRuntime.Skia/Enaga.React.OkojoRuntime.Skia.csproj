@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Enaga.React.OkojoRuntime.Skia</AssemblyName>
+    <RootNamespace>Enaga.React.OkojoRuntime.Skia</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enaga.React.OkojoRuntime\Enaga.React.OkojoRuntime.csproj" />
+    <ProjectReference Include="..\Enaga.Rendering.Skia\Enaga.Rendering.Skia.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Okojo" HintPath="..\..\okojo\src\Okojo\bin\Release\net10.0\Okojo.dll" />
+  </ItemGroup>
+
+</Project>

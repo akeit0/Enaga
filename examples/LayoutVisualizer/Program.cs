@@ -2,6 +2,7 @@ using Enaga.Rendering.Skia;
 using Enaga.Hosting;
 using Enaga.Rendering;
 using Enaga.React.OkojoRuntime;
+using Enaga.React.OkojoRuntime.Skia;
 
 #if HOST_WINDOWS
 using Enaga.Platforms.Windows;

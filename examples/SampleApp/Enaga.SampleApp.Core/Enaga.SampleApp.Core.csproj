@@ -13,6 +13,9 @@
     <ProjectReference
       Include="..\Enaga.SampleApp.SyntaxHighlighting\Enaga.SampleApp.SyntaxHighlighting.csproj" />
     <ProjectReference Include="..\..\..\src\Enaga.Core\Enaga.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\Enaga.React.OkojoRuntime\Enaga.React.OkojoRuntime.csproj" />
+    <ProjectReference Include="..\..\..\src\Enaga.React.OkojoRuntime.Skia\Enaga.React.OkojoRuntime.Skia.csproj" />
+
     <ProjectReference Include="..\..\..\okojo\src\Okojo\Okojo.csproj" />
      <Reference Include="Okojo.Annotations"
       HintPath="..\..\..\okojo\src\Okojo.Annotations\bin\Release\netstandard2.0\Okojo.Annotations.dll" />

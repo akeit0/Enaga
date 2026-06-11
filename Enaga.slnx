@@ -8,6 +8,7 @@
         <Project Path="src/Enaga.Rendering.Skia/Enaga.Rendering.Skia.csproj" />
         <Project Path="src/Enaga.Hosting/Enaga.Hosting.csproj" />
         <Project Path="src/Enaga.React.OkojoRuntime/Enaga.React.OkojoRuntime.csproj" />
+        <Project Path="src/Enaga.React.OkojoRuntime.Skia/Enaga.React.OkojoRuntime.Skia.csproj" />
         <Project Path="src/Enaga.Windowing.Silk/Enaga.Windowing.Silk.csproj" />
         <Project Path="src/Enaga.Platforms.Mac/Enaga.Platforms.Mac.csproj" />
         <Project Path="src/Enaga.Platforms.Windows/Enaga.Platforms.Windows.csproj" />

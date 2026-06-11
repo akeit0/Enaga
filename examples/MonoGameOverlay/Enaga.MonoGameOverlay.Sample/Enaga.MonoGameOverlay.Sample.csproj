@@ -19,6 +19,8 @@
       Include="..\..\..\src\Enaga.Overlay.Windows\Enaga.Overlay.Windows.csproj" />
     <ProjectReference
       Include="..\..\SampleApp\Enaga.SampleApp.Core\Enaga.SampleApp.Core.csproj" />
+    <ProjectReference
+      Include="..\..\..\src\Enaga.React.OkojoRuntime.Skia\Enaga.React.OkojoRuntime.Skia.csproj" />
     <Reference Include="Okojo.Annotations"
       HintPath="..\..\..\okojo\src\Okojo.Annotations\bin\Release\netstandard2.0\Okojo.Annotations.dll" />
     <Analyzer

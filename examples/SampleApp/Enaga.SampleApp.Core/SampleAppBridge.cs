@@ -1,5 +1,6 @@
 using Enaga.Rendering;
 using Enaga.Rendering.Skia;
+using Enaga.React.OkojoRuntime.Skia;
 using Okojo.Objects;
 using Okojo.Runtime;
 using Enaga.SampleApp.SyntaxHighlighting;

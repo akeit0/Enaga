@@ -1,26 +1,29 @@
 <Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AssemblyName>Enaga.LayoutVisualizer</AssemblyName>
+        <RootNamespace>Enaga.LayoutVisualizer</RootNamespace>
+    </PropertyGroup>
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <AssemblyName>Enaga.LayoutVisualizer</AssemblyName>
-    <RootNamespace>Enaga.LayoutVisualizer</RootNamespace>
-  </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Enaga.Core\Enaga.Core.csproj" />
+        <ProjectReference Include="..\..\src\Enaga.React.OkojoRuntime\Enaga.React.OkojoRuntime.csproj" />
+        <ProjectReference Include="..\..\src\Enaga.React.OkojoRuntime.Skia\Enaga.React.OkojoRuntime.Skia.csproj" />
+        <Reference Include="Okojo" HintPath="..\..\okojo\src\Okojo\bin\Release\net10.0\Okojo.dll" />
+        <Reference
+            Include="Okojo.Annotations"
+            HintPath="..\..\okojo\src\Okojo.Annotations\bin\Release\netstandard2.0\Okojo.Annotations.dll"
+        />
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\Enaga.Core\Enaga.Core.csproj" />
-    <Reference Include="Okojo" HintPath="..\..\okojo\src\Okojo\bin\Release\net10.0\Okojo.dll" />
-    <Reference Include="Okojo.Annotations" HintPath="..\..\okojo\src\Okojo.Annotations\bin\Release\netstandard2.0\Okojo.Annotations.dll" />
-  </ItemGroup>
+    <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+        <ProjectReference Include="..\..\src\Enaga.Platforms.Windows\Enaga.Platforms.Windows.csproj" />
+    </ItemGroup>
 
-  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
-    <ProjectReference Include="..\..\src\Enaga.Platforms.Windows\Enaga.Platforms.Windows.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
-    <ProjectReference Include="..\..\src\Enaga.Platforms.Mac\Enaga.Platforms.Mac.csproj" />
-  </ItemGroup>
-
+    <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+        <ProjectReference Include="..\..\src\Enaga.Platforms.Mac\Enaga.Platforms.Mac.csproj" />
+    </ItemGroup>
 </Project>
