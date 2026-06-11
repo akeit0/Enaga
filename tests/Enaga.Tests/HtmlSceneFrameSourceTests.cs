@@ -1,3 +1,4 @@
+using System.Reflection;
 using Enaga.Html;
 using Enaga.Html.Dom;
 using Enaga.Input;
@@ -6,7 +7,6 @@ using Enaga.Rendering;
 using Enaga.Rendering.Skia;
 using Enaga.Scene;
 using SkiaSharp;
-using System.Reflection;
 using Xunit;
 
 namespace Enaga.Tests;
@@ -15,18 +15,24 @@ public sealed class HtmlSceneFrameSourceTests
 {
     private static Enaga.Html.HtmlDocument LoadSampleBrowserSampleDocument()
     {
-        var fixtureDirectory = Path.Combine(AppContext.BaseDirectory, "Fixtures", "SampleBrowserSample");
+        var fixtureDirectory = Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "SampleBrowserSample"
+        );
         return new Enaga.Html.HtmlDocument(
             File.ReadAllText(Path.Combine(fixtureDirectory, "sample.html")),
             File.ReadAllText(Path.Combine(fixtureDirectory, "sample.css")),
-            fixtureDirectory);
+            fixtureDirectory
+        );
     }
 
     [Fact]
     public void RenderFrame_BuildsSceneLayoutFromHtmlAndCss()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <html>
                   <body class="page">
                     <div id="hero" class="card">
@@ -38,12 +44,20 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 body { padding: 12px; background-color: #101820; }
                 .card { width: 220px; padding: 10px; background-color: #18131fff; border-color: #3b82f6; border-width: 1px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create(), DefaultTextColor: "#e5eefb"));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(
+                BackendServices: DummyRuntimeBackendServices.Create(),
+                DefaultTextColor: "#e5eefb"
+            )
+        );
 
         var frame = source.RenderFrame(640, 360, TimeSpan.Zero);
 
-        Assert.Equal(SceneDamageReason.RuntimeReload | SceneDamageReason.Resize, frame.DamageReasons);
+        Assert.Equal(
+            SceneDamageReason.RuntimeReload | SceneDamageReason.Resize,
+            frame.DamageReasons
+        );
         Assert.True(frame.Commit.Layout.TryGetValue(frame.Commit.RootId, out var root));
         Assert.False(string.IsNullOrWhiteSpace(root.BackgroundColor));
 
@@ -64,15 +78,18 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_ReportsPipelineMetrics()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <main>
                     <h1>Metrics</h1>
                     <p>Text <a href="https://example.test">link</a></p>
                   </main>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var metrics = source.LastPipelineMetrics;
@@ -97,7 +114,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_UsesFlexRowLayoutForChildren()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <section class="row">
                     <div class="tile">A</div>
@@ -109,11 +127,17 @@ public sealed class HtmlSceneFrameSourceTests
                 body { padding: 8px; }
                 .row { display: flex; flex-direction: row; gap: 10px; }
                 .tile { width: 80px; height: 40px; background-color: #1e293b; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(400, 200, TimeSpan.Zero);
-        var rowNode = frame.Commit.Nodes.Single(pair => pair.Value.Label is null && pair.Value.Children.Length == 2 && pair.Key != frame.Commit.RootId);
+        var rowNode = frame.Commit.Nodes.Single(pair =>
+            pair.Value.Label is null
+            && pair.Value.Children.Length == 2
+            && pair.Key != frame.Commit.RootId
+        );
         var firstChildId = frame.Commit.Nodes[rowNode.Key].Children[0];
         var secondChildId = frame.Commit.Nodes[rowNode.Key].Children[1];
         var firstBox = frame.Commit.Layout[firstChildId];
@@ -121,7 +145,8 @@ public sealed class HtmlSceneFrameSourceTests
 
         Assert.True(
             secondBox.AbsLeft >= firstBox.AbsLeft + firstBox.Width + 9,
-            $"first=({firstBox.AbsLeft},{firstBox.AbsTop},{firstBox.Width},{firstBox.Height}) second=({secondBox.AbsLeft},{secondBox.AbsTop},{secondBox.Width},{secondBox.Height})");
+            $"first=({firstBox.AbsLeft},{firstBox.AbsTop},{firstBox.Width},{firstBox.Height}) second=({secondBox.AbsLeft},{secondBox.AbsTop},{secondBox.Width},{secondBox.Height})"
+        );
         Assert.Equal(80, firstBox.Width);
         Assert.Equal(40, firstBox.Height);
     }
@@ -130,7 +155,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_KeepsToolbarTextInputInSingleFlexRow()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="toolbar">
                     <span class="button"><img src="missing-back.png" /></span>
@@ -146,24 +172,40 @@ public sealed class HtmlSceneFrameSourceTests
                 .button { display: block; width: 24px; height: 24px; margin: 0 3px 0 0; }
                 .button img { width: 16px; height: 16px; margin: 4px; }
                 #url { display: block; width: 78%; height: 22px; margin: 0 0 0 4px; padding: 1px 6px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(960, 120, TimeSpan.Zero);
-        var toolbar = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "toolbar").Key];
-        var url = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "url").Key];
+        var toolbar = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "toolbar").Key
+        ];
+        var url = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "url").Key
+        ];
 
         Assert.Equal(30, toolbar.Height);
-        Assert.True(url.AbsTop >= toolbar.AbsTop, $"toolbar=({toolbar.AbsLeft},{toolbar.AbsTop},{toolbar.Width},{toolbar.Height}) url=({url.AbsLeft},{url.AbsTop},{url.Width},{url.Height})");
-        Assert.True(url.AbsTop + url.Height <= toolbar.AbsTop + toolbar.Height, $"toolbar=({toolbar.AbsLeft},{toolbar.AbsTop},{toolbar.Width},{toolbar.Height}) url=({url.AbsLeft},{url.AbsTop},{url.Width},{url.Height})");
-        Assert.True(url.AbsLeft >= toolbar.AbsLeft + 90, $"toolbar=({toolbar.AbsLeft},{toolbar.AbsTop},{toolbar.Width},{toolbar.Height}) url=({url.AbsLeft},{url.AbsTop},{url.Width},{url.Height})");
+        Assert.True(
+            url.AbsTop >= toolbar.AbsTop,
+            $"toolbar=({toolbar.AbsLeft},{toolbar.AbsTop},{toolbar.Width},{toolbar.Height}) url=({url.AbsLeft},{url.AbsTop},{url.Width},{url.Height})"
+        );
+        Assert.True(
+            url.AbsTop + url.Height <= toolbar.AbsTop + toolbar.Height,
+            $"toolbar=({toolbar.AbsLeft},{toolbar.AbsTop},{toolbar.Width},{toolbar.Height}) url=({url.AbsLeft},{url.AbsTop},{url.Width},{url.Height})"
+        );
+        Assert.True(
+            url.AbsLeft >= toolbar.AbsLeft + 90,
+            $"toolbar=({toolbar.AbsLeft},{toolbar.AbsTop},{toolbar.Width},{toolbar.Height}) url=({url.AbsLeft},{url.AbsTop},{url.Width},{url.Height})"
+        );
     }
 
     [Fact]
     public void RenderFrame_ResolvesPercentWidthAgainstContainingBlockBeforeBlockLayout()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <header id="site-header" class="header">
                     <div id="wa3-link" class="wa3_link">
@@ -189,18 +231,34 @@ public sealed class HtmlSceneFrameSourceTests
                 .wa3_link { width: 100%; text-align: right; }
                 .menu { width: 99%; margin: 0; padding: 0; }
                 .menu li { float: left; list-style: none; width: 130px; text-align: center; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(960, 300, TimeSpan.Zero);
-        var header = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "site-header").Key];
-        var wa3Link = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "wa3-link").Key];
-        var nav = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "menu-nav").Key];
-        var menu = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "menu-list").Key];
-        var topLink = frame.Commit.Layout.Values.Single(box => box.TextContent == "1分で読めるIT用語辞典");
-        var windowsLink = frame.Commit.Layout.Values.Single(box => box.TextContent == "Windowsコマンド辞典");
+        var header = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "site-header").Key
+        ];
+        var wa3Link = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "wa3-link").Key
+        ];
+        var nav = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "menu-nav").Key
+        ];
+        var menu = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "menu-list").Key
+        ];
+        var topLink = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "1分で読めるIT用語辞典"
+        );
+        var windowsLink = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "Windowsコマンド辞典"
+        );
         var firstMenu = frame.Commit.Layout.Values.Single(box => box.TextContent == "トップページ");
-        var thirdMenu = frame.Commit.Layout.Values.Single(box => box.TextContent == "最近更新した用語");
+        var thirdMenu = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "最近更新した用語"
+        );
 
         Assert.True(header.Width > 900, $"header.Width={header.Width}");
         Assert.True(wa3Link.Width > 900, $"wa3Link.Width={wa3Link.Width}");
@@ -210,23 +268,29 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(firstMenu.AbsTop, thirdMenu.AbsTop, precision: 0);
         Assert.True(windowsLink.AbsLeft > topLink.AbsLeft);
         Assert.True(thirdMenu.AbsLeft > firstMenu.AbsLeft);
-        var firstMenuItem = frame.Commit.Layout.Values
-            .Where(box => box.NodeKind == SceneNodeKind.View &&
-                          box.Width > 120 &&
-                          box.Width < 140 &&
-                          box.AbsTop <= firstMenu.AbsTop &&
-                          firstMenu.AbsTop <= box.AbsTop + box.Height)
+        var firstMenuItem = frame
+            .Commit.Layout.Values.Where(box =>
+                box.NodeKind == SceneNodeKind.View
+                && box.Width > 120
+                && box.Width < 140
+                && box.AbsTop <= firstMenu.AbsTop
+                && firstMenu.AbsTop <= box.AbsTop + box.Height
+            )
             .OrderBy(box => box.AbsLeft)
             .First();
         Assert.Equal(SceneTextAlign.Center, firstMenu.TextStyle?.TextAlign);
-        Assert.True(firstMenu.Width > firstMenuItem.Width - 1, $"firstMenu=({firstMenu.AbsLeft},{firstMenu.Width}) item=({firstMenuItem.AbsLeft},{firstMenuItem.Width})");
+        Assert.True(
+            firstMenu.Width > firstMenuItem.Width - 1,
+            $"firstMenu=({firstMenu.AbsLeft},{firstMenu.Width}) item=({firstMenuItem.AbsLeft},{firstMenuItem.Width})"
+        );
     }
 
     [Fact]
     public void RenderFrame_AppliesHeadStyleElements()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <html>
                   <head>
                     <style>
@@ -237,8 +301,10 @@ public sealed class HtmlSceneFrameSourceTests
                     <div id="hero">Head style</div>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var heroId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "hero").Key;
@@ -255,8 +321,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><p id='copy'>Universal color</p></body>",
-                "* { background-color: #123456; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "* { background-color: #123456; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var copyId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "copy").Key;
@@ -271,8 +339,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><img id='logo' src='assets/logo.png' width='96' height='48' /></body>",
-                BasePath: Path.GetFullPath(Path.Combine("fixtures", "html"))),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                BasePath: Path.GetFullPath(Path.Combine("fixtures", "html"))
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var imageId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key;
@@ -281,7 +351,10 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(SceneNodeKind.Image, imageBox.NodeKind);
         Assert.Equal(96, imageBox.Width);
         Assert.Equal(48, imageBox.Height);
-        Assert.Equal(Path.GetFullPath(Path.Combine("fixtures", "html", "assets", "logo.png")), imageBox.ImageSource);
+        Assert.Equal(
+            Path.GetFullPath(Path.Combine("fixtures", "html", "assets", "logo.png")),
+            imageBox.ImageSource
+        );
     }
 
     [Fact]
@@ -290,8 +363,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><img id='logo' src='/static/_img/2025.01/iana-logo-header.svg' /></body>",
-                BasePath: "https://www.iana.org/help/"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                BasePath: "https://www.iana.org/help/"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 320, TimeSpan.Zero);
         var imageId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key;
@@ -300,26 +375,37 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(SceneNodeKind.Image, imageBox.NodeKind);
         Assert.Equal(300, imageBox.Width);
         Assert.Equal(150, imageBox.Height);
-        Assert.Equal("https://www.iana.org/static/_img/2025.01/iana-logo-header.svg", imageBox.ImageSource);
+        Assert.Equal(
+            "https://www.iana.org/static/_img/2025.01/iana-logo-header.svg",
+            imageBox.ImageSource
+        );
     }
 
     [Fact]
     public void RenderFrame_PrefersLocalSvgIntrinsicSizeWhenAvailable()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "html-image-size-" + Guid.NewGuid().ToString("N"));
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "html-image-size-" + Guid.NewGuid().ToString("N")
+        );
         Directory.CreateDirectory(directory);
         var svgPath = Path.Combine(directory, "logo.svg");
-        File.WriteAllText(svgPath, """
+        File.WriteAllText(
+            svgPath,
+            """
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 20" />
-            """);
+            """
+        );
 
         try
         {
             var source = new HtmlSceneFrameSource(
                 new Enaga.Html.HtmlDocument(
                     "<body><img id='logo' src='logo.svg' /></body>",
-                    BasePath: directory),
-                new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                    BasePath: directory
+                ),
+                new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+            );
 
             var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
             var imageId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key;
@@ -338,23 +424,32 @@ public sealed class HtmlSceneFrameSourceTests
     [Fact]
     public void RenderFrame_PrefersResolvedRemoteSvgIntrinsicSizeWhenAvailable()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "html-image-size-" + Guid.NewGuid().ToString("N"));
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "html-image-size-" + Guid.NewGuid().ToString("N")
+        );
         Directory.CreateDirectory(directory);
         var svgPath = Path.Combine(directory, "iana-logo-header.svg");
-        File.WriteAllText(svgPath, """
+        File.WriteAllText(
+            svgPath,
+            """
             <svg xmlns="http://www.w3.org/2000/svg" width="234px" height="72px" viewBox="0 0 468 144" />
-            """);
+            """
+        );
 
         try
         {
             var backendServices = new RuntimeBackendServices(
                 new DummyRuntimeTextServices(),
-                new StaticImageResolver(svgPath));
+                new StaticImageResolver(svgPath)
+            );
             var source = new HtmlSceneFrameSource(
                 new Enaga.Html.HtmlDocument(
                     "<body><img id='logo' src='/static/_img/2025.01/iana-logo-header.svg' /></body>",
-                    BasePath: "https://www.iana.org/help/"),
-                new Enaga.Html.HtmlOptions(BackendServices: backendServices));
+                    BasePath: "https://www.iana.org/help/"
+                ),
+                new Enaga.Html.HtmlOptions(BackendServices: backendServices)
+            );
 
             var frame = source.RenderFrame(640, 320, TimeSpan.Zero);
             var imageId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key;
@@ -362,7 +457,10 @@ public sealed class HtmlSceneFrameSourceTests
 
             Assert.Equal(234, imageBox.Width);
             Assert.Equal(72, imageBox.Height);
-            Assert.Equal("https://www.iana.org/static/_img/2025.01/iana-logo-header.svg", imageBox.ImageSource);
+            Assert.Equal(
+                "https://www.iana.org/static/_img/2025.01/iana-logo-header.svg",
+                imageBox.ImageSource
+            );
         }
         finally
         {
@@ -374,8 +472,12 @@ public sealed class HtmlSceneFrameSourceTests
     public void HtmlSceneFrameSource_ActivatesAnchorLinksOnClick()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><a id='docs-link' href='docs/intro.html'>Read docs</a></body>", BasePath: Path.GetFullPath("site")),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><a id='docs-link' href='docs/intro.html'>Read docs</a></body>",
+                BasePath: Path.GetFullPath("site")
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
         string? activated = null;
         source.LinkActivated += href => activated = href;
 
@@ -396,8 +498,12 @@ public sealed class HtmlSceneFrameSourceTests
     {
         const string href = "javascript:document.getElementById('status').textContent='done'";
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument($"<body><a id='run' href=\"{href}\">Run</a><p id='status'>idle</p></body>", BasePath: Path.GetFullPath("site")),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                $"<body><a id='run' href=\"{href}\">Run</a><p id='status'>idle</p></body>",
+                BasePath: Path.GetFullPath("site")
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
         string? activated = null;
         source.LinkActivated += link => activated = link;
 
@@ -417,7 +523,8 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><button id='run'>Run</button></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
         HtmlDomElement? clickedElement = null;
         source.ElementClicked += element => clickedElement = element;
 
@@ -437,8 +544,11 @@ public sealed class HtmlSceneFrameSourceTests
     public void HtmlSceneFrameSource_UsesPointerCursorWhenHoveringLinks()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><a id='docs-link' href='docs.html'>Read docs</a></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><a id='docs-link' href='docs.html'>Read docs</a></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var linkId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "docs-link").Key;
@@ -447,7 +557,12 @@ public sealed class HtmlSceneFrameSourceTests
 
         Assert.Equal(PointerCursorKind.Pointer, source.CurrentCursor);
 
-        source.PointerMove(linkBox.AbsLeft + linkBox.Width + 20, linkBox.AbsTop + 4, 0, synthetic: false);
+        source.PointerMove(
+            linkBox.AbsLeft + linkBox.Width + 20,
+            linkBox.AbsTop + 4,
+            0,
+            synthetic: false
+        );
 
         Assert.Equal(PointerCursorKind.Default, source.CurrentCursor);
     }
@@ -457,7 +572,8 @@ public sealed class HtmlSceneFrameSourceTests
     {
         const string href = "javascript:run()";
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <html>
                   <head>
                     <style>
@@ -471,8 +587,10 @@ public sealed class HtmlSceneFrameSourceTests
                     </div>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
         string? activated = null;
         source.LinkActivated += link => activated = link;
 
@@ -493,17 +611,20 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_AddsBasicListMarkers()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <ul><li>Capacity check</li></ul>
                   <ol><li>Confirm carrier</li><li>Notify warehouse</li></ol>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(420, 260, TimeSpan.Zero);
-        var textValues = frame.Commit.Layout.Values
-            .Where(static box => box.NodeKind == SceneNodeKind.Text)
+        var textValues = frame
+            .Commit.Layout.Values.Where(static box => box.NodeKind == SceneNodeKind.Text)
             .Select(static box => box.TextContent)
             .ToList();
 
@@ -517,13 +638,18 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_KeepsListMarkerInlineWhenItemContainsLink()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><ul><li>Check exceptions against the <a id='policy-link' href='policy.html'>account note policy</a>.</li></ul></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><ul><li>Check exceptions against the <a id='policy-link' href='policy.html'>account note policy</a>.</li></ul></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
         var marker = frame.Commit.Layout.Values.Single(box => box.TextContent == "\u2022");
         var firstWord = frame.Commit.Layout.Values.Single(box => box.TextContent == "Check");
-        var link = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "policy-link").Key];
+        var link = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "policy-link").Key
+        ];
 
         Assert.Equal(marker.AbsTop, firstWord.AbsTop, precision: 0);
         Assert.Equal(firstWord.AbsTop, link.AbsTop, precision: 0);
@@ -534,8 +660,11 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_IndentsWrappedListItemTextAfterMarker()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><ul><li>Confirm receiving capacity before assigning a carrier window.</li></ul></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><ul><li>Confirm receiving capacity before assigning a carrier window.</li></ul></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(220, 180, TimeSpan.Zero);
         var marker = frame.Commit.Layout.Values.Single(box => box.TextContent == "\u2022");
@@ -547,7 +676,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_DoesNotAddExtraGapAfterListItemContainingLink()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <ul>
                     <li>Confirm receiving capacity before assigning a carrier window.</li>
@@ -555,11 +685,16 @@ public sealed class HtmlSceneFrameSourceTests
                     <li>Flag temperature-sensitive freight for the morning shift lead.</li>
                   </ul>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 220, TimeSpan.Zero);
-        var markers = frame.Commit.Layout.Values.Where(box => box.TextContent == "\u2022").OrderBy(box => box.AbsTop).ToArray();
+        var markers = frame
+            .Commit.Layout.Values.Where(box => box.TextContent == "\u2022")
+            .OrderBy(box => box.AbsTop)
+            .ToArray();
         Assert.Equal(3, markers.Length);
         var firstItem = markers[0];
         var secondItem = markers[1];
@@ -576,13 +711,17 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><ol><li class='check-item'>Confirm supplier holds before purchase orders move to the shipping lane.</li></ol></body>",
-                ".check-item { padding: 14px; background: #101f34; border-width: 1px; border-style: solid; border-color: #31455f; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                ".check-item { padding: 14px; background: #101f34; border-width: 1px; border-style: solid; border-color: #31455f; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 220, TimeSpan.Zero);
         var marker = frame.Commit.Layout.Values.Single(box => box.TextContent == "1.");
         var firstWord = frame.Commit.Layout.Values.Single(box => box.TextContent == "Confirm");
-        var contentBox = frame.Commit.Layout.Values.Single(box => box.BackgroundColor is "#101f34" or "rgb(16, 31, 52)");
+        var contentBox = frame.Commit.Layout.Values.Single(box =>
+            box.BackgroundColor is "#101f34" or "rgb(16, 31, 52)"
+        );
 
         Assert.True(marker.AbsLeft < contentBox.AbsLeft);
         Assert.True(firstWord.AbsLeft >= contentBox.AbsLeft + contentBox.PaddingLeft);
@@ -605,16 +744,20 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 .checklist { display: flex; flex-direction: column; gap: 12px; width: 180px; }
                 .check-item { padding: 14px; background: #101f34; border-width: 1px; border-style: solid; border-color: #31455f; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(240, 420, TimeSpan.Zero);
-        var markers = frame.Commit.Layout.Values
-            .Where(box => box.TextContent is "1." or "2." or "3.")
+        var markers = frame
+            .Commit.Layout.Values.Where(box => box.TextContent is "1." or "2." or "3.")
             .OrderBy(box => box.AbsTop)
             .ToArray();
-        var contentBoxes = frame.Commit.Layout
-            .Where(pair => pair.Value.BackgroundColor is "#101f34" or "rgb(16, 31, 52)")
+        var contentBoxes = frame
+            .Commit.Layout.Where(pair =>
+                pair.Value.BackgroundColor is "#101f34" or "rgb(16, 31, 52)"
+            )
             .OrderBy(pair => pair.Value.AbsTop)
             .ToArray();
         var firstContent = contentBoxes[0].Value;
@@ -626,10 +769,12 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(markers[0].AbsTop, firstContent.AbsTop, precision: 0);
         Assert.True(
             markers[1].AbsTop >= firstContent.AbsTop + firstContent.Height + 11,
-            $"marker2={markers[1].AbsTop} item1=({firstItem.AbsTop},{firstItem.Width},{firstItem.Height}) content1=({firstContent.AbsTop},{firstContent.Width},{firstContent.Height})");
+            $"marker2={markers[1].AbsTop} item1=({firstItem.AbsTop},{firstItem.Width},{firstItem.Height}) content1=({firstContent.AbsTop},{firstContent.Width},{firstContent.Height})"
+        );
         Assert.True(
             markers[2].AbsTop >= contentBoxes[1].Value.AbsTop + contentBoxes[1].Value.Height + 11,
-            $"marker3={markers[2].AbsTop} content2=({contentBoxes[1].Value.AbsTop},{contentBoxes[1].Value.Height})");
+            $"marker3={markers[2].AbsTop} content2=({contentBoxes[1].Value.AbsTop},{contentBoxes[1].Value.Height})"
+        );
     }
 
     [Fact]
@@ -637,10 +782,13 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><div id='first'>First</div></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
+        var first = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key
+        ];
 
         Assert.True(first.AbsLeft >= 8);
         Assert.True(first.AbsTop >= 8);
@@ -650,12 +798,19 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_GroupsConsecutiveButtonsInInlineRun()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><button id='first'>First</button><button id='second'>Second</button></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><button id='first'>First</button><button id='second'>Second</button></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
-        var second = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key];
+        var first = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key
+        ];
+        var second = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key
+        ];
 
         Assert.True(second.AbsLeft > first.AbsLeft + first.Width);
         Assert.True(Math.Abs(second.AbsTop - first.AbsTop) < 0.5f);
@@ -665,12 +820,19 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_KeepsInlineLinkWithSurroundingParagraphText()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p id='copy'>Review the <a id='link' href='docs.html'>receiving playbook</a> when needed.</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p id='copy'>Review the <a id='link' href='docs.html'>receiving playbook</a> when needed.</p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
-        var link = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "link").Key];
-        var secondLinkWord = frame.Commit.Layout.Values.Single(box => box.TextContent == "playbook");
+        var link = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "link").Key
+        ];
+        var secondLinkWord = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "playbook"
+        );
         var reviewText = frame.Commit.Layout.Values.Single(box => box.TextContent == "Review");
         var trailingText = frame.Commit.Layout.Values.Single(box => box.TextContent == "when");
 
@@ -692,13 +854,19 @@ public sealed class HtmlSceneFrameSourceTests
     public void HtmlSceneFrameSource_ActivatesSplitInlineAnchorWords()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p>Review <a href='docs.html'>receiving playbook</a>.</p></body>", BasePath: Path.GetFullPath("site")),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p>Review <a href='docs.html'>receiving playbook</a>.</p></body>",
+                BasePath: Path.GetFullPath("site")
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
         string? activated = null;
         source.LinkActivated += href => activated = href;
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
-        var linkText = frame.Commit.Layout.Values.Single(box => box.TextContent?.Contains("playbook", StringComparison.Ordinal) == true);
+        var linkText = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent?.Contains("playbook", StringComparison.Ordinal) == true
+        );
         source.PointerMove(linkText.AbsLeft + 2, linkText.AbsTop + 2, 0, synthetic: false);
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
@@ -720,16 +888,23 @@ public sealed class HtmlSceneFrameSourceTests
                 """,
                 """
                 #link { display: block; width: 96px; padding: 4px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(240, 180, TimeSpan.Zero);
-        var link = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "link").Key];
+        var link = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "link").Key
+        ];
         var alpha = frame.Commit.Layout.Values.Single(box => box.TextContent == "Alpha");
         var zeta = frame.Commit.Layout.Values.Single(box => box.TextContent == "zeta");
 
         Assert.True(link.Width >= 96);
-        Assert.True(zeta.AbsTop > alpha.AbsTop, $"alpha=({alpha.AbsLeft},{alpha.AbsTop},{alpha.Width},{alpha.Height}) zeta=({zeta.AbsLeft},{zeta.AbsTop},{zeta.Width},{zeta.Height}) link=({link.AbsLeft},{link.AbsTop},{link.Width},{link.Height})");
+        Assert.True(
+            zeta.AbsTop > alpha.AbsTop,
+            $"alpha=({alpha.AbsLeft},{alpha.AbsTop},{alpha.Width},{alpha.Height}) zeta=({zeta.AbsLeft},{zeta.AbsTop},{zeta.Width},{zeta.Height}) link=({link.AbsLeft},{link.AbsTop},{link.Width},{link.Height})"
+        );
         Assert.Equal(link.LinkHref, alpha.LinkHref);
         Assert.Equal(link.LinkHref, zeta.LinkHref);
     }
@@ -746,15 +921,20 @@ public sealed class HtmlSceneFrameSourceTests
                 """,
                 """
                 #copy { width: 120px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(240, 220, TimeSpan.Zero);
         var alpha = frame.Commit.Layout.Values.Single(box => box.TextContent == "Alpha");
         var zeta = frame.Commit.Layout.Values.Single(box => box.TextContent == "zeta");
         var before = frame.Commit.Layout.Values.Single(box => box.TextContent == "before");
 
-        Assert.True(zeta.AbsTop > alpha.AbsTop, $"alpha=({alpha.AbsLeft},{alpha.AbsTop},{alpha.Width},{alpha.Height}) zeta=({zeta.AbsLeft},{zeta.AbsTop},{zeta.Width},{zeta.Height})");
+        Assert.True(
+            zeta.AbsTop > alpha.AbsTop,
+            $"alpha=({alpha.AbsLeft},{alpha.AbsTop},{alpha.Width},{alpha.Height}) zeta=({zeta.AbsLeft},{zeta.AbsTop},{zeta.Width},{zeta.Height})"
+        );
         Assert.True(before.AbsTop >= zeta.AbsTop);
         Assert.Equal(alpha.LinkHref, zeta.LinkHref);
         Assert.Equal("docs.html", alpha.LinkHref);
@@ -773,13 +953,21 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 .accent { display: block; width: 98%; margin-left: 2%; font-size: 18px; color: #c00; font-weight: bold; }
                 .accent .brackets { font-size: 17px; color: #c33; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
-        var first = frame.Commit.Layout.Values.First(box => box.TextContent?.Contains("目印", StringComparison.Ordinal) == true);
-        var middle = frame.Commit.Layout.Values.First(box => box.TextContent?.Contains("ことで", StringComparison.Ordinal) == true);
-        var bracket = frame.Commit.Layout.Values.Single(box => box.TextContent == "（マークアップ言語）");
+        var first = frame.Commit.Layout.Values.First(box =>
+            box.TextContent?.Contains("目印", StringComparison.Ordinal) == true
+        );
+        var middle = frame.Commit.Layout.Values.First(box =>
+            box.TextContent?.Contains("ことで", StringComparison.Ordinal) == true
+        );
+        var bracket = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "（マークアップ言語）"
+        );
         var trailing = frame.Commit.Layout.Values.Single(box => box.TextContent == "のひとつ");
 
         Assert.True(Math.Abs(first.AbsTop - middle.AbsTop) <= 1.5f);
@@ -795,8 +983,11 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_AppliesInlineElementStylesInsidePhrasingContainers()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p>Review <span>the <strong>receiving</strong></span> <em>dock</em> <a href='docs.html'><strong><i>playbook</i></strong></a>.</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p>Review <span>the <strong>receiving</strong></span> <em>dock</em> <a href='docs.html'><strong><i>playbook</i></strong></a>.</p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
         var receiving = frame.Commit.Layout.Values.Single(box => box.TextContent == "receiving");
@@ -819,7 +1010,8 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><p>First line<br />Second line</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var first = frame.Commit.Layout.Values.Single(box => box.TextContent == "First");
@@ -833,12 +1025,17 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_KeepsInlineBlockBoxInsidePhrasingFlow()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p>Before <span id='chip' style='display:inline-block;padding:4px;border-width:1px;border-style:solid'>Chip</span> after</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p>Before <span id='chip' style='display:inline-block;padding:4px;border-width:1px;border-style:solid'>Chip</span> after</p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
         var before = frame.Commit.Layout.Values.Single(box => box.TextContent == "Before");
-        var chip = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "chip").Key];
+        var chip = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "chip").Key
+        ];
         var after = frame.Commit.Layout.Values.Single(box => box.TextContent == "after");
 
         Assert.True(chip.AbsTop >= before.AbsTop);
@@ -852,12 +1049,17 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_KeepsInlineBlockWithBlockChildrenInsidePhrasingFlow()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p>Before <span id='badge' style='display:inline-block;width:96px;padding:4px'><strong>Dock</strong><br><span>open</span></span> after</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p>Before <span id='badge' style='display:inline-block;width:96px;padding:4px'><strong>Dock</strong><br><span>open</span></span> after</p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
         var before = frame.Commit.Layout.Values.Single(box => box.TextContent == "Before");
-        var badge = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key];
+        var badge = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key
+        ];
         var after = frame.Commit.Layout.Values.Single(box => box.TextContent == "after");
         var dock = frame.Commit.Layout.Values.Single(box => box.TextContent == "Dock");
         var open = frame.Commit.Layout.Values.Single(box => box.TextContent == "open");
@@ -872,14 +1074,23 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_HonorsNoWrapAcrossInlineBlockSiblings()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p style='white-space:nowrap'>Status <span id='chip' style='display:inline-block'>customs hold</span> <span id='note' style='display:inline-block;width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>Long reference: Vessel MV North Harbor</span></p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p style='white-space:nowrap'>Status <span id='chip' style='display:inline-block'>customs hold</span> <span id='note' style='display:inline-block;width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>Long reference: Vessel MV North Harbor</span></p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(360, 180, TimeSpan.Zero);
         var status = frame.Commit.Layout.Values.Single(box => box.TextContent == "Status");
-        var chip = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "chip").Key];
-        var note = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "note").Key];
-        var noteText = frame.Commit.Layout.Values.Single(box => box.TextContent == "Long reference: Vessel MV North Harbor");
+        var chip = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "chip").Key
+        ];
+        var note = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "note").Key
+        ];
+        var noteText = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "Long reference: Vessel MV North Harbor"
+        );
 
         Assert.Equal(status.AbsTop, chip.AbsTop, precision: 0);
         Assert.Equal(chip.AbsTop, note.AbsTop, precision: 0);
@@ -891,11 +1102,16 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_ParsesCssBoxShadow()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><div id='card' style='width:100px;height:40px;border-radius:8px;box-shadow: 4px 6px 12px 2px rgba(15, 23, 42, 0.35);'></div></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><div id='card' style='width:100px;height:40px;border-radius:8px;box-shadow: 4px 6px 12px 2px rgba(15, 23, 42, 0.35);'></div></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var card = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key];
+        var card = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key
+        ];
         var shadow = Assert.Single(card.BackgroundShadows ?? []);
 
         Assert.Equal(8, card.BorderRadius, precision: 0);
@@ -910,8 +1126,11 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_ParsesCssTextShadow()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p style='text-shadow: 2px 3px 4px rgba(1, 2, 3, 0.5);'>Shadow</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p style='text-shadow: 2px 3px 4px rgba(1, 2, 3, 0.5);'>Shadow</p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var text = frame.Commit.Layout.Values.Single(box => box.TextContent == "Shadow");
@@ -930,19 +1149,27 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><div id='title' style='width:230px;font-weight:bold'><img id='icon' src='fixtures/html/assets/logo.png' width='53' height='35'>この用語のポイント</div></body>",
-                Directory.GetCurrentDirectory()),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                Directory.GetCurrentDirectory()
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(420, 160, TimeSpan.Zero);
-        var icon = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "icon").Key];
-        var text = frame.Commit.Layout.Values.Single(box => box.TextContent == "この用語のポイント");
+        var icon = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "icon").Key
+        ];
+        var text = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "この用語のポイント"
+        );
 
         Assert.True(
             text.AbsLeft >= icon.AbsLeft + icon.Width,
-            $"text left={text.AbsLeft}, text width={text.Width}, icon left={icon.AbsLeft}, icon width={icon.Width}");
+            $"text left={text.AbsLeft}, text width={text.Width}, icon left={icon.AbsLeft}, icon width={icon.Width}"
+        );
         Assert.True(
             text.AbsTop < icon.AbsTop + icon.Height,
-            $"text top={text.AbsTop}, icon top={icon.AbsTop}, icon height={icon.Height}");
+            $"text top={text.AbsTop}, icon top={icon.AbsTop}, icon height={icon.Height}"
+        );
     }
 
     [Fact]
@@ -960,16 +1187,27 @@ public sealed class HtmlSceneFrameSourceTests
                     </ul>
                   </nav>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(960, 160, TimeSpan.Zero);
-        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
-        var second = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key];
-        var third = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "third").Key];
+        var first = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key
+        ];
+        var second = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key
+        ];
+        var third = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "third").Key
+        ];
 
         Assert.True(first.Width > 120, $"first width={first.Width}");
-        Assert.True(second.AbsLeft > first.AbsLeft + first.Width - 1, $"second left={second.AbsLeft}, first right={first.AbsLeft + first.Width}");
+        Assert.True(
+            second.AbsLeft > first.AbsLeft + first.Width - 1,
+            $"second left={second.AbsLeft}, first right={first.AbsLeft + first.Width}"
+        );
         Assert.Equal(first.AbsTop, second.AbsTop, precision: 0);
         Assert.Equal(first.AbsTop, third.AbsTop, precision: 0);
     }
@@ -987,11 +1225,15 @@ public sealed class HtmlSceneFrameSourceTests
                     <a href='three.html'>拡張子辞典</a>
                   </div>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(960, 160, TimeSpan.Zero);
-        var first = frame.Commit.Layout.Values.Single(box => box.TextContent == "1分で読めるIT用語辞典");
+        var first = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "1分で読めるIT用語辞典"
+        );
         var second = frame.Commit.Layout.Values.Single(box => box.TextContent == "IT略語一覧");
         var third = frame.Commit.Layout.Values.Single(box => box.TextContent == "拡張子辞典");
 
@@ -1018,15 +1260,23 @@ public sealed class HtmlSceneFrameSourceTests
                     <li id='second' style='float:left;width:12%;border:1px solid #ccc'><a style='display:block'>索引</a></li>
                   </ul>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(240, 180, TimeSpan.Zero);
         var root = frame.Commit.Layout[frame.Commit.RootId];
-        var firstLink = frame.Commit.Layout.Values.Single(box => box.TextContent == "1分で読めるIT用語辞典");
+        var firstLink = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "1分で読めるIT用語辞典"
+        );
         var secondLink = frame.Commit.Layout.Values.Single(box => box.TextContent == "IT略語一覧");
-        var firstMenu = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
-        var secondMenu = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key];
+        var firstMenu = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key
+        ];
+        var secondMenu = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key
+        ];
 
         Assert.Equal(240, root.Width, precision: 0);
         Assert.Equal(firstLink.AbsTop, secondLink.AbsTop, precision: 0);
@@ -1047,8 +1297,10 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 body { margin: 0; padding: 0; width: 95%; min-width: 960px; overflow: auto; }
                 #fill { width: 100%; height: 220px; background: #112233; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(980, 100, TimeSpan.Zero);
         var root = frame.Commit.Layout[frame.Commit.RootId];
@@ -1056,7 +1308,12 @@ public sealed class HtmlSceneFrameSourceTests
 
         Assert.Equal(980, root.Width, precision: 0);
         Assert.NotNull(scrollBar);
-        Assert.Equal(root.AbsLeft + root.Width, scrollBar.Value.TrackRect.Right + (root.ScrollBarWidth - scrollBar.Value.TrackRect.Width) / 2, precision: 1);
+        Assert.Equal(
+            root.AbsLeft + root.Width,
+            scrollBar.Value.TrackRect.Right
+                + (root.ScrollBarWidth - scrollBar.Value.TrackRect.Width) / 2,
+            precision: 1
+        );
     }
 
     [Fact]
@@ -1074,19 +1331,31 @@ public sealed class HtmlSceneFrameSourceTests
                     </div>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 160, TimeSpan.Zero);
-        var logo = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key];
-        var navigation = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "navigation").Key];
+        var logo = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key
+        ];
+        var navigation = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "navigation").Key
+        ];
         var domains = frame.Commit.Layout.Values.Single(box => box.TextContent == "Domains");
         var protocols = frame.Commit.Layout.Values.Single(box => box.TextContent == "Protocols");
 
         Assert.Equal(logo.AbsTop, navigation.AbsTop, precision: 0);
-        Assert.True(navigation.AbsLeft > logo.AbsLeft + logo.Width, $"logo={logo} navigation={navigation}");
+        Assert.True(
+            navigation.AbsLeft > logo.AbsLeft + logo.Width,
+            $"logo={logo} navigation={navigation}"
+        );
         Assert.Equal(domains.AbsTop, protocols.AbsTop, precision: 0);
-        Assert.True(protocols.AbsLeft > domains.AbsLeft + domains.Width, $"domains={domains} protocols={protocols}");
+        Assert.True(
+            protocols.AbsLeft > domains.AbsLeft + domains.Width,
+            $"domains={domains} protocols={protocols}"
+        );
     }
 
     [Fact]
@@ -1125,45 +1394,89 @@ public sealed class HtmlSceneFrameSourceTests
                   </body>
                 </html>
                 """,
-                BasePath: Directory.GetCurrentDirectory()),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                BasePath: Directory.GetCurrentDirectory()
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(1200, 220, TimeSpan.Zero);
-        var header = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "header").Key];
-        var logo = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key];
-        var navigation = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "navigation").Key];
+        var header = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "header").Key
+        ];
+        var logo = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key
+        ];
+        var navigation = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "navigation").Key
+        ];
         var domains = frame.Commit.Layout.Values.Single(box => box.TextContent == "Domains");
         var about = frame.Commit.Layout.Values.Single(box => box.TextContent == "About");
 
-        Assert.True(Math.Abs(logo.AbsTop - navigation.AbsTop) <= 0.5f, $"header={header} logo={logo} navigation={navigation}");
-        Assert.True(navigation.AbsLeft > logo.AbsLeft + logo.Width, $"logo={logo} navigation={navigation}");
-        Assert.True(about.AbsLeft + about.Width <= header.AbsLeft + header.Width + 0.5f, $"header={header} about=({about.AbsLeft},{about.Width})");
-        Assert.True(domains.Width < 80, $"domains text should use measured inline width, not a default block width: {domains}");
-        Assert.True(about.Width < 60, $"about text should use measured inline width, not a default block width: {about}");
+        Assert.True(
+            Math.Abs(logo.AbsTop - navigation.AbsTop) <= 0.5f,
+            $"header={header} logo={logo} navigation={navigation}"
+        );
+        Assert.True(
+            navigation.AbsLeft > logo.AbsLeft + logo.Width,
+            $"logo={logo} navigation={navigation}"
+        );
+        Assert.True(
+            about.AbsLeft + about.Width <= header.AbsLeft + header.Width + 0.5f,
+            $"header={header} about=({about.AbsLeft},{about.Width})"
+        );
+        Assert.True(
+            domains.Width < 80,
+            $"domains text should use measured inline width, not a default block width: {domains}"
+        );
+        Assert.True(
+            about.Width < 60,
+            $"about text should use measured inline width, not a default block width: {about}"
+        );
         Assert.Equal(domains.AbsTop, about.AbsTop, precision: 0);
 
         var narrow = source.RenderFrame(790, 220, TimeSpan.FromMilliseconds(16));
-        var narrowHeader = narrow.Commit.Layout[narrow.Commit.Nodes.Single(pair => pair.Value.Label == "header").Key];
-        var narrowLogo = narrow.Commit.Layout[narrow.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key];
-        var narrowNavigation = narrow.Commit.Layout[narrow.Commit.Nodes.Single(pair => pair.Value.Label == "navigation").Key];
+        var narrowHeader = narrow.Commit.Layout[
+            narrow.Commit.Nodes.Single(pair => pair.Value.Label == "header").Key
+        ];
+        var narrowLogo = narrow.Commit.Layout[
+            narrow.Commit.Nodes.Single(pair => pair.Value.Label == "logo").Key
+        ];
+        var narrowNavigation = narrow.Commit.Layout[
+            narrow.Commit.Nodes.Single(pair => pair.Value.Label == "navigation").Key
+        ];
         var narrowDomains = narrow.Commit.Layout.Values.Single(box => box.TextContent == "Domains");
         var narrowAbout = narrow.Commit.Layout.Values.Single(box => box.TextContent == "About");
 
-        Assert.True(narrowHeader.AbsLeft + narrowHeader.Width <= 790.5f, $"narrow header={narrowHeader}");
-        Assert.True(narrowNavigation.AbsTop > narrowLogo.AbsTop + narrowLogo.Height, $"narrow logo={narrowLogo} navigation={narrowNavigation}");
+        Assert.True(
+            narrowHeader.AbsLeft + narrowHeader.Width <= 790.5f,
+            $"narrow header={narrowHeader}"
+        );
+        Assert.True(
+            narrowNavigation.AbsTop > narrowLogo.AbsTop + narrowLogo.Height,
+            $"narrow logo={narrowLogo} navigation={narrowNavigation}"
+        );
         Assert.Equal(narrowDomains.AbsTop, narrowAbout.AbsTop, precision: 0);
-        Assert.True(narrowAbout.AbsLeft + narrowAbout.Width <= narrowHeader.AbsLeft + narrowHeader.Width + 0.5f, $"narrow header={narrowHeader} about=({narrowAbout.AbsLeft},{narrowAbout.Width})");
+        Assert.True(
+            narrowAbout.AbsLeft + narrowAbout.Width
+                <= narrowHeader.AbsLeft + narrowHeader.Width + 0.5f,
+            $"narrow header={narrowHeader} about=({narrowAbout.AbsLeft},{narrowAbout.Width})"
+        );
     }
 
     [Fact]
     public void RenderFrame_AppliesWhiteSpacePreWrap()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p id='copy' style='white-space:pre-wrap'>Alpha  beta\nGamma</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p id='copy' style='white-space:pre-wrap'>Alpha  beta\nGamma</p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
-        var text = frame.Commit.Layout.Values.Single(box => box.TextContent == "Alpha  beta\nGamma");
+        var text = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "Alpha  beta\nGamma"
+        );
 
         Assert.True(text.TextStyle?.WrapText == true);
         Assert.True(text.Height > 30);
@@ -1173,11 +1486,16 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_AppliesTextOverflowEllipsisStyle()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p id='copy' style='width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>A very long line that should ellipsize</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p id='copy' style='width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>A very long line that should ellipsize</p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
-        var text = frame.Commit.Layout.Values.Single(box => box.TextContent == "A very long line that should ellipsize");
+        var text = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "A very long line that should ellipsize"
+        );
 
         Assert.True(text.TextStyle?.TextOverflowEllipsis == true);
         Assert.True(text.TextStyle?.WrapText == false);
@@ -1187,7 +1505,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_AppliesDescendantAndChildSelectors()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <section class="panel">
                     <p id="direct">Direct</p>
@@ -1198,12 +1517,18 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 .panel p { color: #112233; }
                 .panel > p { background: #223344; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 240, TimeSpan.Zero);
-        var direct = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "direct").Key];
-        var nested = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "nested").Key];
+        var direct = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "direct").Key
+        ];
+        var nested = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "nested").Key
+        ];
         var directText = frame.Commit.Layout.Values.Single(box => box.TextContent == "Direct");
         var nestedText = frame.Commit.Layout.Values.Single(box => box.TextContent == "Nested");
 
@@ -1217,8 +1542,12 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_AppliesCurrentElementHoverInSelectorChain()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><section class='panel'><button id='cta'>Open</button></section></body>", ".panel button:hover { background: #445566; border-color: #778899; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><section class='panel'><button id='cta'>Open</button></section></body>",
+                ".panel button:hover { background: #445566; border-color: #778899; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
@@ -1234,8 +1563,11 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_KeepsDisplayInlineSpanInTextFlow()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p>Before <span id='mid' style='display:inline'><strong><a href='docs.html'>middle</a></strong></span> after</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p>Before <span id='mid' style='display:inline'><strong><a href='docs.html'>middle</a></strong></span> after</p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 180, TimeSpan.Zero);
         var before = frame.Commit.Layout.Values.Single(box => box.TextContent == "Before");
@@ -1253,24 +1585,34 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_ParsesBorderAndBackgroundShorthands()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="card" style="border: solid 2px #445566; background: #112233 url(hero.png) no-repeat center; background-size: contain;"></div>
                   <div id="plain" style="border: none; background: rgb(17, 34, 51);"></div>
                 </body>
                 """,
-                BasePath: Path.GetFullPath(Path.Combine("fixtures", "html"))),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                BasePath: Path.GetFullPath(Path.Combine("fixtures", "html"))
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var card = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key];
-        var plain = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "plain").Key];
+        var card = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key
+        ];
+        var plain = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "plain").Key
+        ];
 
         Assert.Equal(2, card.BorderWidth);
         Assert.Equal(SceneBorderStyle.Solid, card.BorderStyle);
         Assert.Equal("#445566", card.BorderColor);
         Assert.Equal("#112233", card.BackgroundColor);
-        Assert.Equal(Path.GetFullPath(Path.Combine("fixtures", "html", "hero.png")), card.BackgroundImageSource);
+        Assert.Equal(
+            Path.GetFullPath(Path.Combine("fixtures", "html", "hero.png")),
+            card.BackgroundImageSource
+        );
         Assert.Equal("contain", card.BackgroundImageFit);
         Assert.Equal(SceneBorderStyle.None, plain.BorderStyle);
         Assert.Equal("rgb(17, 34, 51)", plain.BackgroundColor);
@@ -1280,17 +1622,24 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_AppliesBoxSizingToExplicitCssSizes()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="content" style="box-sizing: content-box; width: 100px; height: 40px; padding: 10px; border: 2px solid #112233;"></div>
                   <div id="border" style="box-sizing: border-box; width: 100px; height: 40px; padding: 10px; border: 2px solid #112233;"></div>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var content = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "content").Key];
-        var border = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "border").Key];
+        var content = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "content").Key
+        ];
+        var border = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "border").Key
+        ];
 
         Assert.Equal(SceneBoxSizing.ContentBox, content.BoxSizing);
         Assert.Equal(124, content.Width, precision: 0);
@@ -1304,17 +1653,22 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_AppliesContentBoxInsetsAfterResolvingPercentSizes()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="parent" style="width: 200px; height: 200px;">
                     <div id="child" style="box-sizing: content-box; width: 50%; min-height: 25%; padding: 10px; border: 2px solid #112233;"></div>
                   </div>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 200, TimeSpan.Zero);
-        var child = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "child").Key];
+        var child = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "child").Key
+        ];
 
         Assert.Equal(124, child.Width, precision: 0);
         Assert.True(child.Height >= 74, $"height={child.Height}");
@@ -1324,17 +1678,24 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_ResolvesCssFontRelativeAndViewportLengthUnits()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="font-relative" style="width: 10em; height: 2rem; padding-left: 1em; font-size: 20px;"></div>
                   <div id="viewport-relative" style="width: 50vw; height: 25vh; margin-top: 5vh; padding-left: 10vw;"></div>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(800, 400, TimeSpan.Zero);
-        var fontRelative = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "font-relative").Key];
-        var viewportRelative = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "viewport-relative").Key];
+        var fontRelative = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "font-relative").Key
+        ];
+        var viewportRelative = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "viewport-relative").Key
+        ];
 
         Assert.Equal(200, fontRelative.Width, precision: 0);
         Assert.Equal(32, fontRelative.Height, precision: 0);
@@ -1342,10 +1703,16 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(400, viewportRelative.Width, precision: 0);
         Assert.Equal(100, viewportRelative.Height, precision: 0);
         Assert.Equal(80, viewportRelative.PaddingLeft, precision: 0);
-        Assert.Equal(fontRelative.AbsTop + fontRelative.Height + 20, viewportRelative.AbsTop, precision: 0);
+        Assert.Equal(
+            fontRelative.AbsTop + fontRelative.Height + 20,
+            viewportRelative.AbsTop,
+            precision: 0
+        );
 
         var resized = source.RenderFrame(1000, 600, TimeSpan.Zero);
-        var resizedViewportRelative = resized.Commit.Layout[resized.Commit.Nodes.Single(pair => pair.Value.Label == "viewport-relative").Key];
+        var resizedViewportRelative = resized.Commit.Layout[
+            resized.Commit.Nodes.Single(pair => pair.Value.Label == "viewport-relative").Key
+        ];
         Assert.Equal(500, resizedViewportRelative.Width, precision: 0);
         Assert.Equal(150, resizedViewportRelative.Height, precision: 0);
         Assert.Equal(100, resizedViewportRelative.PaddingLeft, precision: 0);
@@ -1355,7 +1722,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_ResolvesMarginPaddingAndGapPercentAgainstContainingBlockWidth()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="card" style="width: 200px; height: 20px; margin-top: 10%; padding: 10%;"></div>
                   <div id="row" style="display: flex; flex-direction: row; gap: 10%; width: 200px;">
@@ -1363,13 +1731,21 @@ public sealed class HtmlSceneFrameSourceTests
                     <span id="b" style="display: inline-block; width: 20px; height: 10px;"></span>
                   </div>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(400, 300, TimeSpan.Zero);
-        var card = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key];
-        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "a").Key];
-        var second = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "b").Key];
+        var card = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key
+        ];
+        var first = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "a").Key
+        ];
+        var second = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "b").Key
+        ];
 
         // Body defaults keep an 8px inset, so the containing block width for children is 384px.
         Assert.Equal(38.4f, card.PaddingLeft, precision: 1);
@@ -1382,7 +1758,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_IncludesPercentPaddingWhenMeasuringNestedFlexItemHeight()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <section id="row" style="display: flex; flex-direction: row; width: 300px; padding: 10%;">
                     <div id="card" style="width: 0; flex: 1 1 0; padding: 12%; background: #101f34;">
@@ -1390,14 +1767,20 @@ public sealed class HtmlSceneFrameSourceTests
                     </div>
                   </section>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(400, 260, TimeSpan.Zero);
-        var row = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key];
-        var card = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key];
-        var textBottom = frame.Commit.Layout.Values
-            .Where(box => box.TextContent is "Percent" or "padding")
+        var row = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key
+        ];
+        var card = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key
+        ];
+        var textBottom = frame
+            .Commit.Layout.Values.Where(box => box.TextContent is "Percent" or "padding")
             .Select(box => box.AbsTop + box.Height)
             .DefaultIfEmpty(0)
             .Max();
@@ -1410,17 +1793,24 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_ResolvesLogicalMarginProperties()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="first" style="width: 100px; height: 20px; margin-inline: 10% 20%; margin-block: 12px 18px;"></div>
                   <div id="second" style="width: 100px; height: 20px; margin-inline-start: 8px; margin-inline-end: 14px; margin-block-start: 6px; margin-block-end: 10px;"></div>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(400, 260, TimeSpan.Zero);
-        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
-        var second = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key];
+        var first = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key
+        ];
+        var second = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key
+        ];
 
         // Body leaves an 8px inset, so percent margins resolve against the 384px containing block.
         Assert.Equal(46.4f, first.AbsLeft, precision: 1);
@@ -1433,7 +1823,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_UsesRtlDirectionForFlowAndLogicalMargins()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="row" style="direction: rtl; display: flex; flex-direction: row; width: 200px; height: 40px;">
                     <div id="first" style="width: 40px; height: 20px; margin-inline-start: 10px;"></div>
@@ -1443,62 +1834,107 @@ public sealed class HtmlSceneFrameSourceTests
                     <div id="column-child" style="width: 40px; height: 20px;"></div>
                   </div>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 220, TimeSpan.Zero);
-        var row = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key];
-        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
-        var second = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key];
-        var column = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "column").Key];
-        var columnChild = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "column-child").Key];
+        var row = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key
+        ];
+        var first = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key
+        ];
+        var second = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key
+        ];
+        var column = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "column").Key
+        ];
+        var columnChild = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "column-child").Key
+        ];
 
         Assert.Equal(row.AbsLeft + row.Width - 10 - first.Width, first.AbsLeft, precision: 0);
         Assert.True(second.AbsLeft < first.AbsLeft);
-        Assert.Equal(column.AbsLeft + column.Width - columnChild.Width, columnChild.AbsLeft, precision: 0);
+        Assert.Equal(
+            column.AbsLeft + column.Width - columnChild.Width,
+            columnChild.AbsLeft,
+            precision: 0
+        );
     }
 
     [Fact]
     public void RenderFrame_CentersAutoWidthItemsInColumnFlexWhenAlignItemsCenter()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="column" style="display: flex; flex-direction: column; align-items: center; width: 240px;">
                     <div id="pill" style="padding: 8px; border-width: 1px; border-style: solid;">center me</div>
                   </div>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(360, 220, TimeSpan.Zero);
-        var column = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "column").Key];
-        var pill = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "pill").Key];
+        var column = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "column").Key
+        ];
+        var pill = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "pill").Key
+        ];
 
-        Assert.True(pill.Width < column.Width - 1, $"pill width {pill.Width} should be narrower than column width {column.Width}");
-        Assert.Equal(column.AbsLeft + (column.Width - pill.Width) * 0.5f, pill.AbsLeft, precision: 1);
+        Assert.True(
+            pill.Width < column.Width - 1,
+            $"pill width {pill.Width} should be narrower than column width {column.Width}"
+        );
+        Assert.Equal(
+            column.AbsLeft + (column.Width - pill.Width) * 0.5f,
+            pill.AbsLeft,
+            precision: 1
+        );
     }
 
     [Fact]
     public void RenderFrame_FitsWrappedLogicalMarginTextInsideRowFlexItem()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <div id="row" style="display: flex; flex-direction: row; align-items: start; width: 270px; border-width: 1px; border-style: solid;">
                     <span id="chip" style="display: inline-block; width: 70px; padding: 6px; margin-inline-start: 12px; margin-inline-end: 8px; margin-block: 10px;">start</span>
                     <p id="copy" style="margin-inline: 10px 16px; margin-block: 10px;">This row uses margin-inline-start, margin-inline-end, and margin-block.</p>
                   </div>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(340, 260, TimeSpan.Zero);
-        var row = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key];
-        var copy = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "copy").Key];
-        var copyTextBottom = frame.Commit.Layout.Values
-            .Where(box => box.TextContent is "This" or "row" or "uses" or "margin-inline-start,"
-                or "margin-inline-end," or "and" or "margin-block.")
+        var row = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key
+        ];
+        var copy = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "copy").Key
+        ];
+        var copyTextBottom = frame
+            .Commit.Layout.Values.Where(box =>
+                box.TextContent
+                    is "This"
+                        or "row"
+                        or "uses"
+                        or "margin-inline-start,"
+                        or "margin-inline-end,"
+                        or "and"
+                        or "margin-block."
+            )
             .Select(box => box.AbsTop + box.Height)
             .DefaultIfEmpty(copy.AbsTop + copy.Height)
             .Max();
@@ -1506,7 +1942,8 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.True(copy.Height > 30);
         Assert.True(
             row.AbsTop + row.Height >= copyTextBottom + copy.PaddingBottom + 10 - 0.5f,
-            $"row=({row.AbsTop},{row.Height}) copy=({copy.AbsTop},{copy.Width},{copy.Height}) textBottom={copyTextBottom}");
+            $"row=({row.AbsTop},{row.Height}) copy=({copy.AbsTop},{copy.Width},{copy.Height}) textBottom={copyTextBottom}"
+        );
     }
 
     [Fact]
@@ -1514,19 +1951,32 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             LoadSampleBrowserSampleDocument(),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(900, 720, TimeSpan.Zero);
-        var rows = frame.Commit.Layout
-            .Where(pair => pair.Value.BackgroundColor is "#0b1626" or "rgb(11, 22, 38)")
+        var rows = frame
+            .Commit.Layout.Where(pair =>
+                pair.Value.BackgroundColor is "#0b1626" or "rgb(11, 22, 38)"
+            )
             .OrderBy(pair => pair.Value.AbsLeft)
             .ToArray();
         var firstRow = rows[0].Value;
         var firstPanel = frame.Commit.Layout[frame.Commit.Nodes[rows[0].Key].ParentId!.Value];
-        var copyTextBottom = frame.Commit.Layout.Values
-            .Where(box => box.TextContent is "This" or "row" or "uses" or "margin-inline-start,"
-                or "margin-inline-end," or "and" or "margin-block.")
-            .Where(box => box.AbsLeft >= firstRow.AbsLeft && box.AbsLeft <= firstRow.AbsLeft + firstRow.Width)
+        var copyTextBottom = frame
+            .Commit.Layout.Values.Where(box =>
+                box.TextContent
+                    is "This"
+                        or "row"
+                        or "uses"
+                        or "margin-inline-start,"
+                        or "margin-inline-end,"
+                        or "and"
+                        or "margin-block."
+            )
+            .Where(box =>
+                box.AbsLeft >= firstRow.AbsLeft && box.AbsLeft <= firstRow.AbsLeft + firstRow.Width
+            )
             .Select(box => box.AbsTop + box.Height)
             .DefaultIfEmpty(0)
             .Max();
@@ -1534,10 +1984,12 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.True(rows.Length >= 1);
         Assert.True(
             firstRow.AbsTop + firstRow.Height >= copyTextBottom + 12 - 0.5f,
-            $"row=({firstRow.AbsTop},{firstRow.Height}) textBottom={copyTextBottom}");
+            $"row=({firstRow.AbsTop},{firstRow.Height}) textBottom={copyTextBottom}"
+        );
         Assert.True(
             firstPanel.AbsTop + firstPanel.Height >= firstRow.AbsTop + firstRow.Height + 16 - 0.5f,
-            $"panel=({firstPanel.AbsTop},{firstPanel.Height}) row=({firstRow.AbsTop},{firstRow.Height})");
+            $"panel=({firstPanel.AbsTop},{firstPanel.Height}) row=({firstRow.AbsTop},{firstRow.Height})"
+        );
     }
 
     [Fact]
@@ -1545,14 +1997,20 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><button id='cta'>Open</button></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var initialButtonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
         var initialBox = initial.Commit.Layout[initialButtonId];
         var initialTextBox = initial.Commit.Layout.Values.Single(box => box.TextContent == "Open");
 
-        source.PointerMove(initialTextBox.AbsLeft + initialTextBox.Width / 2, initialTextBox.AbsTop + initialTextBox.Height / 2, 0, synthetic: false);
+        source.PointerMove(
+            initialTextBox.AbsLeft + initialTextBox.Width / 2,
+            initialTextBox.AbsTop + initialTextBox.Height / 2,
+            0,
+            synthetic: false
+        );
         var hovered = source.RenderFrame(320, 180, TimeSpan.Zero);
         source.PointerDown(0, 1, synthetic: false);
         var pressed = source.RenderFrame(320, 180, TimeSpan.Zero);
@@ -1562,8 +2020,14 @@ public sealed class HtmlSceneFrameSourceTests
 
         Assert.Equal(new SKColor(0xEF, 0xEF, 0xEF, 0xFF), ParseColor(initialBox.BackgroundColor));
         Assert.Equal(SceneDamageReason.FragmentDamage, hovered.DamageReasons);
-        Assert.Equal(new SKColor(0xE4, 0xE4, 0xE4, 0xFF), ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonId)));
-        Assert.Equal(new SKColor(0xF8, 0xF8, 0xF8, 0xFF), ParseColor(ResolveAppliedBackgroundColor(pressed.Commit, pressedButtonId)));
+        Assert.Equal(
+            new SKColor(0xE4, 0xE4, 0xE4, 0xFF),
+            ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonId))
+        );
+        Assert.Equal(
+            new SKColor(0xF8, 0xF8, 0xF8, 0xFF),
+            ParseColor(ResolveAppliedBackgroundColor(pressed.Commit, pressedButtonId))
+        );
     }
 
     [Fact]
@@ -1571,35 +2035,56 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><button id='cta'>Open</button></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var initialButtonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
         var initialBox = initial.Commit.Layout[initialButtonId];
         var initialTextBox = initial.Commit.Layout.Values.Single(box => box.TextContent == "Open");
 
-        source.PointerMove(initialTextBox.AbsLeft + initialTextBox.Width / 2, initialTextBox.AbsTop + initialTextBox.Height / 2, 0, synthetic: false);
+        source.PointerMove(
+            initialTextBox.AbsLeft + initialTextBox.Width / 2,
+            initialTextBox.AbsTop + initialTextBox.Height / 2,
+            0,
+            synthetic: false
+        );
         var hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
         source.PointerMove(319, 179, 0, synthetic: false);
         var unhovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
         var hoveredButtonId = hovered.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
-        var unhoveredButtonId = unhovered.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
+        var unhoveredButtonId = unhovered
+            .Commit.Nodes.Single(pair => pair.Value.Label == "cta")
+            .Key;
 
-        Assert.Equal(new SKColor(0xE4, 0xE4, 0xE4, 0xFF), ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonId)));
+        Assert.Equal(
+            new SKColor(0xE4, 0xE4, 0xE4, 0xFF),
+            ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonId))
+        );
         Assert.Equal(SceneDamageReason.FragmentDamage, unhovered.DamageReasons);
-        Assert.Equal(new SKColor(0xEF, 0xEF, 0xEF, 0xFF), ParseColor(ResolveAppliedBackgroundColor(unhovered.Commit, unhoveredButtonId)));
+        Assert.Equal(
+            new SKColor(0xEF, 0xEF, 0xEF, 0xFF),
+            ParseColor(ResolveAppliedBackgroundColor(unhovered.Commit, unhoveredButtonId))
+        );
     }
 
     [Fact]
     public void RenderFrame_UsesUnderlineAndFillDefaultsForLinksAndImages()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><a id='link' href='docs.html'>Docs</a><img id='photo' src='photo.jpg' width='120' height='80' /></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><a id='link' href='docs.html'>Docs</a><img id='photo' src='photo.jpg' width='120' height='80' /></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 240, TimeSpan.Zero);
-        var link = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "link").Key];
-        var image = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "photo").Key];
+        var link = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "link").Key
+        ];
+        var image = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "photo").Key
+        ];
 
         Assert.True(link.TextStyle?.Underline == true);
         Assert.True(string.IsNullOrWhiteSpace(image.BackgroundColor));
@@ -1610,7 +2095,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void HtmlSceneFrameSource_SelectClickOpensDropdownAndChoosesOption()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <h1 id='title'>Keep me visible</h1>
                   <select id='region'>
@@ -1619,8 +2105,10 @@ public sealed class HtmlSceneFrameSourceTests
                     <option value='amer'>AMER</option>
                   </select>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var selectId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "region").Key;
@@ -1629,7 +2117,10 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal("APAC", selectBox.TextContent);
         Assert.Empty(initial.Commit.Nodes[selectId].Children);
         Assert.Contains(initial.Commit.Layout.Values, box => box.TextContent == "Keep");
-        Assert.DoesNotContain(initial.Commit.Layout.Values, box => box.TextContent is "EMEA" or "AMER");
+        Assert.DoesNotContain(
+            initial.Commit.Layout.Values,
+            box => box.TextContent is "EMEA" or "AMER"
+        );
 
         source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + 8, 0, synthetic: false);
         var beforeOpen = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(8));
@@ -1641,21 +2132,26 @@ public sealed class HtmlSceneFrameSourceTests
 
         Assert.NotEmpty(opened.Commit.DynamicOverlayRootIds);
         var popup = opened.Commit.Layout.Values.Single(box =>
-            box.NodeKind == SceneNodeKind.View &&
-            box.IsPositioned &&
-            box.BorderWidth == 1 &&
-            box.BorderStyle == SceneBorderStyle.Solid);
+            box.NodeKind == SceneNodeKind.View
+            && box.IsPositioned
+            && box.BorderWidth == 1
+            && box.BorderStyle == SceneBorderStyle.Solid
+        );
         var firstOption = opened.Commit.Layout.Values.First(box =>
-            box.NodeKind == SceneNodeKind.View &&
-            box.BackgroundColor == "#ffffff" &&
-            box.AbsLeft > popup.AbsLeft &&
-            box.AbsTop > popup.AbsTop);
+            box.NodeKind == SceneNodeKind.View
+            && box.BackgroundColor == "#ffffff"
+            && box.AbsLeft > popup.AbsLeft
+            && box.AbsTop > popup.AbsTop
+        );
 
         Assert.Equal(1, popup.BorderWidth);
         Assert.Equal(SceneBorderStyle.Solid, popup.BorderStyle);
         Assert.False(opened.DamageReasons.HasFlag(SceneDamageReason.Scroll));
         Assert.Contains(opened.DirtyRects, rect => Intersects(rect, popup));
-        Assert.DoesNotContain(opened.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180);
+        Assert.DoesNotContain(
+            opened.DirtyRects,
+            rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180
+        );
         Assert.True(firstOption.AbsLeft > popup.AbsLeft);
         Assert.True(firstOption.AbsTop > popup.AbsTop);
         Assert.Contains(opened.Commit.Layout.Values, box => box.TextContent == "EMEA");
@@ -1664,35 +2160,57 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(0, opened.Commit.Layout[selectId].CaretIndex);
         Assert.Equal(SceneControlKind.Select, opened.Commit.Layout[selectId].ControlKind);
 
-        source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + selectBox.Height + selectBox.Height + 4, 0, synthetic: false);
+        source.PointerMove(
+            selectBox.AbsLeft + 8,
+            selectBox.AbsTop + selectBox.Height + selectBox.Height + 4,
+            0,
+            synthetic: false
+        );
         var hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(24));
         Assert.Contains(hovered.Commit.Layout.Values, box => box.TextContent == "EMEA");
-        var hoveredOption = hovered.Commit.Layout.Values.Single(box => box.BackgroundColor == "#e5e7eb");
+        var hoveredOption = hovered.Commit.Layout.Values.Single(box =>
+            box.BackgroundColor == "#e5e7eb"
+        );
         Assert.Contains(hovered.DirtyRects, rect => Intersects(rect, hoveredOption));
-        Assert.DoesNotContain(hovered.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180);
+        Assert.DoesNotContain(
+            hovered.DirtyRects,
+            rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180
+        );
 
-        source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + selectBox.Height + selectBox.Height + 4, 0, synthetic: false);
+        source.PointerMove(
+            selectBox.AbsLeft + 8,
+            selectBox.AbsTop + selectBox.Height + selectBox.Height + 4,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
         var selected = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal("EMEA", selected.Commit.Layout[selectId].TextContent);
-        Assert.DoesNotContain(selected.Commit.Layout.Values, box => box.IsPositioned && box.BorderStyle == SceneBorderStyle.Solid);
+        Assert.DoesNotContain(
+            selected.Commit.Layout.Values,
+            box => box.IsPositioned && box.BorderStyle == SceneBorderStyle.Solid
+        );
         Assert.Contains(selected.DirtyRects, rect => Intersects(rect, popup));
-        Assert.Contains(selected.DirtyRects, rect => Intersects(rect, selected.Commit.Layout[selectId]));
+        Assert.Contains(
+            selected.DirtyRects,
+            rect => Intersects(rect, selected.Commit.Layout[selectId])
+        );
 
-        static bool Intersects(SceneDamageRect rect, SceneLayoutBox box)
-            => rect.X < box.AbsLeft + box.Width &&
-               rect.X + rect.Width > box.AbsLeft &&
-               rect.Y < box.AbsTop + box.Height &&
-               rect.Y + rect.Height > box.AbsTop;
+        static bool Intersects(SceneDamageRect rect, SceneLayoutBox box) =>
+            rect.X < box.AbsLeft + box.Width
+            && rect.X + rect.Width > box.AbsLeft
+            && rect.Y < box.AbsTop + box.Height
+            && rect.Y + rect.Height > box.AbsTop;
     }
 
     [Fact]
     public void HtmlSceneFrameSource_SelectChoiceOverridesStaticSelectedAttribute()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <select id='mode'>
                     <option value='s'>Starts</option>
@@ -1700,8 +2218,10 @@ public sealed class HtmlSceneFrameSourceTests
                     <option value='' selected>Contains</option>
                   </select>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var selectId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "mode").Key;
@@ -1713,7 +2233,12 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
         source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
-        source.PointerMove(selectBox.AbsLeft + 8, selectBox.AbsTop + selectBox.Height + 4, 0, synthetic: false);
+        source.PointerMove(
+            selectBox.AbsLeft + 8,
+            selectBox.AbsTop + selectBox.Height + 4,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
         var selected = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
@@ -1737,8 +2262,10 @@ public sealed class HtmlSceneFrameSourceTests
                   </select>
                 </body>
                 """,
-                "body { background: #ff0000; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "body { background: #ff0000; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
         using var root = new SceneRenderRoot(source, requiresFullFramePresentation: true);
         using var bitmap = new SKBitmap(320, 180);
         using var canvas = new SKCanvas(bitmap);
@@ -1758,11 +2285,14 @@ public sealed class HtmlSceneFrameSourceTests
 
         var afterOpen = bitmap.GetPixel(sampleX, sampleY);
         Assert.NotEqual(before, afterOpen);
-        Assert.Contains(root.GetLastDirtyRects().ToArray(), rect =>
-            rect.X <= sampleX &&
-            rect.X + rect.Width > sampleX &&
-            rect.Y <= sampleY &&
-            rect.Y + rect.Height > sampleY);
+        Assert.Contains(
+            root.GetLastDirtyRects().ToArray(),
+            rect =>
+                rect.X <= sampleX
+                && rect.X + rect.Width > sampleX
+                && rect.Y <= sampleY
+                && rect.Y + rect.Height > sampleY
+        );
 
         root.PointerDown(0, 1, synthetic: false);
         root.PointerUp(0, 0, synthetic: false);
@@ -1770,18 +2300,22 @@ public sealed class HtmlSceneFrameSourceTests
 
         var afterClose = bitmap.GetPixel(sampleX, sampleY);
         Assert.Equal(before, afterClose);
-        Assert.Contains(root.GetLastDirtyRects().ToArray(), rect =>
-            rect.X <= sampleX &&
-            rect.X + rect.Width > sampleX &&
-            rect.Y <= sampleY &&
-            rect.Y + rect.Height > sampleY);
+        Assert.Contains(
+            root.GetLastDirtyRects().ToArray(),
+            rect =>
+                rect.X <= sampleX
+                && rect.X + rect.Width > sampleX
+                && rect.Y <= sampleY
+                && rect.Y + rect.Height > sampleY
+        );
     }
 
     [Fact]
     public void RenderFrame_UsesBrowserLikeIntrinsicSelectAndButtonDefaults()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <main style="font-family: Arial, sans-serif; padding: 24px; line-height: 1.5;">
                     <select id='region'>
@@ -1792,8 +2326,10 @@ public sealed class HtmlSceneFrameSourceTests
                     <button id="demo-button">Run JS click handler</button>
                   </main>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(420, 180, TimeSpan.Zero);
         var selectNode = frame.Commit.Nodes.Single(pair => pair.Value.Label == "region");
@@ -1808,7 +2344,8 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.True(button.BorderRadius > 0);
         Assert.True(
             Math.Abs(button.AbsTop - select.AbsTop) <= 1,
-            $"select=({select.AbsLeft},{select.AbsTop},{select.Width},{select.Height}) parent={selectNode.Value.ParentId} button=({button.AbsLeft},{button.AbsTop},{button.Width},{button.Height}) parent={buttonNode.Value.ParentId}");
+            $"select=({select.AbsLeft},{select.AbsTop},{select.Width},{select.Height}) parent={selectNode.Value.ParentId} button=({button.AbsLeft},{button.AbsTop},{button.Width},{button.Height}) parent={buttonNode.Value.ParentId}"
+        );
         Assert.True(button.AbsLeft > select.AbsLeft + select.Width);
     }
 
@@ -1816,8 +2353,11 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_BridgesUnderlineAcrossInlineWordGap()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><p><a href='https://example.test'>alpha beta</a></p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><p><a href='https://example.test'>alpha beta</a></p></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 120, TimeSpan.Zero);
         var alpha = frame.Commit.Layout.Values.Single(box => box.TextContent == "alpha");
@@ -1833,7 +2373,8 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><div>Hello</div></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var first = source.RenderFrame(320, 180, TimeSpan.Zero);
         var second = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
@@ -1846,14 +2387,24 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_StacksBlockElementsVerticallyWithoutCss()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><div id='first'>First</div><div id='second'>Second</div></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><div id='first'>First</div><div id='second'>Second</div></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
-        var second = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key];
+        var first = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key
+        ];
+        var second = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key
+        ];
 
-        Assert.True(second.AbsTop > first.AbsTop, $"firstTop={first.AbsTop} secondTop={second.AbsTop}");
+        Assert.True(
+            second.AbsTop > first.AbsTop,
+            $"firstTop={first.AbsTop} secondTop={second.AbsTop}"
+        );
     }
 
     [Fact]
@@ -1861,14 +2412,18 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><button id='cta'>Open docs</button></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var buttonId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
         var buttonBox = frame.Commit.Layout[buttonId];
         var buttonText = frame.Commit.Layout[frame.Commit.Nodes[buttonId].Children.Single()];
 
-        Assert.Equal(new SKColor(0xFF, 0xFF, 0xFF, 0xFF), ParseColor(frame.Commit.Layout[frame.Commit.RootId].BackgroundColor));
+        Assert.Equal(
+            new SKColor(0xFF, 0xFF, 0xFF, 0xFF),
+            ParseColor(frame.Commit.Layout[frame.Commit.RootId].BackgroundColor)
+        );
         Assert.Equal(SceneBorderStyle.Solid, buttonBox.BorderStyle);
         Assert.Equal(new SKColor(0xEF, 0xEF, 0xEF, 0xFF), ParseColor(buttonBox.BackgroundColor));
         Assert.Equal("#111827", buttonText.TextStyle?.Color);
@@ -1910,13 +2465,21 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 p, td, th { margin: 1.2em 0; }
                 #footer .navigation li { list-style: none; display: inline; margin: 0 5px 0 5px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 320, TimeSpan.Zero);
 
-        Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent?.Contains("Domain", StringComparison.Ordinal) == true);
-        Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent?.Contains("Names", StringComparison.Ordinal) == true);
+        Assert.Contains(
+            frame.Commit.Layout.Values,
+            box => box.TextContent?.Contains("Domain", StringComparison.Ordinal) == true
+        );
+        Assert.Contains(
+            frame.Commit.Layout.Values,
+            box => box.TextContent?.Contains("Names", StringComparison.Ordinal) == true
+        );
         Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent == "Root");
         Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent == "Zone");
         Assert.Contains(frame.Commit.Layout.Values, box => box.TextContent == ".INT");
@@ -1927,14 +2490,19 @@ public sealed class HtmlSceneFrameSourceTests
         var intRegistry = frame.Commit.Layout.Values.Single(box => box.TextContent == ".INT");
         Assert.True(intRegistry.AbsTop >= root.AbsTop);
         Assert.True(intRegistry.AbsLeft >= root.AbsLeft);
-        var numberResources = frame.Commit.Layout.Values.Single(box => box.TextContent == "Number\u00a0Resourcesaaaaaaaaaa");
+        var numberResources = frame.Commit.Layout.Values.Single(box =>
+            box.TextContent == "Number\u00a0Resourcesaaaaaaaaaa"
+        );
         Assert.True(numberResources.Width > 90);
         var abuse = frame.Commit.Layout.Values.Single(box => box.TextContent == "Abuse");
         Assert.True(
             abuse.AbsLeft > numberResources.AbsLeft + numberResources.Width,
-            $"Expected second table column after first column text, number=({numberResources.AbsLeft},{numberResources.Width}) abuse={abuse.AbsLeft}.");
-        var rows = frame.Commit.Nodes
-            .Where(pair => pair.Value.Children.Length >= 2 && frame.Commit.Layout.ContainsKey(pair.Key))
+            $"Expected second table column after first column text, number=({numberResources.AbsLeft},{numberResources.Width}) abuse={abuse.AbsLeft}."
+        );
+        var rows = frame
+            .Commit.Nodes.Where(pair =>
+                pair.Value.Children.Length >= 2 && frame.Commit.Layout.ContainsKey(pair.Key)
+            )
             .Select(pair => frame.Commit.Layout[pair.Key])
             .OrderBy(box => box.AbsTop)
             .ToArray();
@@ -1945,8 +2513,11 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_UsesDarkTextDefaultsForLightFormControls()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><input id='email' value='native@reactokojo.dev' /><textarea id='notes'>Shipping a native landing page.</textarea></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><input id='email' value='native@reactokojo.dev' /><textarea id='notes'>Shipping a native landing page.</textarea></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(420, 240, TimeSpan.Zero);
         var inputId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "email").Key;
@@ -1962,8 +2533,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><input id='email' value='native@reactokojo.dev' /><textarea id='notes'>Native landing page</textarea></body>",
-                "body { color: #dbe7f4; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "body { color: #dbe7f4; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(420, 240, TimeSpan.Zero);
         var inputId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "email").Key;
@@ -1979,8 +2552,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><div id='card'>Card</div></body>",
-                "#card { border-width: 3px; border-color: #112233; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "#card { border-width: 3px; border-color: #112233; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var cardId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key;
@@ -1997,7 +2572,12 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlDocument("<body><div id='hero'>Hello overlay</div></body>"),
             new Enaga.Html.HtmlOptions(
                 BackendServices: DummyRuntimeBackendServices.Create(),
-                LayoutConfig: LayoutEngineConfig.WebDefaults with { CollapseTextOnlyElements = false }));
+                LayoutConfig: LayoutEngineConfig.WebDefaults with
+                {
+                    CollapseTextOnlyElements = false,
+                }
+            )
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var hero = frame.Commit.Nodes.Single(pair => pair.Value.Label == "hero");
@@ -2005,7 +2585,10 @@ public sealed class HtmlSceneFrameSourceTests
 
         Assert.Equal(SceneNodeKind.View, heroBox.NodeKind);
         Assert.Single(frame.Commit.Nodes[hero.Key].Children);
-        Assert.Equal(SceneNodeKind.Text, frame.Commit.Layout[frame.Commit.Nodes[hero.Key].Children[0]].NodeKind);
+        Assert.Equal(
+            SceneNodeKind.Text,
+            frame.Commit.Layout[frame.Commit.Nodes[hero.Key].Children[0]].NodeKind
+        );
     }
 
     [Fact]
@@ -2014,8 +2597,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><div id='card' class='card'>Styled content</div></body>",
-                ".card { padding: 12px; background: #18131fff; border-width: 1px; border-color: #3b82f6; border-radius: 14px; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                ".card { padding: 12px; background: #18131fff; border-width: 1px; border-color: #3b82f6; border-radius: 14px; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var card = frame.Commit.Nodes.Single(pair => pair.Value.Label == "card");
@@ -2033,10 +2618,13 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><textarea>Line one\nLine two</textarea></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 220, TimeSpan.Zero);
-        var textarea = frame.Commit.Layout.Values.Single(box => box.NodeKind == SceneNodeKind.TextInput);
+        var textarea = frame.Commit.Layout.Values.Single(box =>
+            box.NodeKind == SceneNodeKind.TextInput
+        );
 
         Assert.True(textarea.Multiline);
         Assert.True(textarea.Height >= 96);
@@ -2047,7 +2635,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_SupportsSavedPageSearchFormControls()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <form id="fSearch">
                     <input type="hidden" id="token" value="secret">
@@ -2060,14 +2649,20 @@ public sealed class HtmlSceneFrameSourceTests
                     <input type="submit" id="submitSearch" value="検索">
                   </form>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(520, 260, TimeSpan.Zero);
 
         Assert.DoesNotContain(frame.Commit.Nodes, pair => pair.Value.Label == "token");
-        var search = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "q").Key];
-        var select = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "ln").Key];
+        var search = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "q").Key
+        ];
+        var select = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "ln").Key
+        ];
         var submitNode = frame.Commit.Nodes.Single(pair => pair.Value.Label == "submitSearch");
         var submit = frame.Commit.Layout[submitNode.Key];
         var submitText = frame.Commit.Layout[frame.Commit.Nodes[submitNode.Key].Children.Single()];
@@ -2111,12 +2706,18 @@ public sealed class HtmlSceneFrameSourceTests
                 #q { width: 98%; height: 34px; font-size: 18px; line-height: 24px; padding-left: 5px; padding-top: 5px; border-radius: 5px; }
                 #ln { width: 98%; height: 34px; font-size: 18px; line-height: 24px; padding-left: 5px; padding-top: 5px; }
                 #submitSearch { width: 60%; font-size: 18px; padding-left: 10px; padding-right: 10px; padding-top: 5px; padding-bottom: 5px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 220, TimeSpan.Zero);
-        var search = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "q").Key];
-        var select = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "ln").Key];
+        var search = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "q").Key
+        ];
+        var select = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "ln").Key
+        ];
         var submitNode = frame.Commit.Nodes.Single(pair => pair.Value.Label == "submitSearch");
         var submit = frame.Commit.Layout[submitNode.Key];
         var submitText = frame.Commit.Layout[submitNode.Value.Children.Single()];
@@ -2129,7 +2730,12 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.InRange(submit.Width, 135, 150);
         Assert.Equal("#efefef", submit.BackgroundColor);
         Assert.Equal(SceneTextAlign.Center, submitText.TextStyle?.TextAlign);
-        Assert.True(Math.Abs((submitText.AbsLeft + submitText.Width * 0.5f) - (submit.AbsLeft + submit.Width * 0.5f)) <= 2);
+        Assert.True(
+            Math.Abs(
+                (submitText.AbsLeft + submitText.Width * 0.5f)
+                    - (submit.AbsLeft + submit.Width * 0.5f)
+            ) <= 2
+        );
     }
 
     [Fact]
@@ -2139,11 +2745,15 @@ public sealed class HtmlSceneFrameSourceTests
             new Enaga.Html.HtmlDocument("<body><p>Hello world</p></body>"),
             new Enaga.Html.HtmlOptions(
                 BackendServices: DummyRuntimeBackendServices.Create(),
-                DefaultBackgroundColor: "#08111d"));
+                DefaultBackgroundColor: "#08111d"
+            )
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var root = frame.Commit.Layout[frame.Commit.RootId];
-        var textBoxes = frame.Commit.Layout.Values.Where(box => box.NodeKind == SceneNodeKind.Text).ToArray();
+        var textBoxes = frame
+            .Commit.Layout.Values.Where(box => box.NodeKind == SceneNodeKind.Text)
+            .ToArray();
 
         Assert.Equal("#08111d", root.BackgroundColor);
         Assert.NotEmpty(textBoxes);
@@ -2181,21 +2791,24 @@ public sealed class HtmlSceneFrameSourceTests
                 .row { display: flex; flex-direction: row; gap: 14px; }
                 .card { width: 0; flex: 1 1 0; padding: 18px; background: #0f172adc; border-width: 1px; border-color: #334155; border-radius: 14px; }
                 h2 { font-size: 21px; margin-bottom: 8px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(920, 360, TimeSpan.Zero);
         var card = frame.Commit.Nodes.Single(pair => pair.Value.Label == "layout-card");
         var cardBox = frame.Commit.Layout[card.Key];
-        var paragraphBottom = frame.Commit.Layout.Values
-            .Where(box => box.TextContent is "Block" or "calculator.")
+        var paragraphBottom = frame
+            .Commit.Layout.Values.Where(box => box.TextContent is "Block" or "calculator.")
             .Select(box => box.AbsTop + box.Height)
             .DefaultIfEmpty(0)
             .Max();
 
         Assert.True(
             paragraphBottom <= cardBox.AbsTop + cardBox.Height,
-            $"card=({cardBox.AbsLeft},{cardBox.AbsTop},{cardBox.Width},{cardBox.Height}) paragraphBottom={paragraphBottom}");
+            $"card=({cardBox.AbsLeft},{cardBox.AbsTop},{cardBox.Width},{cardBox.Height}) paragraphBottom={paragraphBottom}"
+        );
     }
 
     [Fact]
@@ -2219,12 +2832,18 @@ public sealed class HtmlSceneFrameSourceTests
                 .page { display: flex; flex-direction: column; gap: 18px; }
                 .row { display: flex; flex-direction: row; gap: 14px; }
                 .card { width: 0; flex: 1 1 0; padding: 18px; border-width: 1px; border-color: #334155; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(920, 360, TimeSpan.Zero);
-        var pageBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "page").Key];
-        var rowBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key];
+        var pageBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "page").Key
+        ];
+        var rowBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key
+        ];
 
         Assert.True(pageBox.Width >= 860, $"pageWidth={pageBox.Width}");
         Assert.True(rowBox.Width >= 860, $"rowWidth={rowBox.Width}");
@@ -2253,12 +2872,18 @@ public sealed class HtmlSceneFrameSourceTests
                 .field { width: 0; flex: 1 1 0; padding: 18px; border-width: 1px; border-color: #334155; }
                 input { margin-top: 4px; }
                 textarea { margin-top: 4px; height: 120px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(920, 360, TimeSpan.Zero);
-        var inputBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "title-input").Key];
-        var textareaBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "notes-area").Key];
+        var inputBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "title-input").Key
+        ];
+        var textareaBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "notes-area").Key
+        ];
 
         Assert.False(inputBox.Multiline);
         Assert.True(textareaBox.Multiline);
@@ -2292,16 +2917,23 @@ public sealed class HtmlSceneFrameSourceTests
                 .eyebrow { color: #7dd3fc; font-size: 13px; margin-bottom: 8px; }
                 h1 { font-size: 30px; margin-bottom: 12px; }
                 .lede { color: #bfdbfe; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(400, 720, TimeSpan.Zero);
-        var heroBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "hero").Key];
-        var ledeBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "lede").Key];
+        var heroBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "hero").Key
+        ];
+        var ledeBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "lede").Key
+        ];
 
         Assert.True(
             ledeBox.AbsTop + ledeBox.Height <= heroBox.AbsTop + heroBox.Height,
-            $"hero=({heroBox.AbsLeft},{heroBox.AbsTop},{heroBox.Width},{heroBox.Height}) lede=({ledeBox.AbsLeft},{ledeBox.AbsTop},{ledeBox.Width},{ledeBox.Height})");
+            $"hero=({heroBox.AbsLeft},{heroBox.AbsTop},{heroBox.Width},{heroBox.Height}) lede=({ledeBox.AbsLeft},{ledeBox.AbsTop},{ledeBox.Width},{ledeBox.Height})"
+        );
     }
 
     [Fact]
@@ -2325,16 +2957,28 @@ public sealed class HtmlSceneFrameSourceTests
                 .field { width: 0; flex: 1 1 0; padding: 18px; background: #0b1320f4; border-width: 1px; border-color: #3b4758; border-radius: 14px; }
                 .field-label { color: #93c5fd; margin-bottom: 8px; }
                 input { margin-top: 4px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(400, 320, TimeSpan.Zero);
-        var fieldBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "field").Key];
-        var inputBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "title-input").Key];
+        var fieldBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "field").Key
+        ];
+        var inputBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "title-input").Key
+        ];
         var fieldContentWidth = fieldBox.Width - fieldBox.PaddingLeft - fieldBox.PaddingRight;
 
-        Assert.True(inputBox.Width <= fieldContentWidth + 0.5f, $"inputWidth={inputBox.Width} fieldContentWidth={fieldContentWidth}");
-        Assert.True(inputBox.AbsLeft >= fieldBox.AbsLeft + fieldBox.PaddingLeft, $"inputLeft={inputBox.AbsLeft} fieldLeft={fieldBox.AbsLeft}");
+        Assert.True(
+            inputBox.Width <= fieldContentWidth + 0.5f,
+            $"inputWidth={inputBox.Width} fieldContentWidth={fieldContentWidth}"
+        );
+        Assert.True(
+            inputBox.AbsLeft >= fieldBox.AbsLeft + fieldBox.PaddingLeft,
+            $"inputLeft={inputBox.AbsLeft} fieldLeft={fieldBox.AbsLeft}"
+        );
     }
 
     [Fact]
@@ -2355,12 +2999,18 @@ public sealed class HtmlSceneFrameSourceTests
                 #panel { padding: 22px; background: #0f1c31; }
                 .section-kicker { font-size: 13px; margin-bottom: 6px; }
                 h2 { font-size: 23px; margin-bottom: 8px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(420, 240, TimeSpan.Zero);
-        var kickerBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "kicker").Key];
-        var titleBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "title").Key];
+        var kickerBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "kicker").Key
+        ];
+        var titleBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "title").Key
+        ];
         var gap = titleBox.AbsTop - (kickerBox.AbsTop + kickerBox.Height);
 
         Assert.InRange(gap, 13f, 16f);
@@ -2371,15 +3021,21 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             LoadSampleBrowserSampleDocument(),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(400, 720, TimeSpan.Zero);
-        var heroBox = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "hero").Key];
-        var ledeBox = frame.Commit.Layout.Values.Single(box => string.Equals(box.TextContent, "fictional", StringComparison.Ordinal));
+        var heroBox = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "hero").Key
+        ];
+        var ledeBox = frame.Commit.Layout.Values.Single(box =>
+            string.Equals(box.TextContent, "fictional", StringComparison.Ordinal)
+        );
 
         Assert.True(
             ledeBox.AbsTop + ledeBox.Height <= heroBox.AbsTop + heroBox.Height,
-            $"hero=({heroBox.AbsLeft},{heroBox.AbsTop},{heroBox.Width},{heroBox.Height}) lede=({ledeBox.AbsLeft},{ledeBox.AbsTop},{ledeBox.Width},{ledeBox.Height})");
+            $"hero=({heroBox.AbsLeft},{heroBox.AbsTop},{heroBox.Width},{heroBox.Height}) lede=({ledeBox.AbsLeft},{ledeBox.AbsTop},{ledeBox.Width},{ledeBox.Height})"
+        );
     }
 
     [Fact]
@@ -2387,12 +3043,13 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             LoadSampleBrowserSampleDocument(),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(980, 720, TimeSpan.Zero);
         var rootBox = frame.Commit.Layout[frame.Commit.RootId];
-        var backgroundColors = frame.Commit.Layout.Values
-            .Select(box => box.BackgroundColor)
+        var backgroundColors = frame
+            .Commit.Layout.Values.Select(box => box.BackgroundColor)
             .Where(static color => !string.IsNullOrWhiteSpace(color))
             .Select(ParseColor)
             .ToList();
@@ -2407,19 +3064,37 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             LoadSampleBrowserSampleDocument(),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(980, 720, TimeSpan.Zero);
         var rowId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "feature-row").Key;
         var splitRowId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "detail-row").Key;
         var rowBox = frame.Commit.Layout[rowId];
         var splitRowBox = frame.Commit.Layout[splitRowId];
-        var rowChildren = frame.Commit.Nodes[rowId].Children.Select(childId => frame.Commit.Layout[childId]).ToList();
-        var splitRowChildren = frame.Commit.Nodes[splitRowId].Children.Select(childId => frame.Commit.Layout[childId]).ToList();
+        var rowChildren = frame
+            .Commit.Nodes[rowId]
+            .Children.Select(childId => frame.Commit.Layout[childId])
+            .ToList();
+        var splitRowChildren = frame
+            .Commit.Nodes[splitRowId]
+            .Children.Select(childId => frame.Commit.Layout[childId])
+            .ToList();
 
-        Assert.True(rowChildren.All(child => child.AbsTop + child.Height <= rowBox.AbsTop + rowBox.Height + 0.5f));
-        Assert.True(splitRowChildren.All(child => child.AbsTop + child.Height <= splitRowBox.AbsTop + splitRowBox.Height + 0.5f));
-        Assert.True(MathF.Abs(splitRowChildren[0].Height - splitRowChildren[1].Height) < 1f, $"leftHeight={splitRowChildren[0].Height} rightHeight={splitRowChildren[1].Height}");
+        Assert.True(
+            rowChildren.All(child =>
+                child.AbsTop + child.Height <= rowBox.AbsTop + rowBox.Height + 0.5f
+            )
+        );
+        Assert.True(
+            splitRowChildren.All(child =>
+                child.AbsTop + child.Height <= splitRowBox.AbsTop + splitRowBox.Height + 0.5f
+            )
+        );
+        Assert.True(
+            MathF.Abs(splitRowChildren[0].Height - splitRowChildren[1].Height) < 1f,
+            $"leftHeight={splitRowChildren[0].Height} rightHeight={splitRowChildren[1].Height}"
+        );
     }
 
     [Fact]
@@ -2427,17 +3102,23 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             LoadSampleBrowserSampleDocument(),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(980, 720, TimeSpan.Zero);
-        var footerActionId = frame.Commit.Nodes.Single(pair => pair.Value.Label == "footer-action").Key;
+        var footerActionId = frame
+            .Commit.Nodes.Single(pair => pair.Value.Label == "footer-action")
+            .Key;
         var footerBannerId = frame.Commit.Nodes[footerActionId].ParentId!;
         var footerBanner = frame.Commit.Layout[footerBannerId.Value];
         var footerAction = frame.Commit.Layout[footerActionId];
 
         Assert.True(footerBanner.Width > 850, $"footerBannerWidth={footerBanner.Width}");
         Assert.True(footerAction.Width > 120, $"footerActionWidth={footerAction.Width}");
-        Assert.True(footerAction.AbsLeft + footerAction.Width <= footerBanner.AbsLeft + footerBanner.Width + 0.5f);
+        Assert.True(
+            footerAction.AbsLeft + footerAction.Width
+                <= footerBanner.AbsLeft + footerBanner.Width + 0.5f
+        );
     }
 
     [Fact]
@@ -2446,8 +3127,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><button id='cta'>Hover me</button></body>",
-                "button { background: #112233; border-color: #223344; } button:hover { background: #445566; border-color: #778899; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "button { background: #112233; border-color: #223344; } button:hover { background: #445566; border-color: #778899; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
@@ -2458,8 +3141,14 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredBox = hovered.Commit.Layout[buttonId];
 
         Assert.Equal(new SKColor(0x11, 0x22, 0x33, 0xFF), ParseColor(initialBox.BackgroundColor));
-        Assert.Equal(new SKColor(0x44, 0x55, 0x66, 0xFF), ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, buttonId)));
-        Assert.Equal(new SKColor(0x77, 0x88, 0x99, 0xFF), ParseColor(ResolveAppliedBorderColor(hovered.Commit, buttonId)));
+        Assert.Equal(
+            new SKColor(0x44, 0x55, 0x66, 0xFF),
+            ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, buttonId))
+        );
+        Assert.Equal(
+            new SKColor(0x77, 0x88, 0x99, 0xFF),
+            ParseColor(ResolveAppliedBorderColor(hovered.Commit, buttonId))
+        );
     }
 
     [Fact]
@@ -2468,8 +3157,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><button id='cta'>Hover me</button></body>",
-                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
@@ -2478,12 +3169,18 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerMove(initialBox.AbsLeft + 10, initialBox.AbsTop + 10, 0, synthetic: false);
         var hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
 
-        Assert.DoesNotContain(hovered.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180);
-        Assert.Contains(hovered.DirtyRects, rect =>
-            rect.X <= initialBox.AbsLeft &&
-            rect.Y <= initialBox.AbsTop &&
-            rect.X + rect.Width >= initialBox.AbsLeft + initialBox.Width &&
-            rect.Y + rect.Height >= initialBox.AbsTop + initialBox.Height);
+        Assert.DoesNotContain(
+            hovered.DirtyRects,
+            rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180
+        );
+        Assert.Contains(
+            hovered.DirtyRects,
+            rect =>
+                rect.X <= initialBox.AbsLeft
+                && rect.Y <= initialBox.AbsTop
+                && rect.X + rect.Width >= initialBox.AbsLeft + initialBox.Width
+                && rect.Y + rect.Height >= initialBox.AbsTop + initialBox.Height
+        );
     }
 
     [Fact]
@@ -2492,8 +3189,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><button id='cta'>Hover me</button></body>",
-                "button { width: 120px; height: 40px; background: #112233; } button:hover { width: 180px; background: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "button { width: 120px; height: 40px; background: #112233; } button:hover { width: 180px; background: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
@@ -2504,12 +3203,18 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredBox = hovered.Commit.Layout[buttonId];
 
         Assert.True(hoveredBox.Width > initialBox.Width);
-        Assert.DoesNotContain(hovered.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180);
-        Assert.Contains(hovered.DirtyRects, rect =>
-            rect.X <= initialBox.AbsLeft &&
-            rect.Y <= initialBox.AbsTop &&
-            rect.X + rect.Width >= hoveredBox.AbsLeft + hoveredBox.Width &&
-            rect.Y + rect.Height >= hoveredBox.AbsTop + hoveredBox.Height);
+        Assert.DoesNotContain(
+            hovered.DirtyRects,
+            rect => rect.X == 0 && rect.Y == 0 && rect.Width == 320 && rect.Height == 180
+        );
+        Assert.Contains(
+            hovered.DirtyRects,
+            rect =>
+                rect.X <= initialBox.AbsLeft
+                && rect.Y <= initialBox.AbsTop
+                && rect.X + rect.Width >= hoveredBox.AbsLeft + hoveredBox.Width
+                && rect.Y + rect.Height >= hoveredBox.AbsTop + hoveredBox.Height
+        );
     }
 
     [Fact]
@@ -2518,8 +3223,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><button id='cta'>Hover me</button></body>",
-                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
@@ -2543,8 +3250,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><button id='cta'>Hover me</button></body>",
-                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
@@ -2572,8 +3281,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 "<body><button id='cta'>Hover me</button></body>",
-                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "button { width: 120px; height: 40px; background: #112233; } button:hover { background: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var buttonId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
@@ -2601,8 +3312,10 @@ public sealed class HtmlSceneFrameSourceTests
                   <a href="two.html">Two</a>
                 </body>
                 """,
-                "a { color: #112233; } a:hover { color: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "a { color: #112233; } a:hover { color: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
@@ -2637,8 +3350,10 @@ public sealed class HtmlSceneFrameSourceTests
                   <div id="four" class="item">Four</div>
                 </body>
                 """,
-                ".item { height: 80px; margin-bottom: 16px; background: #112233; } #one:hover, #two:hover, #three:hover, #four:hover { background: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                ".item { height: 80px; margin-bottom: 16px; background: #112233; } #one:hover, #two:hover, #three:hover, #four:hover { background: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 120, TimeSpan.Zero);
         var oneId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "one").Key;
@@ -2650,7 +3365,11 @@ public sealed class HtmlSceneFrameSourceTests
 
         source.Wheel(0, -6, synthetic: false);
         var scrolled = hoveredOne;
-        for (var frame = 0; frame < 8 && scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY < 70; frame++)
+        for (
+            var frame = 0;
+            frame < 8 && scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY < 70;
+            frame++
+        )
             scrolled = source.RenderFrame(320, 120, TimeSpan.FromMilliseconds(32 + frame * 16));
 
         Assert.True(scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY >= 70);
@@ -2672,8 +3391,10 @@ public sealed class HtmlSceneFrameSourceTests
                   </div>
                 </body>
                 """,
-                "#pane { width: 180px; height: 100px; overflow: auto; } .item { height: 80px; background: #112233; } .item:hover { background: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "#pane { width: 180px; height: 100px; overflow: auto; } .item { height: 80px; background: #112233; } .item:hover { background: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 220, TimeSpan.Zero);
         var paneId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "pane").Key;
@@ -2705,8 +3426,10 @@ public sealed class HtmlSceneFrameSourceTests
                   </div>
                 </body>
                 """,
-                "#pane { width: 220px; height: 90px; overflow: auto; } .row { height: 70px; background: #112233; } .row:hover { background: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "#pane { width: 220px; height: 90px; overflow: auto; } .row { height: 70px; background: #112233; } .row:hover { background: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 220, TimeSpan.Zero);
         var row1Id = initial.Commit.Nodes.Single(pair => pair.Value.Label == "row1").Key;
@@ -2730,7 +3453,7 @@ public sealed class HtmlSceneFrameSourceTests
             ResolveAppliedBackgroundColor(scrolled.Commit, row1Id),
             ResolveAppliedBackgroundColor(scrolled.Commit, row2Id),
             ResolveAppliedBackgroundColor(scrolled.Commit, row3Id),
-            ResolveAppliedBackgroundColor(scrolled.Commit, row4Id)
+            ResolveAppliedBackgroundColor(scrolled.Commit, row4Id),
         }.Count(static color => string.Equals(color, "#445566", StringComparison.Ordinal));
 
         Assert.Equal(1, hoveredRows);
@@ -2751,8 +3474,10 @@ public sealed class HtmlSceneFrameSourceTests
                   </div>
                 </body>
                 """,
-                "#pane { width: 150px; height: 80px; overflow: auto; } p { margin: 0; } .spacer { height: 70px; } a { color: #112233; } a:hover { color: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "#pane { width: 150px; height: 80px; overflow: auto; } p { margin: 0; } .spacer { height: 70px; } a { color: #112233; } a:hover { color: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 200, TimeSpan.Zero);
         var paneId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "pane").Key;
@@ -2767,20 +3492,30 @@ public sealed class HtmlSceneFrameSourceTests
 
         Assert.True(scrolled.Commit.Layout[paneId].ScrollY >= 50);
         var visibleAnchorWord = scrolled.Commit.Layout.Values.First(box =>
-            box.LinkHref == "docs.html" &&
-            box.AbsTop - scrolled.Commit.Layout[paneId].ScrollY <= 40 &&
-            box.AbsTop - scrolled.Commit.Layout[paneId].ScrollY + box.Height >= 40);
+            box.LinkHref == "docs.html"
+            && box.AbsTop - scrolled.Commit.Layout[paneId].ScrollY <= 40
+            && box.AbsTop - scrolled.Commit.Layout[paneId].ScrollY + box.Height >= 40
+        );
 
-        source.PointerMove(visibleAnchorWord.AbsLeft + 2, visibleAnchorWord.AbsTop - scrolled.Commit.Layout[paneId].ScrollY + 2, 0, synthetic: false);
+        source.PointerMove(
+            visibleAnchorWord.AbsLeft + 2,
+            visibleAnchorWord.AbsTop - scrolled.Commit.Layout[paneId].ScrollY + 2,
+            0,
+            synthetic: false
+        );
         var hovered = source.RenderFrame(320, 200, TimeSpan.FromMilliseconds(192));
 
-        var hoveredAnchorWords = hovered.Commit.Layout
-            .Where(pair => pair.Value.LinkHref == "docs.html")
+        var hoveredAnchorWords = hovered
+            .Commit.Layout.Where(pair => pair.Value.LinkHref == "docs.html")
             .Count(pair =>
-                hovered.Commit.PaintOverrides.TryGetValue(pair.Key, out var paintOverride) &&
-                paintOverride.TextColor == "#445566");
+                hovered.Commit.PaintOverrides.TryGetValue(pair.Key, out var paintOverride)
+                && paintOverride.TextColor == "#445566"
+            );
         Assert.True(hoveredAnchorWords > 0);
-        Assert.Equal(hovered.Commit.Layout.Values.Count(box => box.LinkHref == "docs.html"), hoveredAnchorWords);
+        Assert.Equal(
+            hovered.Commit.Layout.Values.Count(box => box.LinkHref == "docs.html"),
+            hoveredAnchorWords
+        );
     }
 
     [Fact]
@@ -2793,8 +3528,10 @@ public sealed class HtmlSceneFrameSourceTests
                   <div style="height: 600px;"></div>
                   <button id="cta">Open</button>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         SceneFrameResult scrolled = initial;
@@ -2803,26 +3540,47 @@ public sealed class HtmlSceneFrameSourceTests
             source.Wheel(0, -3, synthetic: false);
             scrolled = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(step * 16));
             var rootScrollY = scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY;
-            var buttonTextBoxCandidate = scrolled.Commit.Layout.Values.Single(box => box.TextContent == "Open");
+            var buttonTextBoxCandidate = scrolled.Commit.Layout.Values.Single(box =>
+                box.TextContent == "Open"
+            );
             var buttonScreenTop = buttonTextBoxCandidate.AbsTop - rootScrollY;
             if (buttonScreenTop >= 0 && buttonScreenTop + buttonTextBoxCandidate.Height <= 180)
                 break;
         }
 
         var buttonTextBox = scrolled.Commit.Layout.Values.Single(box => box.TextContent == "Open");
-        var screenY = buttonTextBox.AbsTop - scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY + (buttonTextBox.Height / 2);
-        source.PointerMove(buttonTextBox.AbsLeft + (buttonTextBox.Width / 2), screenY, 0, synthetic: false);
+        var screenY =
+            buttonTextBox.AbsTop
+            - scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY
+            + (buttonTextBox.Height / 2);
+        source.PointerMove(
+            buttonTextBox.AbsLeft + (buttonTextBox.Width / 2),
+            screenY,
+            0,
+            synthetic: false
+        );
         var hovered = scrolled;
         for (var frame = 0; frame < 8; frame++)
         {
             hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(224 + frame * 16));
-            var hoveredButtonIdCandidate = hovered.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
-            if (string.Equals(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonIdCandidate), "#e4e4e4", StringComparison.OrdinalIgnoreCase))
+            var hoveredButtonIdCandidate = hovered
+                .Commit.Nodes.Single(pair => pair.Value.Label == "cta")
+                .Key;
+            if (
+                string.Equals(
+                    ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonIdCandidate),
+                    "#e4e4e4",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
                 break;
         }
         var hoveredButtonId = hovered.Commit.Nodes.Single(pair => pair.Value.Label == "cta").Key;
 
-        Assert.Equal(new SKColor(0xE4, 0xE4, 0xE4, 0xFF), ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonId)));
+        Assert.Equal(
+            new SKColor(0xE4, 0xE4, 0xE4, 0xFF),
+            ParseColor(ResolveAppliedBackgroundColor(hovered.Commit, hoveredButtonId))
+        );
         Assert.Equal(SceneDamageReason.FragmentDamage, hovered.DamageReasons);
     }
 
@@ -2839,17 +3597,28 @@ public sealed class HtmlSceneFrameSourceTests
                   <div class="pane">Four</div>
                 </body>
                 """,
-                ".pane { height: 160px; margin-bottom: 12px; background: #112233; border-width: 1px; border-color: #223344; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                ".pane { height: 160px; margin-bottom: 12px; background: #112233; border-width: 1px; border-color: #223344; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         source.PointerMove(40, 40, 0, synthetic: false);
         source.Wheel(0, -3, synthetic: false);
         var updated = source.RenderFrame(320, 180, TimeSpan.Zero);
 
-        Assert.Equal(SceneNodeKind.ScrollView, updated.Commit.Nodes[updated.Commit.RootId].NodeKind);
-        Assert.True(updated.Commit.Layout[updated.Commit.RootId].ContentHeight > updated.Commit.Layout[updated.Commit.RootId].Height);
-        Assert.True(updated.Commit.Layout[updated.Commit.RootId].ScrollY > initial.Commit.Layout[initial.Commit.RootId].ScrollY);
+        Assert.Equal(
+            SceneNodeKind.ScrollView,
+            updated.Commit.Nodes[updated.Commit.RootId].NodeKind
+        );
+        Assert.True(
+            updated.Commit.Layout[updated.Commit.RootId].ContentHeight
+                > updated.Commit.Layout[updated.Commit.RootId].Height
+        );
+        Assert.True(
+            updated.Commit.Layout[updated.Commit.RootId].ScrollY
+                > initial.Commit.Layout[initial.Commit.RootId].ScrollY
+        );
     }
 
     [Fact]
@@ -2865,8 +3634,10 @@ public sealed class HtmlSceneFrameSourceTests
                   <div class="pane">Four</div>
                 </body>
                 """,
-                ".pane { height: 160px; margin-bottom: 12px; background: #112233; border-width: 1px; border-color: #223344; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                ".pane { height: 160px; margin-bottom: 12px; background: #112233; border-width: 1px; border-color: #223344; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         source.RenderFrame(320, 180, TimeSpan.Zero);
         source.PointerMove(40, 40, 0, synthetic: false);
@@ -2875,7 +3646,10 @@ public sealed class HtmlSceneFrameSourceTests
         var second = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
         Assert.InRange(first.Commit.Layout[first.Commit.RootId].ScrollY, 0.1f, 71.9f);
-        Assert.True(second.Commit.Layout[second.Commit.RootId].ScrollY > first.Commit.Layout[first.Commit.RootId].ScrollY);
+        Assert.True(
+            second.Commit.Layout[second.Commit.RootId].ScrollY
+                > first.Commit.Layout[first.Commit.RootId].ScrollY
+        );
     }
 
     [Fact]
@@ -2890,8 +3664,10 @@ public sealed class HtmlSceneFrameSourceTests
                   <div class="pane">Three</div>
                 </body>
                 """,
-                ".pane { height: 160px; margin-bottom: 12px; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                ".pane { height: 160px; margin-bottom: 12px; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         source.RenderFrame(320, 180, TimeSpan.Zero);
         source.PointerMove(40, 40, 0, synthetic: false);
@@ -2916,8 +3692,10 @@ public sealed class HtmlSceneFrameSourceTests
                   <a href="two.html">Two</a>
                 </body>
                 """,
-                "a { color: #112233; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "a { color: #112233; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
@@ -2945,8 +3723,10 @@ public sealed class HtmlSceneFrameSourceTests
                   <a href="two.html">Two</a>
                 </body>
                 """,
-                "a { color: #112233; } a:hover { color: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "a { color: #112233; } a:hover { color: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
@@ -2954,8 +3734,12 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredFirst = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
 
         Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
-        var hoveredFirstOne = hoveredFirst.Commit.Layout.First(pair => pair.Value.TextContent == "One").Key;
-        var hoveredFirstTwo = hoveredFirst.Commit.Layout.First(pair => pair.Value.TextContent == "Two").Key;
+        var hoveredFirstOne = hoveredFirst
+            .Commit.Layout.First(pair => pair.Value.TextContent == "One")
+            .Key;
+        var hoveredFirstTwo = hoveredFirst
+            .Commit.Layout.First(pair => pair.Value.TextContent == "Two")
+            .Key;
         Assert.Equal("#445566", ResolveAppliedTextColor(hoveredFirst.Commit, hoveredFirstOne));
         Assert.Equal("#112233", ResolveAppliedTextColor(hoveredFirst.Commit, hoveredFirstTwo));
 
@@ -2964,8 +3748,12 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredSecond = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal(SceneDamageReason.FragmentDamage, hoveredSecond.DamageReasons);
-        var hoveredSecondOne = hoveredSecond.Commit.Layout.First(pair => pair.Value.TextContent == "One").Key;
-        var hoveredSecondTwo = hoveredSecond.Commit.Layout.First(pair => pair.Value.TextContent == "Two").Key;
+        var hoveredSecondOne = hoveredSecond
+            .Commit.Layout.First(pair => pair.Value.TextContent == "One")
+            .Key;
+        var hoveredSecondTwo = hoveredSecond
+            .Commit.Layout.First(pair => pair.Value.TextContent == "Two")
+            .Key;
         Assert.Equal("#112233", ResolveAppliedTextColor(hoveredSecond.Commit, hoveredSecondOne));
         Assert.Equal("#445566", ResolveAppliedTextColor(hoveredSecond.Commit, hoveredSecondTwo));
 
@@ -2994,37 +3782,73 @@ public sealed class HtmlSceneFrameSourceTests
                   </footer>
                 </body>
                 """,
-                "a { color: #112233; } a:hover { color: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "a { color: #112233; } a:hover { color: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(420, 180, TimeSpan.Zero);
         var protocols = initial.Commit.Layout.Values.First(box => box.TextContent == "Protocols");
         source.PointerMove(protocols.AbsLeft + 2, protocols.AbsTop + 2, 0, synthetic: false);
         var hoveredProtocols = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(16));
 
-        var protocolRegistriesPrefix = hoveredProtocols.Commit.Layout.Values.First(box => box.TextContent == "Protocol");
-        source.PointerMove(protocolRegistriesPrefix.AbsLeft + 2, protocolRegistriesPrefix.AbsTop + 2, 0, synthetic: false);
+        var protocolRegistriesPrefix = hoveredProtocols.Commit.Layout.Values.First(box =>
+            box.TextContent == "Protocol"
+        );
+        source.PointerMove(
+            protocolRegistriesPrefix.AbsLeft + 2,
+            protocolRegistriesPrefix.AbsTop + 2,
+            0,
+            synthetic: false
+        );
         var hoveredProtocolPrefix = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(32));
 
-        var protocolsIdAfterPrefixHover = hoveredProtocolPrefix.Commit.Layout.First(pair => pair.Value.TextContent == "Protocols").Key;
-        var protocolPrefixId = hoveredProtocolPrefix.Commit.Layout.First(pair => pair.Value.TextContent == "Protocol").Key;
-        var registriesIdAfterPrefixHover = hoveredProtocolPrefix.Commit.Layout.First(pair => pair.Value.TextContent?.Contains("Registries", StringComparison.Ordinal) == true).Key;
-        Assert.Equal("#112233", ResolveAppliedTextColor(hoveredProtocolPrefix.Commit, protocolsIdAfterPrefixHover));
-        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredProtocolPrefix.Commit, protocolPrefixId));
-        Assert.Equal("#445566", ResolveAppliedTextColor(hoveredProtocolPrefix.Commit, registriesIdAfterPrefixHover));
+        var protocolsIdAfterPrefixHover = hoveredProtocolPrefix
+            .Commit.Layout.First(pair => pair.Value.TextContent == "Protocols")
+            .Key;
+        var protocolPrefixId = hoveredProtocolPrefix
+            .Commit.Layout.First(pair => pair.Value.TextContent == "Protocol")
+            .Key;
+        var registriesIdAfterPrefixHover = hoveredProtocolPrefix
+            .Commit.Layout.First(pair =>
+                pair.Value.TextContent?.Contains("Registries", StringComparison.Ordinal) == true
+            )
+            .Key;
+        Assert.Equal(
+            "#112233",
+            ResolveAppliedTextColor(hoveredProtocolPrefix.Commit, protocolsIdAfterPrefixHover)
+        );
+        Assert.Equal(
+            "#445566",
+            ResolveAppliedTextColor(hoveredProtocolPrefix.Commit, protocolPrefixId)
+        );
+        Assert.Equal(
+            "#445566",
+            ResolveAppliedTextColor(hoveredProtocolPrefix.Commit, registriesIdAfterPrefixHover)
+        );
         Assert.Equal(0, source.LastDocumentCommitBuildCount);
 
         source.PointerMove(419, 179, 0, synthetic: false);
         var unhovered = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(48));
         Assert.Empty(unhovered.Commit.PaintOverrides);
 
-        var registries = unhovered.Commit.Layout.Values.First(box => box.TextContent?.Contains("Registries", StringComparison.Ordinal) == true);
+        var registries = unhovered.Commit.Layout.Values.First(box =>
+            box.TextContent?.Contains("Registries", StringComparison.Ordinal) == true
+        );
         source.PointerMove(registries.AbsLeft + 2, registries.AbsTop + 2, 0, synthetic: false);
         var hoveredRegistries = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(64));
 
-        var protocolsId = hoveredRegistries.Commit.Layout.First(pair => pair.Value.TextContent == "Protocols").Key;
-        var protocolId = hoveredRegistries.Commit.Layout.First(pair => pair.Value.TextContent == "Protocol").Key;
-        var registriesId = hoveredRegistries.Commit.Layout.First(pair => pair.Value.TextContent?.Contains("Registries", StringComparison.Ordinal) == true).Key;
+        var protocolsId = hoveredRegistries
+            .Commit.Layout.First(pair => pair.Value.TextContent == "Protocols")
+            .Key;
+        var protocolId = hoveredRegistries
+            .Commit.Layout.First(pair => pair.Value.TextContent == "Protocol")
+            .Key;
+        var registriesId = hoveredRegistries
+            .Commit.Layout.First(pair =>
+                pair.Value.TextContent?.Contains("Registries", StringComparison.Ordinal) == true
+            )
+            .Key;
         Assert.Equal("#112233", ResolveAppliedTextColor(hoveredRegistries.Commit, protocolsId));
         Assert.Equal("#445566", ResolveAppliedTextColor(hoveredRegistries.Commit, protocolId));
         Assert.Equal("#445566", ResolveAppliedTextColor(hoveredRegistries.Commit, registriesId));
@@ -3043,15 +3867,21 @@ public sealed class HtmlSceneFrameSourceTests
                   </table>
                 </body>
                 """,
-                "td { background: #fafafc; padding: 8px; } .iana-table tr:hover td { background: #f0f0f8; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "td { background: #fafafc; padding: 8px; } .iana-table tr:hover td { background: #f0f0f8; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
         source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
         var hoveredFirst = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
         Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
-        Assert.True(hoveredFirst.Commit.PaintOverrides.Values.Count(paintOverride => paintOverride.BackgroundColor == "#f0f0f8") >= 2);
+        Assert.True(
+            hoveredFirst.Commit.PaintOverrides.Values.Count(paintOverride =>
+                paintOverride.BackgroundColor == "#f0f0f8"
+            ) >= 2
+        );
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
         Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
 
@@ -3060,7 +3890,11 @@ public sealed class HtmlSceneFrameSourceTests
         var hoveredSecond = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal(SceneDamageReason.None, hoveredSecond.DamageReasons);
-        Assert.True(hoveredSecond.Commit.PaintOverrides.Values.Count(paintOverride => paintOverride.BackgroundColor == "#f0f0f8") >= 2);
+        Assert.True(
+            hoveredSecond.Commit.PaintOverrides.Values.Count(paintOverride =>
+                paintOverride.BackgroundColor == "#f0f0f8"
+            ) >= 2
+        );
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
         Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
     }
@@ -3077,22 +3911,30 @@ public sealed class HtmlSceneFrameSourceTests
                   </table>
                 </body>
                 """,
-                "td { background: #fafafc; padding: 8px; } .iana-table tr:hover td { background: #f0f0f8; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "td { background: #fafafc; padding: 8px; } .iana-table tr:hover td { background: #f0f0f8; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var first = initial.Commit.Layout.Values.First(box => box.TextContent == "One");
         source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
         var hovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(16));
         Assert.True(
-            hovered.Commit.Layout.Keys.Count(id => ResolveAppliedBackgroundColor(hovered.Commit, id) == "#f0f0f8") >= 2);
+            hovered.Commit.Layout.Keys.Count(id =>
+                ResolveAppliedBackgroundColor(hovered.Commit, id) == "#f0f0f8"
+            ) >= 2
+        );
 
         source.PointerMove(319, 179, 0, synthetic: false);
         var unhovered = source.RenderFrame(320, 180, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal(SceneDamageReason.FragmentDamage, unhovered.DamageReasons);
         Assert.Empty(unhovered.Commit.PaintOverrides);
-        Assert.DoesNotContain(unhovered.Commit.Layout.Keys, id => ResolveAppliedBackgroundColor(unhovered.Commit, id) == "#f0f0f8");
+        Assert.DoesNotContain(
+            unhovered.Commit.Layout.Keys,
+            id => ResolveAppliedBackgroundColor(unhovered.Commit, id) == "#f0f0f8"
+        );
     }
 
     [Fact]
@@ -3112,8 +3954,10 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 html.ToString(),
-                "td { background: #fafafc; padding: 4px; } .iana-table tr:hover td { background: #f0f0f8; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "td { background: #fafafc; padding: 4px; } .iana-table tr:hover td { background: #f0f0f8; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(640, 240, TimeSpan.Zero);
         var first = initial.Commit.Layout.Values.First(box => box.TextContent == "R0A");
@@ -3125,14 +3969,20 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
         Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
         Assert.Equal(0, source.LastDocumentCommitBuildCount);
-        Assert.True(source.LastDynamicPaintCandidateCount <= 8, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
+        Assert.True(
+            source.LastDynamicPaintCandidateCount <= 8,
+            $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}"
+        );
 
         var second = initial.Commit.Layout.Values.First(box => box.TextContent == "R1A");
         source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
         var moved = source.RenderFrame(640, 240, TimeSpan.FromMilliseconds(32));
 
         Assert.Equal(SceneDamageReason.FragmentDamage, moved.DamageReasons);
-        Assert.DoesNotContain(moved.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 640 && rect.Height == 240);
+        Assert.DoesNotContain(
+            moved.DirtyRects,
+            rect => rect.X == 0 && rect.Y == 0 && rect.Width == 640 && rect.Height == 240
+        );
         Assert.True(moved.DirtyPixelCount < 640L * 240L, $"Dirty pixels: {moved.DirtyPixelCount}");
         Assert.True(moved.DirtyRects.Count() <= 8, $"Dirty rects: {moved.DirtyRects.Count()}");
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
@@ -3140,8 +3990,15 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
         Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
         Assert.Equal(0, source.LastDocumentCommitBuildCount);
-        Assert.True(source.LastDynamicPaintCandidateCount <= 16, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
-        Assert.True(moved.Commit.PaintOverrides.Values.Count(paintOverride => paintOverride.BackgroundColor == "#f0f0f8") >= 2);
+        Assert.True(
+            source.LastDynamicPaintCandidateCount <= 16,
+            $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}"
+        );
+        Assert.True(
+            moved.Commit.PaintOverrides.Values.Count(paintOverride =>
+                paintOverride.BackgroundColor == "#f0f0f8"
+            ) >= 2
+        );
     }
 
     [Fact]
@@ -3161,14 +4018,18 @@ public sealed class HtmlSceneFrameSourceTests
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument(
                 html.ToString(),
-                "td { padding: 4px; } a { color: #112233; } a:hover { color: #445566; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "td { padding: 4px; } a { color: #112233; } a:hover { color: #445566; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(640, 240, TimeSpan.Zero);
         var first = initial.Commit.Layout.Values.First(box => box.TextContent == "L0");
         source.PointerMove(first.AbsLeft + 2, first.AbsTop + 2, 0, synthetic: false);
         var hoveredFirst = source.RenderFrame(640, 240, TimeSpan.FromMilliseconds(16));
-        var hoveredFirstId = hoveredFirst.Commit.Layout.First(pair => pair.Value.TextContent == "L0").Key;
+        var hoveredFirstId = hoveredFirst
+            .Commit.Layout.First(pair => pair.Value.TextContent == "L0")
+            .Key;
         Assert.Equal(SceneDamageReason.FragmentDamage, hoveredFirst.DamageReasons);
         Assert.Equal("#445566", ResolveAppliedTextColor(hoveredFirst.Commit, hoveredFirstId));
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
@@ -3176,7 +4037,10 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
         Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
         Assert.Equal(0, source.LastDocumentCommitBuildCount);
-        Assert.True(source.LastDynamicPaintCandidateCount <= 4, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
+        Assert.True(
+            source.LastDynamicPaintCandidateCount <= 4,
+            $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}"
+        );
 
         var second = hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "L1");
         source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
@@ -3187,20 +4051,28 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(SceneDamageReason.FragmentDamage, moved.DamageReasons);
         Assert.Equal("#112233", ResolveAppliedTextColor(moved.Commit, movedFirstId));
         Assert.Equal("#445566", ResolveAppliedTextColor(moved.Commit, movedSecondId));
-        Assert.DoesNotContain(moved.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 640 && rect.Height == 240);
+        Assert.DoesNotContain(
+            moved.DirtyRects,
+            rect => rect.X == 0 && rect.Y == 0 && rect.Width == 640 && rect.Height == 240
+        );
         Assert.Equal(0, source.LastPipelineMetrics.StyleMatches);
         Assert.Equal(0, source.LastPipelineMetrics.StyleCascades);
         Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
         Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
         Assert.Equal(0, source.LastDocumentCommitBuildCount);
-        Assert.True(source.LastDynamicPaintCandidateCount <= 8, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
+        Assert.True(
+            source.LastDynamicPaintCandidateCount <= 8,
+            $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}"
+        );
     }
 
     [Fact]
     public void HtmlSceneFrameSource_ProtocolStyleLinkTableRowHoverDoesNotScanWholePage()
     {
         var html = new System.Text.StringBuilder();
-        html.Append("<body><header><div id='header'><div class='navigation'><ul><li><a href='nav.html'>Nav</a></li></ul></div></div></header>");
+        html.Append(
+            "<body><header><div id='header'><div class='navigation'><ul><li><a href='nav.html'>Nav</a></li></ul></div></div></header>"
+        );
         html.Append("<main><table class='iana-table'>");
         for (var row = 0; row < 300; row++)
         {
@@ -3221,8 +4093,10 @@ public sealed class HtmlSceneFrameSourceTests
                 #header .navigation li a:hover { color: rgba(92, 166, 210, 0.8); transition: color 150ms ease-in; }
                 .iana-table td { background: #fafafc; padding: 4px; }
                 .iana-table tr:hover td { background-color: #f0f0f8; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(800, 260, TimeSpan.Zero);
         var first = initial.Commit.Layout.Values.First(box => box.TextContent == "P0");
@@ -3235,8 +4109,14 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
         Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
         Assert.Equal(0, source.LastDocumentCommitBuildCount);
-        Assert.True(source.LastDynamicPaintCandidateCount <= 12, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
-        Assert.Contains(hoveredFirst.Commit.PaintOverrides.Values, paintOverride => paintOverride.BackgroundColor == "#f0f0f8");
+        Assert.True(
+            source.LastDynamicPaintCandidateCount <= 12,
+            $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}"
+        );
+        Assert.Contains(
+            hoveredFirst.Commit.PaintOverrides.Values,
+            paintOverride => paintOverride.BackgroundColor == "#f0f0f8"
+        );
 
         var second = hoveredFirst.Commit.Layout.Values.First(box => box.TextContent == "P1");
         source.PointerMove(second.AbsLeft + 2, second.AbsTop + 2, 0, synthetic: false);
@@ -3248,8 +4128,14 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(0, source.LastPipelineMetrics.LayoutCacheMisses);
         Assert.Equal(0, source.LastPipelineMetrics.FragmentsRebuilt);
         Assert.Equal(0, source.LastDocumentCommitBuildCount);
-        Assert.True(source.LastDynamicPaintCandidateCount <= 24, $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}");
-        Assert.DoesNotContain(moved.DirtyRects, rect => rect.X == 0 && rect.Y == 0 && rect.Width == 800 && rect.Height == 260);
+        Assert.True(
+            source.LastDynamicPaintCandidateCount <= 24,
+            $"Dynamic paint candidates: {source.LastDynamicPaintCandidateCount}"
+        );
+        Assert.DoesNotContain(
+            moved.DirtyRects,
+            rect => rect.X == 0 && rect.Y == 0 && rect.Width == 800 && rect.Height == 260
+        );
     }
 
     [Fact]
@@ -3257,7 +4143,8 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><p>Hello</p></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         source.RenderFrame(320, 180, TimeSpan.Zero);
         source.Wheel(0, 1, synthetic: false, modifiers: 2);
@@ -3296,8 +4183,10 @@ public sealed class HtmlSceneFrameSourceTests
                   </main>
                 </body>
                 """,
-                "body { margin: 0; padding: 0; overflow: auto; } p { width: 280px; margin: 0 0 18px 0; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "body { margin: 0; padding: 0; overflow: auto; } p { width: 280px; margin: 0 0 18px 0; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         source.RenderFrame(320, 180, TimeSpan.Zero);
         source.PointerMove(40, 40, 0, synthetic: false);
@@ -3334,8 +4223,10 @@ public sealed class HtmlSceneFrameSourceTests
                     <p>Body text</p>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(640, 240, TimeSpan.Zero);
         var heading = frame.Commit.Layout.Values.First(box => box.TextContent == "Example");
@@ -3370,12 +4261,19 @@ public sealed class HtmlSceneFrameSourceTests
                     </div>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create(), DefaultTextColor: "#111111"));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(
+                BackendServices: DummyRuntimeBackendServices.Create(),
+                DefaultTextColor: "#111111"
+            )
+        );
 
         var frame = source.RenderFrame(360, 160, TimeSpan.Zero);
         var overview = frame.Commit.Layout.Values.First(box => box.TextContent == "Overview");
-        var selected = frame.Commit.Layout.Values.First(box => box.TextContent?.Contains("DNSSEC", StringComparison.Ordinal) == true);
+        var selected = frame.Commit.Layout.Values.First(box =>
+            box.TextContent?.Contains("DNSSEC", StringComparison.Ordinal) == true
+        );
 
         Assert.Equal("#555555", overview.TextStyle?.Color);
         Assert.Equal("#000", selected.TextStyle?.Color);
@@ -3416,13 +4314,20 @@ public sealed class HtmlSceneFrameSourceTests
                     </nav>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create(), DefaultTextColor: "#111111"));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(
+                BackendServices: DummyRuntimeBackendServices.Create(),
+                DefaultTextColor: "#111111"
+            )
+        );
 
         var frame = source.RenderFrame(420, 260, TimeSpan.Zero);
         var overview = frame.Commit.Layout.Values.First(box => box.TextContent == "Overview");
         var rootZone = frame.Commit.Layout.Values.First(box => box.TextContent == "Root");
-        var dnssec = frame.Commit.Layout.Values.First(box => box.TextContent?.Contains("DNSSEC", StringComparison.Ordinal) == true);
+        var dnssec = frame.Commit.Layout.Values.First(box =>
+            box.TextContent?.Contains("DNSSEC", StringComparison.Ordinal) == true
+        );
         var trustAnchors = frame.Commit.Layout.Values.First(box => box.TextContent == "Trust");
 
         Assert.Equal("#555555", overview.TextStyle?.Color);
@@ -3465,41 +4370,86 @@ public sealed class HtmlSceneFrameSourceTests
                     </table>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(900, 260, TimeSpan.Zero);
-        var name = frame.Commit.Layout.Values.First(box => box.TextContent?.Contains("KSK", StringComparison.Ordinal) == true);
-        var status = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "status").Key];
+        var name = frame.Commit.Layout.Values.First(box =>
+            box.TextContent?.Contains("KSK", StringComparison.Ordinal) == true
+        );
+        var status = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "status").Key
+        ];
         var generated = frame.Commit.Layout.Values.First(box => box.TextContent == "Generated");
 
         Assert.DoesNotContain(frame.Commit.Layout.Values, box => box.TextContent == "Informal");
-        var statusText = frame.Commit.Layout.Values.First(box => box.TextContent == "Pre-Publication");
+        var statusText = frame.Commit.Layout.Values.First(box =>
+            box.TextContent == "Pre-Publication"
+        );
         Assert.InRange(statusText.TextStyle?.FontSize ?? 0, 13, 14);
         Assert.InRange(status.Height, 22, 26);
         Assert.InRange(MathF.Abs(status.AbsLeft - name.AbsLeft), 0, 14);
-        Assert.True(status.AbsTop > name.AbsTop, $"status top {status.AbsTop}, name top {name.AbsTop}");
+        Assert.True(
+            status.AbsTop > name.AbsTop,
+            $"status top {status.AbsTop}, name top {name.AbsTop}"
+        );
         Assert.InRange(MathF.Abs(generated.AbsLeft - name.AbsLeft), 0, 14);
-        Assert.True(generated.AbsTop > status.AbsTop, $"generated top {generated.AbsTop}, status top {status.AbsTop}");
+        Assert.True(
+            generated.AbsTop > status.AbsTop,
+            $"generated top {generated.AbsTop}, status top {status.AbsTop}"
+        );
         Assert.Equal(0, status.BorderWidth);
         Assert.True(status.BorderRadius > 0);
 
-        var statusCellId = FindAncestorId(frame.Commit, frame.Commit.Nodes.Single(pair => pair.Value.Label == "status").Key, "td-");
+        var statusCellId = FindAncestorId(
+            frame.Commit,
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "status").Key,
+            "td-"
+        );
         var statusCell = frame.Commit.Layout[statusCellId];
-        var detailsCellId = FindAncestorId(frame.Commit, frame.Commit.Nodes.Single(pair => frame.Commit.Layout[pair.Key].TextContent == "Generated").Key, "td-");
+        var detailsCellId = FindAncestorId(
+            frame.Commit,
+            frame
+                .Commit.Nodes.Single(pair =>
+                    frame.Commit.Layout[pair.Key].TextContent == "Generated"
+                )
+                .Key,
+            "td-"
+        );
         var detailsCell = frame.Commit.Layout[detailsCellId];
         Assert.Equal(statusCell.AbsTop + statusCell.Height, detailsCell.AbsTop, precision: 1);
 
         source.PointerMove(name.AbsLeft + 2, name.AbsTop + 2, buttons: 0, synthetic: false);
         var hoveredFrame = source.RenderFrame(900, 260, TimeSpan.FromMilliseconds(16));
-        var hoveredName = hoveredFrame.Commit.Layout.Values.First(box => box.TextContent?.Contains("KSK", StringComparison.Ordinal) == true);
-        var hoveredNameCellId = FindAncestorId(hoveredFrame.Commit, hoveredFrame.Commit.Nodes.Single(pair => hoveredFrame.Commit.Layout[pair.Key].TextContent == hoveredName.TextContent).Key, "td-");
-        Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hoveredFrame.Commit, hoveredNameCellId));
+        var hoveredName = hoveredFrame.Commit.Layout.Values.First(box =>
+            box.TextContent?.Contains("KSK", StringComparison.Ordinal) == true
+        );
+        var hoveredNameCellId = FindAncestorId(
+            hoveredFrame.Commit,
+            hoveredFrame
+                .Commit.Nodes.Single(pair =>
+                    hoveredFrame.Commit.Layout[pair.Key].TextContent == hoveredName.TextContent
+                )
+                .Key,
+            "td-"
+        );
+        Assert.Equal(
+            "#f0f0f8",
+            ResolveAppliedBackgroundColor(hoveredFrame.Commit, hoveredNameCellId)
+        );
 
-        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
+        static SceneNodeId FindAncestorId(
+            SceneLayoutCommit commit,
+            SceneNodeId startId,
+            string prefix
+        )
         {
             var currentId = startId;
-            while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
+            while (
+                commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId
+            )
             {
                 if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
@@ -3552,8 +4502,10 @@ public sealed class HtmlSceneFrameSourceTests
                     <div class="spacer">Bottom</div>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(520, 120, TimeSpan.Zero);
         source.PointerMove(20, 40, 0, synthetic: false);
@@ -3572,25 +4524,43 @@ public sealed class HtmlSceneFrameSourceTests
         }
 
         Assert.True(scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY > 0);
-        var updated = scrolled.Commit.Layout.Values.First(box => box.TextContent?.Contains("Updated", StringComparison.Ordinal) == true);
-        var updatedScreenY = updated.AbsTop - scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY;
+        var updated = scrolled.Commit.Layout.Values.First(box =>
+            box.TextContent?.Contains("Updated", StringComparison.Ordinal) == true
+        );
+        var updatedScreenY =
+            updated.AbsTop - scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY;
         Assert.InRange(updatedScreenY + 2, 0, 120);
         source.PointerMove(updated.AbsLeft + 2, updatedScreenY + 2, buttons: 0, synthetic: false);
         var hovered = source.RenderFrame(520, 120, TimeSpan.FromMilliseconds(elapsedMs));
 
-        var updatedNodeId = hovered.Commit.Nodes.Single(pair => hovered.Commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent?.Contains("Updated", StringComparison.Ordinal) == true).Key;
+        var updatedNodeId = hovered
+            .Commit.Nodes.Single(pair =>
+                hovered.Commit.Layout.TryGetValue(pair.Key, out var box)
+                && box.TextContent?.Contains("Updated", StringComparison.Ordinal) == true
+            )
+            .Key;
         var rowId = FindAncestorId(hovered.Commit, updatedNodeId, "tr-");
-        var cellIds = hovered.Commit.Nodes[rowId].Children
-            .Where(childId => IsMatchingGeneratedAncestor(hovered.Commit, childId, "td-"))
+        var cellIds = hovered
+            .Commit.Nodes[rowId]
+            .Children.Where(childId => IsMatchingGeneratedAncestor(hovered.Commit, childId, "td-"))
             .ToArray();
 
         Assert.True(cellIds.Length >= 2);
-        Assert.All(cellIds, cellId => Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
+        Assert.All(
+            cellIds,
+            cellId => Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hovered.Commit, cellId))
+        );
 
-        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
+        static SceneNodeId FindAncestorId(
+            SceneLayoutCommit commit,
+            SceneNodeId startId,
+            string prefix
+        )
         {
             var currentId = startId;
-            while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
+            while (
+                commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId
+            )
             {
                 if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
@@ -3650,8 +4620,10 @@ public sealed class HtmlSceneFrameSourceTests
                     </main>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(820, 400, TimeSpan.Zero);
         source.PointerMove(800, 150, 0, synthetic: false);
@@ -3670,30 +4642,69 @@ public sealed class HtmlSceneFrameSourceTests
         }
 
         Assert.True(scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY > 0);
-        var firstLink = scrolled.Commit.Layout.Values.First(box => box.TextContent == "root-anchors.xml");
-        source.PointerMove(firstLink.AbsLeft + 4, firstLink.AbsTop - scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY + 4, buttons: 0, synthetic: false);
+        var firstLink = scrolled.Commit.Layout.Values.First(box =>
+            box.TextContent == "root-anchors.xml"
+        );
+        source.PointerMove(
+            firstLink.AbsLeft + 4,
+            firstLink.AbsTop - scrolled.Commit.Layout[scrolled.Commit.RootId].ScrollY + 4,
+            buttons: 0,
+            synthetic: false
+        );
         var hovered = source.RenderFrame(820, 400, TimeSpan.FromMilliseconds(elapsedMs));
 
-        var firstRowId = FindAncestorId(hovered.Commit, FindNodeIdByText(hovered.Commit, "root-anchors.xml"), "tr-");
-        var secondRowId = FindAncestorId(hovered.Commit, FindNodeIdByText(hovered.Commit, "root-anchors.p7s"), "tr-");
-        var thirdRowId = FindAncestorId(hovered.Commit, FindNodeIdByText(hovered.Commit, "icannbundle.pem"), "tr-");
+        var firstRowId = FindAncestorId(
+            hovered.Commit,
+            FindNodeIdByText(hovered.Commit, "root-anchors.xml"),
+            "tr-"
+        );
+        var secondRowId = FindAncestorId(
+            hovered.Commit,
+            FindNodeIdByText(hovered.Commit, "root-anchors.p7s"),
+            "tr-"
+        );
+        var thirdRowId = FindAncestorId(
+            hovered.Commit,
+            FindNodeIdByText(hovered.Commit, "icannbundle.pem"),
+            "tr-"
+        );
 
-        Assert.All(FindCellIds(hovered.Commit, firstRowId), cellId => Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
-        Assert.All(FindCellIds(hovered.Commit, secondRowId), cellId => Assert.Equal("#fafafc", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
-        Assert.All(FindCellIds(hovered.Commit, thirdRowId), cellId => Assert.Equal("#fafafc", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
+        Assert.All(
+            FindCellIds(hovered.Commit, firstRowId),
+            cellId => Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hovered.Commit, cellId))
+        );
+        Assert.All(
+            FindCellIds(hovered.Commit, secondRowId),
+            cellId => Assert.Equal("#fafafc", ResolveAppliedBackgroundColor(hovered.Commit, cellId))
+        );
+        Assert.All(
+            FindCellIds(hovered.Commit, thirdRowId),
+            cellId => Assert.Equal("#fafafc", ResolveAppliedBackgroundColor(hovered.Commit, cellId))
+        );
 
-        static SceneNodeId FindNodeIdByText(SceneLayoutCommit commit, string text)
-            => commit.Nodes.Single(pair => commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == text).Key;
+        static SceneNodeId FindNodeIdByText(SceneLayoutCommit commit, string text) =>
+            commit
+                .Nodes.Single(pair =>
+                    commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == text
+                )
+                .Key;
 
-        static SceneNodeId[] FindCellIds(SceneLayoutCommit commit, SceneNodeId rowId)
-            => commit.Nodes[rowId].Children
-                .Where(childId => IsMatchingGeneratedAncestor(commit, childId, "td-"))
+        static SceneNodeId[] FindCellIds(SceneLayoutCommit commit, SceneNodeId rowId) =>
+            commit
+                .Nodes[rowId]
+                .Children.Where(childId => IsMatchingGeneratedAncestor(commit, childId, "td-"))
                 .ToArray();
 
-        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
+        static SceneNodeId FindAncestorId(
+            SceneLayoutCommit commit,
+            SceneNodeId startId,
+            string prefix
+        )
         {
             var currentId = startId;
-            while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
+            while (
+                commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId
+            )
             {
                 if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
@@ -3742,43 +4753,79 @@ public sealed class HtmlSceneFrameSourceTests
                     </main>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(300, 300, TimeSpan.Zero);
         source.PointerMove(230, 125, 0, synthetic: false);
         source.Wheel(0, -1, synthetic: false);
-        for (var index = 0; index < 60 && frame.Commit.Layout[frame.Commit.RootId].ScrollY < 51.5f; index++)
+        for (
+            var index = 0;
+            index < 60 && frame.Commit.Layout[frame.Commit.RootId].ScrollY < 51.5f;
+            index++
+        )
             frame = source.RenderFrame(300, 300, TimeSpan.FromMilliseconds(16 + index * 16));
 
         Assert.InRange(frame.Commit.Layout[frame.Commit.RootId].ScrollY, 51.5f, 52.5f);
         source.PointerMove(230, 125, 0, synthetic: false);
         var hovered = source.RenderFrame(300, 300, TimeSpan.FromMilliseconds(1000));
-        var rowId = FindAncestorId(hovered.Commit, FindNodeIdByText(hovered.Commit, "Updated 2024-11-05"), "tr-");
-        var cellIds = hovered.Commit.Nodes[rowId].Children
-            .Where(childId => IsMatchingGeneratedAncestor(hovered.Commit, childId, "td-"))
+        var rowId = FindAncestorId(
+            hovered.Commit,
+            FindNodeIdByText(hovered.Commit, "Updated 2024-11-05"),
+            "tr-"
+        );
+        var cellIds = hovered
+            .Commit.Nodes[rowId]
+            .Children.Where(childId => IsMatchingGeneratedAncestor(hovered.Commit, childId, "td-"))
             .ToArray();
 
         Assert.Equal(2, cellIds.Length);
-        Assert.All(cellIds, cellId => Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hovered.Commit, cellId)));
-        Assert.All(cellIds, cellId => Assert.Contains(hovered.DirtyRects, rect => Intersects(rect, ToScreenBox(hovered.Commit, cellId))));
+        Assert.All(
+            cellIds,
+            cellId => Assert.Equal("#f0f0f8", ResolveAppliedBackgroundColor(hovered.Commit, cellId))
+        );
+        Assert.All(
+            cellIds,
+            cellId =>
+                Assert.Contains(
+                    hovered.DirtyRects,
+                    rect => Intersects(rect, ToScreenBox(hovered.Commit, cellId))
+                )
+        );
 
-        static SceneNodeId FindNodeIdByText(SceneLayoutCommit commit, string text)
-            => commit.Nodes.Single(pair => commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == text).Key;
+        static SceneNodeId FindNodeIdByText(SceneLayoutCommit commit, string text) =>
+            commit
+                .Nodes.Single(pair =>
+                    commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == text
+                )
+                .Key;
 
-        static bool Intersects(SceneDamageRect rect, SceneLayoutBox box)
-            => rect.X < box.AbsLeft + box.Width &&
-               rect.X + rect.Width > box.AbsLeft &&
-               rect.Y < box.AbsTop + box.Height &&
-               rect.Y + rect.Height > box.AbsTop;
+        static bool Intersects(SceneDamageRect rect, SceneLayoutBox box) =>
+            rect.X < box.AbsLeft + box.Width
+            && rect.X + rect.Width > box.AbsLeft
+            && rect.Y < box.AbsTop + box.Height
+            && rect.Y + rect.Height > box.AbsTop;
 
-        static SceneLayoutBox ToScreenBox(SceneLayoutCommit commit, SceneNodeId id)
-            => Enaga.Input.SceneScreenGeometry.ResolveScreenBox(commit, commit.Layout, id, commit.Layout[id]);
+        static SceneLayoutBox ToScreenBox(SceneLayoutCommit commit, SceneNodeId id) =>
+            Enaga.Input.SceneScreenGeometry.ResolveScreenBox(
+                commit,
+                commit.Layout,
+                id,
+                commit.Layout[id]
+            );
 
-        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
+        static SceneNodeId FindAncestorId(
+            SceneLayoutCommit commit,
+            SceneNodeId startId,
+            string prefix
+        )
         {
             var currentId = startId;
-            while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
+            while (
+                commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId
+            )
             {
                 if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
@@ -3828,8 +4875,10 @@ public sealed class HtmlSceneFrameSourceTests
                     </table>
                   </body>
                 </html>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(1100, 220, TimeSpan.Zero);
         var file = frame.Commit.Layout.Values.First(box => box.TextContent == "FILE");
@@ -3855,13 +4904,19 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.Equal(1, table.Border.BottomWidth);
         Assert.Equal("#5eb9e6", table.Border.BottomColor);
 
-        static SceneNodeId FindNodeId(SceneLayoutCommit commit, SceneLayoutBox target)
-            => commit.Layout.First(pair => pair.Value == target).Key;
+        static SceneNodeId FindNodeId(SceneLayoutCommit commit, SceneLayoutBox target) =>
+            commit.Layout.First(pair => pair.Value == target).Key;
 
-        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
+        static SceneNodeId FindAncestorId(
+            SceneLayoutCommit commit,
+            SceneNodeId startId,
+            string prefix
+        )
         {
             var currentId = startId;
-            while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
+            while (
+                commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId
+            )
             {
                 if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
@@ -3881,8 +4936,10 @@ public sealed class HtmlSceneFrameSourceTests
                 <body>
                   <table><tbody><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></tbody></table>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(240, 160, TimeSpan.Zero);
         var a = frame.Commit.Layout.Values.First(box => box.TextContent == "A");
@@ -3927,13 +4984,27 @@ public sealed class HtmlSceneFrameSourceTests
                 table.initial { margin-top: 1px; width: 100%; }
                 table.initial td { width: 20%; height: 30px; vertical-align: middle; text-align: center; }
                 table.initial td a { background-color: #eee; text-align: center; display: block; padding: 18px 8px 18px 8px; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(240, 200, TimeSpan.Zero);
-        var firstTextId = frame.Commit.Nodes.Single(pair => frame.Commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == "ア").Key;
-        var secondTextId = frame.Commit.Nodes.Single(pair => frame.Commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == "イ").Key;
-        var nextRowTextId = frame.Commit.Nodes.Single(pair => frame.Commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == "カ").Key;
+        var firstTextId = frame
+            .Commit.Nodes.Single(pair =>
+                frame.Commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == "ア"
+            )
+            .Key;
+        var secondTextId = frame
+            .Commit.Nodes.Single(pair =>
+                frame.Commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == "イ"
+            )
+            .Key;
+        var nextRowTextId = frame
+            .Commit.Nodes.Single(pair =>
+                frame.Commit.Layout.TryGetValue(pair.Key, out var box) && box.TextContent == "カ"
+            )
+            .Key;
         var firstCellId = FindAncestorId(frame.Commit, firstTextId, "td-");
         var secondCellId = FindAncestorId(frame.Commit, secondTextId, "td-");
         var nextRowCellId = FindAncestorId(frame.Commit, nextRowTextId, "td-");
@@ -3949,10 +5020,16 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.True(secondCell.AbsLeft >= firstCell.AbsLeft + firstCell.Width);
         Assert.True(nextRowCell.AbsTop >= firstCell.AbsTop + firstCell.Height);
 
-        static SceneNodeId FindAncestorId(SceneLayoutCommit commit, SceneNodeId startId, string prefix)
+        static SceneNodeId FindAncestorId(
+            SceneLayoutCommit commit,
+            SceneNodeId startId,
+            string prefix
+        )
         {
             var currentId = startId;
-            while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
+            while (
+                commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId
+            )
             {
                 if (IsMatchingGeneratedAncestor(commit, parentId, prefix))
                     return parentId;
@@ -3977,11 +5054,15 @@ public sealed class HtmlSceneFrameSourceTests
                   <div class="pane">Four</div>
                 </body>
                 """,
-                ".pane { height: 160px; margin-bottom: 12px; background: #112233; border-width: 1px; border-color: #223344; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                ".pane { height: 160px; margin-bottom: 12px; background: #112233; border-width: 1px; border-color: #223344; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var metrics = SceneScrollBarLayout.ResolveVerticalScrollBar(initial.Commit.Layout[initial.Commit.RootId]);
+        var metrics = SceneScrollBarLayout.ResolveVerticalScrollBar(
+            initial.Commit.Layout[initial.Commit.RootId]
+        );
         Assert.NotNull(metrics);
 
         var thumb = metrics!.Value.ThumbRect;
@@ -3993,7 +5074,10 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerUp(0, 0, synthetic: false);
         var updated = source.RenderFrame(320, 180, TimeSpan.Zero);
 
-        Assert.True(updated.Commit.Layout[updated.Commit.RootId].ScrollY > initial.Commit.Layout[initial.Commit.RootId].ScrollY);
+        Assert.True(
+            updated.Commit.Layout[updated.Commit.RootId].ScrollY
+                > initial.Commit.Layout[initial.Commit.RootId].ScrollY
+        );
     }
 
     [Fact]
@@ -4006,11 +5090,15 @@ public sealed class HtmlSceneFrameSourceTests
                   <div class="wide">Wide</div>
                 </body>
                 """,
-                "body { margin: 0; overflow: auto; } .wide { width: 640px; height: 60px; background: #112233; }"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "body { margin: 0; overflow: auto; } .wide { width: 640px; height: 60px; background: #112233; }"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(240, 120, TimeSpan.Zero);
-        var metrics = SceneScrollBarLayout.ResolveHorizontalScrollBar(initial.Commit.Layout[initial.Commit.RootId]);
+        var metrics = SceneScrollBarLayout.ResolveHorizontalScrollBar(
+            initial.Commit.Layout[initial.Commit.RootId]
+        );
         Assert.NotNull(metrics);
 
         var thumb = metrics!.Value.ThumbRect;
@@ -4022,7 +5110,10 @@ public sealed class HtmlSceneFrameSourceTests
         source.PointerUp(0, 0, synthetic: false);
         var updated = source.RenderFrame(240, 120, TimeSpan.Zero);
 
-        Assert.True(updated.Commit.Layout[updated.Commit.RootId].ScrollX > initial.Commit.Layout[initial.Commit.RootId].ScrollX);
+        Assert.True(
+            updated.Commit.Layout[updated.Commit.RootId].ScrollX
+                > initial.Commit.Layout[initial.Commit.RootId].ScrollX
+        );
     }
 
     [Fact]
@@ -4038,18 +5129,32 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 body { margin: 0; padding: 0; overflow: auto; }
                 #fill { width: 100%; height: 220px; background: #112233; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var overflowing = source.RenderFrame(200, 100, TimeSpan.Zero);
-        var overflowingFill = overflowing.Commit.Layout[overflowing.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
+        var overflowingFill = overflowing.Commit.Layout[
+            overflowing.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key
+        ];
         Assert.Equal(188, overflowingFill.Width, precision: 0);
-        Assert.NotNull(SceneScrollBarLayout.ResolveVerticalScrollBar(overflowing.Commit.Layout[overflowing.Commit.RootId]));
+        Assert.NotNull(
+            SceneScrollBarLayout.ResolveVerticalScrollBar(
+                overflowing.Commit.Layout[overflowing.Commit.RootId]
+            )
+        );
 
         var fitting = source.RenderFrame(200, 260, TimeSpan.Zero);
-        var fittingFill = fitting.Commit.Layout[fitting.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
+        var fittingFill = fitting.Commit.Layout[
+            fitting.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key
+        ];
         Assert.Equal(200, fittingFill.Width, precision: 0);
-        Assert.Null(SceneScrollBarLayout.ResolveVerticalScrollBar(fitting.Commit.Layout[fitting.Commit.RootId]));
+        Assert.Null(
+            SceneScrollBarLayout.ResolveVerticalScrollBar(
+                fitting.Commit.Layout[fitting.Commit.RootId]
+            )
+        );
     }
 
     [Fact]
@@ -4065,12 +5170,16 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 body { margin: 0; padding: 0; overflow: auto; }
                 #wide { width: 320px; height: 100%; background: #112233; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var overflowing = source.RenderFrame(200, 100, TimeSpan.Zero);
         var overflowingRoot = overflowing.Commit.Layout[overflowing.Commit.RootId];
-        var overflowingWide = overflowing.Commit.Layout[overflowing.Commit.Nodes.Single(pair => pair.Value.Label == "wide").Key];
+        var overflowingWide = overflowing.Commit.Layout[
+            overflowing.Commit.Nodes.Single(pair => pair.Value.Label == "wide").Key
+        ];
         Assert.True(overflowingRoot.HorizontalScrollEnabled);
         Assert.True(overflowingRoot.ContentWidth > overflowingRoot.Width);
         Assert.Equal(88, overflowingWide.Height, precision: 0);
@@ -4078,7 +5187,9 @@ public sealed class HtmlSceneFrameSourceTests
 
         var fitting = source.RenderFrame(360, 100, TimeSpan.Zero);
         var fittingRoot = fitting.Commit.Layout[fitting.Commit.RootId];
-        var fittingWide = fitting.Commit.Layout[fitting.Commit.Nodes.Single(pair => pair.Value.Label == "wide").Key];
+        var fittingWide = fitting.Commit.Layout[
+            fitting.Commit.Nodes.Single(pair => pair.Value.Label == "wide").Key
+        ];
         Assert.Equal(100, fittingWide.Height, precision: 0);
         Assert.Null(SceneScrollBarLayout.ResolveHorizontalScrollBar(fittingRoot));
     }
@@ -4096,25 +5207,33 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 body { margin: 0; padding: 0; overflow: auto; scrollbar-color: #888 #111; }
                 #wide { width: 320px; height: 40px; background: #112233; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(200, 100, TimeSpan.Zero);
         var fragmentTree = GetCachedBaseFragmentTree(source);
         var root = frame.Commit.Layout[frame.Commit.RootId];
-        var scrollBarFragments = fragmentTree.Fragments.Values
-            .Where(fragment => fragment.Kind == HtmlFragmentKind.ScrollBar)
+        var scrollBarFragments = fragmentTree
+            .Fragments.Values.Where(fragment => fragment.Kind == HtmlFragmentKind.ScrollBar)
             .ToArray();
 
         Assert.NotNull(SceneScrollBarLayout.ResolveHorizontalScrollBar(root));
-        Assert.Contains(scrollBarFragments, fragment =>
-            fragment.GeneratedRole == HtmlGeneratedFragmentRole.HorizontalScrollBarGutter &&
-            fragment.SourceSceneNodeId == HtmlSceneNodeId.Root &&
-            Math.Abs(fragment.BorderBox.Top - (root.Height - root.ScrollBarWidth)) < 0.001f &&
-            Math.Abs(fragment.BorderBox.Bottom - root.Height) < 0.001f);
-        Assert.Contains(scrollBarFragments, fragment =>
-            fragment.GeneratedRole == HtmlGeneratedFragmentRole.HorizontalScrollBarThumb &&
-            fragment.SourceSceneNodeId == HtmlSceneNodeId.Root);
+        Assert.Contains(
+            scrollBarFragments,
+            fragment =>
+                fragment.GeneratedRole == HtmlGeneratedFragmentRole.HorizontalScrollBarGutter
+                && fragment.SourceSceneNodeId == HtmlSceneNodeId.Root
+                && Math.Abs(fragment.BorderBox.Top - (root.Height - root.ScrollBarWidth)) < 0.001f
+                && Math.Abs(fragment.BorderBox.Bottom - root.Height) < 0.001f
+        );
+        Assert.Contains(
+            scrollBarFragments,
+            fragment =>
+                fragment.GeneratedRole == HtmlGeneratedFragmentRole.HorizontalScrollBarThumb
+                && fragment.SourceSceneNodeId == HtmlSceneNodeId.Root
+        );
     }
 
     [Fact]
@@ -4130,25 +5249,33 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 body { margin: 0; padding: 0; overflow: auto; scrollbar-color: #888 #111; }
                 #fill { width: 100%; height: 220px; background: #112233; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(200, 100, TimeSpan.Zero);
         var fragmentTree = GetCachedBaseFragmentTree(source);
         var root = frame.Commit.Layout[frame.Commit.RootId];
-        var scrollBarFragments = fragmentTree.Fragments.Values
-            .Where(fragment => fragment.Kind == HtmlFragmentKind.ScrollBar)
+        var scrollBarFragments = fragmentTree
+            .Fragments.Values.Where(fragment => fragment.Kind == HtmlFragmentKind.ScrollBar)
             .ToArray();
 
         Assert.NotNull(SceneScrollBarLayout.ResolveVerticalScrollBar(root));
-        Assert.Contains(scrollBarFragments, fragment =>
-            fragment.GeneratedRole == HtmlGeneratedFragmentRole.VerticalScrollBarGutter &&
-            fragment.SourceSceneNodeId == HtmlSceneNodeId.Root &&
-            Math.Abs(fragment.BorderBox.Left - (root.Width - root.ScrollBarWidth)) < 0.001f &&
-            Math.Abs(fragment.BorderBox.Right - root.Width) < 0.001f);
-        Assert.Contains(scrollBarFragments, fragment =>
-            fragment.GeneratedRole == HtmlGeneratedFragmentRole.VerticalScrollBarThumb &&
-            fragment.SourceSceneNodeId == HtmlSceneNodeId.Root);
+        Assert.Contains(
+            scrollBarFragments,
+            fragment =>
+                fragment.GeneratedRole == HtmlGeneratedFragmentRole.VerticalScrollBarGutter
+                && fragment.SourceSceneNodeId == HtmlSceneNodeId.Root
+                && Math.Abs(fragment.BorderBox.Left - (root.Width - root.ScrollBarWidth)) < 0.001f
+                && Math.Abs(fragment.BorderBox.Right - root.Width) < 0.001f
+        );
+        Assert.Contains(
+            scrollBarFragments,
+            fragment =>
+                fragment.GeneratedRole == HtmlGeneratedFragmentRole.VerticalScrollBarThumb
+                && fragment.SourceSceneNodeId == HtmlSceneNodeId.Root
+        );
     }
 
     [Fact]
@@ -4164,8 +5291,10 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 body { margin: 0; padding: 0; overflow: auto; }
                 #fill { width: 100%; height: 220px; background: #112233; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var normal = source.RenderFrame(200, 100, TimeSpan.Zero);
         var normalRoot = normal.Commit.Layout[normal.Commit.RootId];
@@ -4174,7 +5303,9 @@ public sealed class HtmlSceneFrameSourceTests
         source.Wheel(0, 1, synthetic: false, modifiers: 2);
         var scaled = source.RenderFrame(182, 91, TimeSpan.Zero);
         var scaledRoot = scaled.Commit.Layout[scaled.Commit.RootId];
-        var scaledFill = scaled.Commit.Layout[scaled.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
+        var scaledFill = scaled.Commit.Layout[
+            scaled.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key
+        ];
 
         Assert.Equal(12, scaledRoot.ScrollBarWidth * source.ViewportScale, precision: 1);
         Assert.Equal(scaledRoot.Width - scaledRoot.ScrollBarWidth, scaledFill.Width, precision: 1);
@@ -4194,12 +5325,16 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 body { margin: 0; padding: 32px; overflow: auto; }
                 #fill { width: 100%; height: 220px; background: #112233; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(200, 100, TimeSpan.Zero);
         var root = frame.Commit.Layout[frame.Commit.RootId];
-        var fill = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
+        var fill = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key
+        ];
 
         Assert.NotNull(SceneScrollBarLayout.ResolveVerticalScrollBar(root));
         Assert.Equal(root.PaddingLeft, fill.AbsLeft, precision: 1);
@@ -4219,13 +5354,17 @@ public sealed class HtmlSceneFrameSourceTests
                 """
                 body { margin: 0; padding: 32px; overflow: auto; }
                 #fill { width: 100%; height: 220px; background: #112233; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         source.Wheel(0, 1, synthetic: false, modifiers: 2);
         var frame = source.RenderFrame(182, 91, TimeSpan.Zero);
         var root = frame.Commit.Layout[frame.Commit.RootId];
-        var fill = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key];
+        var fill = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "fill").Key
+        ];
 
         Assert.Equal(1.1f, source.ViewportScale, precision: 2);
         Assert.NotNull(SceneScrollBarLayout.ResolveVerticalScrollBar(root));
@@ -4258,17 +5397,29 @@ public sealed class HtmlSceneFrameSourceTests
                 .brand-block { width: 0; flex: 1 1 0; }
                 .nav-group { display: flex; flex-direction: row; gap: 10px; }
                 .nav-button { background: #132238; border-width: 1px; border-color: #28415f; color: #dbe7f4; }
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: SkiaRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(420, 180, TimeSpan.Zero);
-        var topbarRow = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "topbar-row").Key];
-        var navGroup = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "nav-group").Key];
-        var firstButton = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "nav-platform").Key];
+        var topbarRow = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "topbar-row").Key
+        ];
+        var navGroup = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "nav-group").Key
+        ];
+        var firstButton = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "nav-platform").Key
+        ];
 
-        Assert.True(navGroup.AbsLeft + navGroup.Width <= topbarRow.AbsLeft + topbarRow.Width + 0.5f);
+        Assert.True(
+            navGroup.AbsLeft + navGroup.Width <= topbarRow.AbsLeft + topbarRow.Width + 0.5f
+        );
         Assert.True(firstButton.AbsLeft >= navGroup.AbsLeft - 0.5f);
-        Assert.True(firstButton.AbsLeft + firstButton.Width <= topbarRow.AbsLeft + topbarRow.Width + 0.5f);
+        Assert.True(
+            firstButton.AbsLeft + firstButton.Width <= topbarRow.AbsLeft + topbarRow.Width + 0.5f
+        );
     }
 
     [Fact]
@@ -4276,11 +5427,18 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><input id='title-input' value='Native' /></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var baseCommitField = typeof(HtmlSceneFrameSource).GetField("cachedBaseCommit", BindingFlags.Instance | BindingFlags.NonPublic);
-        var focusedInputField = typeof(HtmlSceneFrameSource).GetField("focusedInputId", BindingFlags.Instance | BindingFlags.NonPublic);
+        var baseCommitField = typeof(HtmlSceneFrameSource).GetField(
+            "cachedBaseCommit",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        var focusedInputField = typeof(HtmlSceneFrameSource).GetField(
+            "focusedInputId",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
         Assert.NotNull(baseCommitField);
         Assert.NotNull(focusedInputField);
         var initialBaseCommit = baseCommitField!.GetValue(source);
@@ -4300,12 +5458,18 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><input id='title-input' value='Native' /></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(320, 180, TimeSpan.Zero);
         var inputId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "title-input").Key;
         var inputBox = initial.Commit.Layout[inputId];
-        source.PointerMove(inputBox.AbsLeft + inputBox.Width - inputBox.PaddingRight - 2, inputBox.AbsTop + inputBox.PaddingTop + 2, 0, synthetic: false);
+        source.PointerMove(
+            inputBox.AbsLeft + inputBox.Width - inputBox.PaddingRight - 2,
+            inputBox.AbsTop + inputBox.PaddingTop + 2,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.TextInput(" HTML", synthetic: false);
         var updated = source.RenderFrame(320, 180, TimeSpan.Zero);
@@ -4320,17 +5484,33 @@ public sealed class HtmlSceneFrameSourceTests
     {
         var backend = SkiaRuntimeBackendServices.Create();
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><input id='title-input' value='Native HTML' /></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: backend));
+            new Enaga.Html.HtmlDocument(
+                "<body><input id='title-input' value='Native HTML' /></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: backend)
+        );
 
         var initial = source.RenderFrame(420, 180, TimeSpan.Zero);
         var inputId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "title-input").Key;
         var inputBox = initial.Commit.Layout[inputId];
-        var style = inputBox.TextStyle ?? new SceneTextStyle(16, null, null, 400, SceneTextAlign.Left, WrapText: false);
+        var style =
+            inputBox.TextStyle
+            ?? new SceneTextStyle(16, null, null, 400, SceneTextAlign.Left, WrapText: false);
         var contentWidth = inputBox.Width - inputBox.PaddingLeft - inputBox.PaddingRight;
-        var caret = backend.Text.GetCaretPosition(style, inputBox.TextContent ?? string.Empty, inputBox.LineHeight, contentWidth, 0);
+        var caret = backend.Text.GetCaretPosition(
+            style,
+            inputBox.TextContent ?? string.Empty,
+            inputBox.LineHeight,
+            contentWidth,
+            0
+        );
 
-        source.PointerMove(inputBox.AbsLeft + inputBox.PaddingLeft + caret.X + 1, inputBox.AbsTop + inputBox.PaddingTop + caret.Y + 2, 0, synthetic: false);
+        source.PointerMove(
+            inputBox.AbsLeft + inputBox.PaddingLeft + caret.X + 1,
+            inputBox.AbsTop + inputBox.PaddingTop + caret.Y + 2,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
         source.TextInput("!", synthetic: false);
@@ -4344,8 +5524,11 @@ public sealed class HtmlSceneFrameSourceTests
     public void HtmlSceneFrameSource_SupportsSelectAllShortcutReplacement()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><input id='title-input' value='Native HTML subset' /></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><input id='title-input' value='Native HTML subset' /></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(420, 180, TimeSpan.Zero);
         var inputId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "title-input").Key;
@@ -4369,25 +5552,42 @@ public sealed class HtmlSceneFrameSourceTests
     public void HtmlSceneFrameSource_KeepsEditedInputValueAfterBlur()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <input id='first-input' value='Native' />
                   <input id='second-input' value='Other' />
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(420, 220, TimeSpan.Zero);
-        var firstInputId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "first-input").Key;
-        var secondInputId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "second-input").Key;
+        var firstInputId = initial
+            .Commit.Nodes.Single(pair => pair.Value.Label == "first-input")
+            .Key;
+        var secondInputId = initial
+            .Commit.Nodes.Single(pair => pair.Value.Label == "second-input")
+            .Key;
         var firstInputBox = initial.Commit.Layout[firstInputId];
         var secondInputBox = initial.Commit.Layout[secondInputId];
 
-        source.PointerMove(firstInputBox.AbsLeft + firstInputBox.Width - firstInputBox.PaddingRight - 2, firstInputBox.AbsTop + firstInputBox.PaddingTop + 2, 0, synthetic: false);
+        source.PointerMove(
+            firstInputBox.AbsLeft + firstInputBox.Width - firstInputBox.PaddingRight - 2,
+            firstInputBox.AbsTop + firstInputBox.PaddingTop + 2,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
         source.TextInput(" HTML", synthetic: false);
-        source.PointerMove(secondInputBox.AbsLeft + 4, secondInputBox.AbsTop + 4, 0, synthetic: false);
+        source.PointerMove(
+            secondInputBox.AbsLeft + 4,
+            secondInputBox.AbsTop + 4,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
 
@@ -4405,7 +5605,8 @@ public sealed class HtmlSceneFrameSourceTests
         var backend = SkiaRuntimeBackendServices.Create();
         var source = new HtmlSceneFrameSource(
             new Enaga.Html.HtmlDocument("<body><input id='title-input' value='Native' /></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: backend));
+            new Enaga.Html.HtmlOptions(BackendServices: backend)
+        );
 
         var initial = source.RenderFrame(420, 180, TimeSpan.Zero);
         var inputId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "title-input").Key;
@@ -4432,14 +5633,22 @@ public sealed class HtmlSceneFrameSourceTests
     public void HtmlSceneFrameSource_TreatsSearchInputAsEditableTextInput()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("<body><input type='search' id='query' value='Native' /></body>"),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+            new Enaga.Html.HtmlDocument(
+                "<body><input type='search' id='query' value='Native' /></body>"
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(360, 180, TimeSpan.Zero);
         var queryId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "query").Key;
         var queryBox = initial.Commit.Layout[queryId];
 
-        source.PointerMove(queryBox.AbsLeft + queryBox.Width - queryBox.PaddingRight - 2, queryBox.AbsTop + queryBox.PaddingTop + 2, 0, synthetic: false);
+        source.PointerMove(
+            queryBox.AbsLeft + queryBox.Width - queryBox.PaddingRight - 2,
+            queryBox.AbsTop + queryBox.PaddingTop + 2,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
         source.TextInput(" search", synthetic: false);
@@ -4454,7 +5663,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void RenderFrame_RendersSubmitResetAndRadioAsNativeControls()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <form>
                     <input type='radio' id='first' name='choice' checked>
@@ -4463,12 +5673,18 @@ public sealed class HtmlSceneFrameSourceTests
                     <input type='reset' id='reset'>
                   </form>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(420, 180, TimeSpan.Zero);
-        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
-        var second = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key];
+        var first = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key
+        ];
+        var second = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key
+        ];
         var submitNode = frame.Commit.Nodes.Single(pair => pair.Value.Label == "submit");
         var resetNode = frame.Commit.Nodes.Single(pair => pair.Value.Label == "reset");
         var submit = frame.Commit.Layout[submitNode.Key];
@@ -4490,7 +5706,8 @@ public sealed class HtmlSceneFrameSourceTests
     public void HtmlSceneFrameSource_UpdatesRadioGroupAndResetsFormControls()
     {
         var source = new HtmlSceneFrameSource(
-            new Enaga.Html.HtmlDocument("""
+            new Enaga.Html.HtmlDocument(
+                """
                 <body>
                   <form>
                     <input type='search' id='query' value='Native'>
@@ -4499,8 +5716,10 @@ public sealed class HtmlSceneFrameSourceTests
                     <input type='reset' id='reset'>
                   </form>
                 </body>
-                """),
-            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var initial = source.RenderFrame(520, 220, TimeSpan.Zero);
         var queryId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "query").Key;
@@ -4511,11 +5730,21 @@ public sealed class HtmlSceneFrameSourceTests
         var secondBox = initial.Commit.Layout[secondId];
         var resetBox = initial.Commit.Layout[resetId];
 
-        source.PointerMove(queryBox.AbsLeft + queryBox.Width - queryBox.PaddingRight - 2, queryBox.AbsTop + queryBox.PaddingTop + 2, 0, synthetic: false);
+        source.PointerMove(
+            queryBox.AbsLeft + queryBox.Width - queryBox.PaddingRight - 2,
+            queryBox.AbsTop + queryBox.PaddingTop + 2,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
         source.TextInput(" search", synthetic: false);
-        source.PointerMove(secondBox.AbsLeft + secondBox.Width * 0.5f, secondBox.AbsTop + secondBox.Height * 0.5f, 0, synthetic: false);
+        source.PointerMove(
+            secondBox.AbsLeft + secondBox.Width * 0.5f,
+            secondBox.AbsTop + secondBox.Height * 0.5f,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
         var changed = source.RenderFrame(520, 220, TimeSpan.Zero);
@@ -4524,7 +5753,12 @@ public sealed class HtmlSceneFrameSourceTests
         Assert.False(changed.Commit.Layout[firstId].IsChecked);
         Assert.True(changed.Commit.Layout[secondId].IsChecked);
 
-        source.PointerMove(resetBox.AbsLeft + resetBox.Width * 0.5f, resetBox.AbsTop + resetBox.Height * 0.5f, 0, synthetic: false);
+        source.PointerMove(
+            resetBox.AbsLeft + resetBox.Width * 0.5f,
+            resetBox.AbsTop + resetBox.Height * 0.5f,
+            0,
+            synthetic: false
+        );
         source.PointerDown(0, 1, synthetic: false);
         source.PointerUp(0, 0, synthetic: false);
         var reset = source.RenderFrame(520, 220, TimeSpan.Zero);
@@ -4536,53 +5770,73 @@ public sealed class HtmlSceneFrameSourceTests
 
     private static HtmlFragmentTree GetCachedBaseFragmentTree(HtmlSceneFrameSource source)
     {
-        var field = typeof(HtmlSceneFrameSource).GetField("cachedBaseFragmentTree", BindingFlags.Instance | BindingFlags.NonPublic);
+        var field = typeof(HtmlSceneFrameSource).GetField(
+            "cachedBaseFragmentTree",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
         Assert.NotNull(field);
         return Assert.IsType<HtmlFragmentTree>(field!.GetValue(source));
     }
 
     private sealed class StaticImageResolver(string localPath) : IRuntimeImageResolver
     {
-        public RuntimeImageResolveResult ResolveImage(string source)
-            => new(RuntimeImageResolveState.Ready, localPath);
+        public RuntimeImageResolveResult ResolveImage(string source) =>
+            new(RuntimeImageResolveState.Ready, localPath);
     }
 
     private static SKColor ParseColor(string? color)
     {
-        Assert.True(SceneCommitPainter.TryParseCssColor(color, out var parsed), $"Failed to parse color '{color ?? "<null>"}'");
+        Assert.True(
+            SceneCommitPainter.TryParseCssColor(color, out var parsed),
+            $"Failed to parse color '{color ?? "<null>"}'"
+        );
         return parsed;
     }
 
-    private static string? ResolveAppliedBackgroundColor(SceneLayoutCommit commit, SceneNodeId id)
-        => commit.TryGetPaintOverride(id, out var paintOverride)
+    private static string? ResolveAppliedBackgroundColor(
+        SceneLayoutCommit commit,
+        SceneNodeId id
+    ) =>
+        commit.TryGetPaintOverride(id, out var paintOverride)
             ? paintOverride.BackgroundColor ?? commit.Layout[id].BackgroundColor
             : commit.Layout[id].BackgroundColor;
 
-    private static string? ResolveAppliedBorderColor(SceneLayoutCommit commit, SceneNodeId id)
-        => commit.TryGetPaintOverride(id, out var paintOverride)
+    private static string? ResolveAppliedBorderColor(SceneLayoutCommit commit, SceneNodeId id) =>
+        commit.TryGetPaintOverride(id, out var paintOverride)
             ? paintOverride.BorderColor ?? commit.Layout[id].BorderColor
             : commit.Layout[id].BorderColor;
 
-    private static string? ResolveAppliedTextColor(SceneLayoutCommit commit, SceneNodeId id)
-        => commit.TryGetPaintOverride(id, out var paintOverride)
+    private static string? ResolveAppliedTextColor(SceneLayoutCommit commit, SceneNodeId id) =>
+        commit.TryGetPaintOverride(id, out var paintOverride)
             ? paintOverride.TextColor ?? commit.Layout[id].TextStyle?.Color
             : commit.Layout[id].TextStyle?.Color;
 
-    private static bool IsMatchingGeneratedAncestor(SceneLayoutCommit commit, SceneNodeId nodeId, string prefix)
+    private static bool IsMatchingGeneratedAncestor(
+        SceneLayoutCommit commit,
+        SceneNodeId nodeId,
+        string prefix
+    )
     {
         if (!commit.Nodes.TryGetValue(nodeId, out var node))
             return false;
 
         if (prefix is "td-" or "th-")
-            return node.Children.Length > 0 && node.ParentId is { } parentId && commit.Nodes.TryGetValue(parentId, out var parent) && parent.Children.Length > 1;
+            return node.Children.Length > 0
+                && node.ParentId is { } parentId
+                && commit.Nodes.TryGetValue(parentId, out var parent)
+                && parent.Children.Length > 1;
 
         if (prefix == "tr-")
             return node.Children.Length > 1;
 
         if (prefix == "table-")
-            return node.ParentId == commit.RootId || node.Children.Length > 1 && node.Children.Any(childId => commit.Nodes.TryGetValue(childId, out var child) && child.Children.Length > 1);
+            return node.ParentId == commit.RootId
+                || node.Children.Length > 1
+                    && node.Children.Any(childId =>
+                        commit.Nodes.TryGetValue(childId, out var child)
+                        && child.Children.Length > 1
+                    );
 
         return false;
     }
-
 }

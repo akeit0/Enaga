@@ -8,7 +8,8 @@ namespace Enaga.Html;
 
 internal sealed class HtmlSceneTreeBuilder
 {
-    private static readonly string[] OrderedListMarkerTextCache = CreateOrderedListMarkerTextCache();
+    private static readonly string[] OrderedListMarkerTextCache =
+        CreateOrderedListMarkerTextCache();
     private readonly HtmlOptions options;
     private readonly LayoutEngineConfig layoutConfig;
     private readonly HtmlPipelineMetrics metrics;
@@ -16,7 +17,11 @@ internal sealed class HtmlSceneTreeBuilder
     private readonly HtmlSceneVersionStore versionStore = new();
     private readonly HtmlFormattingStyleCache formattingStyleCache = new();
 
-    public HtmlSceneTreeBuilder(HtmlOptions options, LayoutEngineConfig layoutConfig, HtmlPipelineMetrics metrics)
+    public HtmlSceneTreeBuilder(
+        HtmlOptions options,
+        LayoutEngineConfig layoutConfig,
+        HtmlPipelineMetrics metrics
+    )
     {
         this.options = options;
         this.layoutConfig = layoutConfig;
@@ -27,9 +32,18 @@ internal sealed class HtmlSceneTreeBuilder
         HtmlParsedDocument document,
         int viewportWidth,
         int viewportHeight,
-        HtmlComputedStyleTree styleTree)
+        HtmlComputedStyleTree styleTree
+    )
     {
-        if (cache.TryGet(document, viewportWidth, viewportHeight, styleTree.Version, out var cachedTree))
+        if (
+            cache.TryGet(
+                document,
+                viewportWidth,
+                viewportHeight,
+                styleTree.Version,
+                out var cachedTree
+            )
+        )
         {
             versionStore.MarkCacheHit();
             return cachedTree;
@@ -40,11 +54,11 @@ internal sealed class HtmlSceneTreeBuilder
             viewportWidth,
             viewportHeight,
             styleTree.Version,
-            BuildTree(document, viewportWidth, viewportHeight, styleTree));
+            BuildTree(document, viewportWidth, viewportHeight, styleTree)
+        );
     }
 
-    public void InvalidateResourceDependentLayout()
-        => cache.Clear();
+    public void InvalidateResourceDependentLayout() => cache.Clear();
 
     public Enaga.Html.Style.RestyleHint LastInvalidationHints => versionStore.LastInvalidationHints;
 
@@ -52,20 +66,52 @@ internal sealed class HtmlSceneTreeBuilder
 
     public HtmlLayoutDirtySet LastLayoutDirtyNodes => versionStore.LastLayoutDirtyNodes;
 
-    public void ApplyHoverSnapshot(IReadOnlySet<HtmlNodeId>? oldHoveredNodeIds, IReadOnlySet<HtmlNodeId>? newHoveredNodeIds)
-        => versionStore.ApplyPseudoStateSnapshot(oldHoveredNodeIds, newHoveredNodeIds, Enaga.Html.Dom.HtmlPseudoState.Hover);
+    public void ApplyHoverSnapshot(
+        IReadOnlySet<HtmlNodeId>? oldHoveredNodeIds,
+        IReadOnlySet<HtmlNodeId>? newHoveredNodeIds
+    ) =>
+        versionStore.ApplyPseudoStateSnapshot(
+            oldHoveredNodeIds,
+            newHoveredNodeIds,
+            Enaga.Html.Dom.HtmlPseudoState.Hover
+        );
 
-    public void ApplyActiveSnapshot(HtmlNodeId? oldActiveNodeId, HtmlNodeId? newActiveNodeId)
-        => versionStore.ApplyPseudoStateSnapshot(oldActiveNodeId, newActiveNodeId, Enaga.Html.Dom.HtmlPseudoState.Active);
+    public void ApplyActiveSnapshot(HtmlNodeId? oldActiveNodeId, HtmlNodeId? newActiveNodeId) =>
+        versionStore.ApplyPseudoStateSnapshot(
+            oldActiveNodeId,
+            newActiveNodeId,
+            Enaga.Html.Dom.HtmlPseudoState.Active
+        );
 
-    private HtmlStyledSceneTree BuildTree(HtmlParsedDocument document, int viewportWidth, int viewportHeight, HtmlComputedStyleTree styleTree)
+    private HtmlStyledSceneTree BuildTree(
+        HtmlParsedDocument document,
+        int viewportWidth,
+        int viewportHeight,
+        HtmlComputedStyleTree styleTree
+    )
     {
         formattingStyleCache.Clear();
         var body = document.RootElement;
         var rootStyle = ResolveElementStyle(body, styleTree).CloneForFormatting();
         rootStyle.ApplyRootDefaults(options);
-        var rootChildren = versionStore.AssignVersions(BuildChildren(body, rootStyle, new HtmlNodeIdGenerator(), inheritedLinkHref: null, document.BasePath, viewportWidth, viewportHeight, styleTree));
-        return new HtmlStyledSceneTree(rootStyle, rootChildren, versionStore.Generation, body.NodeId);
+        var rootChildren = versionStore.AssignVersions(
+            BuildChildren(
+                body,
+                rootStyle,
+                new HtmlNodeIdGenerator(),
+                inheritedLinkHref: null,
+                document.BasePath,
+                viewportWidth,
+                viewportHeight,
+                styleTree
+            )
+        );
+        return new HtmlStyledSceneTree(
+            rootStyle,
+            rootChildren,
+            versionStore.Generation,
+            body.NodeId
+        );
     }
 
     private HtmlSceneNode[] BuildChildren(
@@ -76,13 +122,21 @@ internal sealed class HtmlSceneTreeBuilder
         string? basePath,
         int viewportWidth,
         int viewportHeight,
-        HtmlComputedStyleTree styleTree)
+        HtmlComputedStyleTree styleTree
+    )
     {
         var children = new List<HtmlSceneNode>(parent.Children.Count);
         var listItemIndex = 0;
-        var parentIsOrderedList = string.Equals(parent.LocalName, "ol", StringComparison.OrdinalIgnoreCase);
-        var parentIsList = parentIsOrderedList || string.Equals(parent.LocalName, "ul", StringComparison.OrdinalIgnoreCase);
-        var parentAllowsInlineContent = IsPhrasingContainer(parent) || HasDirectInlineElement(parent);
+        var parentIsOrderedList = string.Equals(
+            parent.LocalName,
+            "ol",
+            StringComparison.OrdinalIgnoreCase
+        );
+        var parentIsList =
+            parentIsOrderedList
+            || string.Equals(parent.LocalName, "ul", StringComparison.OrdinalIgnoreCase);
+        var parentAllowsInlineContent =
+            IsPhrasingContainer(parent) || HasDirectInlineElement(parent);
         for (var childIndex = 0; childIndex < parent.Children.Count; childIndex++)
         {
             var child = parent.Children[childIndex];
@@ -100,39 +154,79 @@ internal sealed class HtmlSceneTreeBuilder
                             basePath,
                             viewportWidth,
                             viewportHeight,
-                            styleTree);
+                            styleTree
+                        );
                         break;
                     }
 
                     var childStyle = ResolveElementStyle(element, styleTree);
                     if (childStyle.Display == HtmlDisplay.Contents)
                     {
-                        children.AddRange(BuildChildren(element, childStyle, idGenerator, inheritedLinkHref, basePath, viewportWidth, viewportHeight, styleTree));
+                        children.AddRange(
+                            BuildChildren(
+                                element,
+                                childStyle,
+                                idGenerator,
+                                inheritedLinkHref,
+                                basePath,
+                                viewportWidth,
+                                viewportHeight,
+                                styleTree
+                            )
+                        );
                         break;
                     }
 
                     string? markerText = null;
-                    if (parentIsList &&
-                        !inheritedStyle.SuppressListMarker &&
-                        string.Equals(element.LocalName, "li", StringComparison.OrdinalIgnoreCase))
+                    if (
+                        parentIsList
+                        && !inheritedStyle.SuppressListMarker
+                        && string.Equals(
+                            element.LocalName,
+                            "li",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
                     {
                         markerText = parentIsOrderedList
                             ? GetOrderedListMarkerText(++listItemIndex)
                             : inheritedStyle.UnorderedListMarkerText;
                     }
 
-                    var built = BuildElementNode(element, inheritedStyle, idGenerator, inheritedLinkHref, basePath, viewportWidth, viewportHeight, markerText, parentIsList, styleTree);
+                    var built = BuildElementNode(
+                        element,
+                        inheritedStyle,
+                        idGenerator,
+                        inheritedLinkHref,
+                        basePath,
+                        viewportWidth,
+                        viewportHeight,
+                        markerText,
+                        parentIsList,
+                        styleTree
+                    );
                     if (built is not null)
                         children.Add(built);
                     break;
                 case HtmlDomText text:
                     if (parentAllowsInlineContent)
                     {
-                        AddInlineTextNodes(children, text, inheritedStyle, idGenerator, inheritedLinkHref);
+                        AddInlineTextNodes(
+                            children,
+                            text,
+                            inheritedStyle,
+                            idGenerator,
+                            inheritedLinkHref
+                        );
                     }
                     else
                     {
-                        var textNode = BuildTextNode(text, inheritedStyle, idGenerator, inheritedLinkHref);
+                        var textNode = BuildTextNode(
+                            text,
+                            inheritedStyle,
+                            idGenerator,
+                            inheritedLinkHref
+                        );
                         if (textNode is not null)
                             children.Add(textNode);
                     }
@@ -140,10 +234,22 @@ internal sealed class HtmlSceneTreeBuilder
             }
         }
 
-        return GroupInlineRuns(parent, parentAllowsInlineContent, ApplyFlexOrder(inheritedStyle, NormalizeInlinePunctuation(parentAllowsInlineContent, children)), inheritedStyle, idGenerator);
+        return GroupInlineRuns(
+            parent,
+            parentAllowsInlineContent,
+            ApplyFlexOrder(
+                inheritedStyle,
+                NormalizeInlinePunctuation(parentAllowsInlineContent, children)
+            ),
+            inheritedStyle,
+            idGenerator
+        );
     }
 
-    private static List<HtmlSceneNode> ApplyFlexOrder(HtmlComputedStyle parentStyle, List<HtmlSceneNode> children)
+    private static List<HtmlSceneNode> ApplyFlexOrder(
+        HtmlComputedStyle parentStyle,
+        List<HtmlSceneNode> children
+    )
     {
         if (children.Count < 2 || parentStyle.Display != HtmlDisplay.Flex)
             return children;
@@ -163,11 +269,13 @@ internal sealed class HtmlSceneTreeBuilder
         if (ordered is null)
             return children;
 
-        ordered.Sort(static (left, right) =>
-        {
-            var order = left.Node.Style.Order.CompareTo(right.Node.Style.Order);
-            return order != 0 ? order : left.Index.CompareTo(right.Index);
-        });
+        ordered.Sort(
+            static (left, right) =>
+            {
+                var order = left.Node.Style.Order.CompareTo(right.Node.Style.Order);
+                return order != 0 ? order : left.Index.CompareTo(right.Index);
+            }
+        );
 
         var result = new List<HtmlSceneNode>(ordered.Count);
         foreach (var item in ordered)
@@ -175,16 +283,16 @@ internal sealed class HtmlSceneTreeBuilder
         return result;
     }
 
-    private static bool IsTableRowNode(HtmlSceneNode node)
-        => node.Role == HtmlSceneNodeRole.TableRow;
+    private static bool IsTableRowNode(HtmlSceneNode node) =>
+        node.Role == HtmlSceneNodeRole.TableRow;
 
-    private static bool IsTableCellNode(HtmlSceneNode node)
-        => node.Role == HtmlSceneNodeRole.TableCell;
+    private static bool IsTableCellNode(HtmlSceneNode node) =>
+        node.Role == HtmlSceneNodeRole.TableCell;
 
-    private static bool IsTableFormattingNode(HtmlSceneNode node)
-        => node.Role is HtmlSceneNodeRole.Table or HtmlSceneNodeRole.TableSection ||
-           IsTableRowNode(node) ||
-           IsTableCellNode(node);
+    private static bool IsTableFormattingNode(HtmlSceneNode node) =>
+        node.Role is HtmlSceneNodeRole.Table or HtmlSceneNodeRole.TableSection
+        || IsTableRowNode(node)
+        || IsTableCellNode(node);
 
     private void AddInlineElementNodes(
         List<HtmlSceneNode> nodes,
@@ -195,7 +303,8 @@ internal sealed class HtmlSceneTreeBuilder
         string? basePath,
         int viewportWidth,
         int viewportHeight,
-        HtmlComputedStyleTree styleTree)
+        HtmlComputedStyleTree styleTree
+    )
     {
         if (IsHiddenInputElement(element))
             return;
@@ -206,33 +315,61 @@ internal sealed class HtmlSceneTreeBuilder
             return;
         if (style.Display == HtmlDisplay.Contents)
         {
-            nodes.AddRange(BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree));
+            nodes.AddRange(
+                BuildChildren(
+                    element,
+                    style,
+                    idGenerator,
+                    linkHref,
+                    basePath,
+                    viewportWidth,
+                    viewportHeight,
+                    styleTree
+                )
+            );
             return;
         }
 
         var firstNodeId = idGenerator.Next();
         var firstNodeIndex = nodes.Count;
         var role = ResolveSceneNodeRole(element);
-        if (style.Display != HtmlDisplay.Inline &&
-            style.Display != HtmlDisplay.InlineBlock &&
-            !string.Equals(element.LocalName, "br", StringComparison.OrdinalIgnoreCase))
+        if (
+            style.Display != HtmlDisplay.Inline
+            && style.Display != HtmlDisplay.InlineBlock
+            && !string.Equals(element.LocalName, "br", StringComparison.OrdinalIgnoreCase)
+        )
         {
             var nodeKind = ResolveNodeKind(element, style);
-            var children = BuildElementChildren(element, nodeKind, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
-            nodes.Add(new HtmlSceneNode(
-                firstNodeId,
+            var children = BuildElementChildren(
+                element,
                 nodeKind,
                 style,
-                children,
-                nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
-                nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null,
-                null,
+                idGenerator,
                 linkHref,
-                element.Id,
-                element.NodeId,
-                ControlKind: ResolveControlKind(element),
-                Role: role,
-                IsChecked: IsCheckedInputElement(element)));
+                basePath,
+                viewportWidth,
+                viewportHeight,
+                styleTree
+            );
+            nodes.Add(
+                new HtmlSceneNode(
+                    firstNodeId,
+                    nodeKind,
+                    style,
+                    children,
+                    nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
+                    nodeKind == SceneNodeKind.TextInput
+                        ? element.GetAttribute("placeholder")
+                        : null,
+                    null,
+                    linkHref,
+                    element.Id,
+                    element.NodeId,
+                    ControlKind: ResolveControlKind(element),
+                    Role: role,
+                    IsChecked: IsCheckedInputElement(element)
+                )
+            );
             return;
         }
 
@@ -241,41 +378,59 @@ internal sealed class HtmlSceneTreeBuilder
             style = style.CloneForFormatting();
             style.ApplyInlineBlockDefaults();
             var nodeKind = ResolveNodeKind(element, style);
-            var children = BuildElementChildren(element, nodeKind, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
-            nodes.Add(new HtmlSceneNode(
-                firstNodeId,
+            var children = BuildElementChildren(
+                element,
                 nodeKind,
                 style,
-                children,
-                nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
-                nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null,
-                null,
+                idGenerator,
                 linkHref,
-                element.Id,
-                element.NodeId,
-                ControlKind: ResolveControlKind(element),
-                Role: role,
-                IsChecked: IsCheckedInputElement(element)));
+                basePath,
+                viewportWidth,
+                viewportHeight,
+                styleTree
+            );
+            nodes.Add(
+                new HtmlSceneNode(
+                    firstNodeId,
+                    nodeKind,
+                    style,
+                    children,
+                    nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
+                    nodeKind == SceneNodeKind.TextInput
+                        ? element.GetAttribute("placeholder")
+                        : null,
+                    null,
+                    linkHref,
+                    element.Id,
+                    element.NodeId,
+                    ControlKind: ResolveControlKind(element),
+                    Role: role,
+                    IsChecked: IsCheckedInputElement(element)
+                )
+            );
             return;
         }
 
         if (string.Equals(element.LocalName, "br", StringComparison.OrdinalIgnoreCase))
         {
             var breakStyle = formattingStyleCache.GetInlineBreakStyle(style);
-            nodes.Add(new HtmlSceneNode(
-                firstNodeId,
-                SceneNodeKind.View,
-                breakStyle,
-                [],
-                null,
-                null,
-                null,
-                null,
-                element.Id,
-                element.NodeId,
-                ControlKind: ResolveControlKind(element),
-                Role: role,
-                IsChecked: IsCheckedInputElement(element)));
+            nodes.Add(
+                new HtmlSceneNode(
+                    firstNodeId,
+                    SceneNodeKind.View,
+                    breakStyle,
+                    [],
+                    null,
+                    null,
+                    null,
+                    null,
+                    element.Id,
+                    element.NodeId,
+                    ControlKind: ResolveControlKind(element),
+                    Role: role,
+                    IsChecked: IsCheckedInputElement(element)
+                )
+            );
             return;
         }
 
@@ -284,21 +439,36 @@ internal sealed class HtmlSceneTreeBuilder
             style = style.CloneForFormatting();
             style.ApplyInlineBoxDefaults();
             var nodeKind = ResolveNodeKind(element, style);
-            var children = BuildElementChildren(element, nodeKind, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
-            nodes.Add(new HtmlSceneNode(
-                firstNodeId,
+            var children = BuildElementChildren(
+                element,
                 nodeKind,
                 style,
-                children,
-                nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
-                nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null,
-                null,
+                idGenerator,
                 linkHref,
-                element.Id,
-                element.NodeId,
-                ControlKind: ResolveControlKind(element),
-                Role: role,
-                IsChecked: IsCheckedInputElement(element)));
+                basePath,
+                viewportWidth,
+                viewportHeight,
+                styleTree
+            );
+            nodes.Add(
+                new HtmlSceneNode(
+                    firstNodeId,
+                    nodeKind,
+                    style,
+                    children,
+                    nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null,
+                    nodeKind == SceneNodeKind.TextInput
+                        ? element.GetAttribute("placeholder")
+                        : null,
+                    null,
+                    linkHref,
+                    element.Id,
+                    element.NodeId,
+                    ControlKind: ResolveControlKind(element),
+                    Role: role,
+                    IsChecked: IsCheckedInputElement(element)
+                )
+            );
             return;
         }
 
@@ -311,25 +481,52 @@ internal sealed class HtmlSceneTreeBuilder
                     AddInlineTextNodes(nodes, text, style, idGenerator, linkHref);
                     break;
                 case HtmlDomElement childElement when IsInlineElement(childElement):
-                    AddInlineElementNodes(nodes, childElement, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree);
+                    AddInlineElementNodes(
+                        nodes,
+                        childElement,
+                        style,
+                        idGenerator,
+                        linkHref,
+                        basePath,
+                        viewportWidth,
+                        viewportHeight,
+                        styleTree
+                    );
                     break;
                 case HtmlDomElement childElement:
-                    var built = BuildElementNode(childElement, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, markerText: null, isListItem: false, styleTree);
+                    var built = BuildElementNode(
+                        childElement,
+                        style,
+                        idGenerator,
+                        linkHref,
+                        basePath,
+                        viewportWidth,
+                        viewportHeight,
+                        markerText: null,
+                        isListItem: false,
+                        styleTree
+                    );
                     if (built is not null)
                         nodes.Add(built);
                     break;
             }
         }
 
-        if (nodes.Count > firstNodeIndex &&
-            string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase) &&
-            linkHref is not null)
+        if (
+            nodes.Count > firstNodeIndex
+            && string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase)
+            && linkHref is not null
+        )
         {
             nodes[firstNodeIndex].Id = firstNodeId;
             nodes[firstNodeIndex].Label = element.Id ?? nodes[firstNodeIndex].Label;
             nodes[firstNodeIndex].DomNodeId = element.NodeId;
         }
-        else if (nodes.Count > firstNodeIndex && element.Id is not null && nodes[firstNodeIndex].Label is null)
+        else if (
+            nodes.Count > firstNodeIndex
+            && element.Id is not null
+            && nodes[firstNodeIndex].Label is null
+        )
         {
             nodes[firstNodeIndex].Id = firstNodeId;
             nodes[firstNodeIndex].Label = element.Id;
@@ -337,7 +534,10 @@ internal sealed class HtmlSceneTreeBuilder
         }
     }
 
-    private static List<HtmlSceneNode> NormalizeInlinePunctuation(bool parentAllowsInlineContent, List<HtmlSceneNode> children)
+    private static List<HtmlSceneNode> NormalizeInlinePunctuation(
+        bool parentAllowsInlineContent,
+        List<HtmlSceneNode> children
+    )
     {
         if (!parentAllowsInlineContent || children.Count < 2)
             return children;
@@ -346,11 +546,16 @@ internal sealed class HtmlSceneTreeBuilder
         for (var index = 0; index < children.Count; index++)
         {
             var child = children[index];
-            if (child.NodeKind == SceneNodeKind.Text &&
-                child.TextContent is { } text &&
-                IsPunctuationOnly(text) &&
-                index > 0 &&
-                CanMergeInlinePunctuation(normalized is null ? children[index - 1] : normalized[^1], child))
+            if (
+                child.NodeKind == SceneNodeKind.Text
+                && child.TextContent is { } text
+                && IsPunctuationOnly(text)
+                && index > 0
+                && CanMergeInlinePunctuation(
+                    normalized is null ? children[index - 1] : normalized[^1],
+                    child
+                )
+            )
             {
                 normalized ??= CopyPrefix(children, index);
                 var previous = normalized[^1];
@@ -369,7 +574,8 @@ internal sealed class HtmlSceneTreeBuilder
         bool parentAllowsInlineContent,
         List<HtmlSceneNode> children,
         HtmlComputedStyle parentStyle,
-        HtmlNodeIdGenerator idGenerator)
+        HtmlNodeIdGenerator idGenerator
+    )
     {
         List<HtmlSceneNode>? grouped = null;
         var index = 0;
@@ -383,33 +589,45 @@ internal sealed class HtmlSceneTreeBuilder
             }
 
             var start = index;
-            while (index < children.Count && IsInlineRunMember(parent, parentAllowsInlineContent, children[index]))
+            while (
+                index < children.Count
+                && IsInlineRunMember(parent, parentAllowsInlineContent, children[index])
+            )
                 index += 1;
 
             if (index - start == 1)
             {
-                if (NeedsInlineAlignmentContainer(parent, parentStyle) &&
-                    children[start].NodeKind == SceneNodeKind.Text)
+                if (
+                    NeedsInlineAlignmentContainer(parent, parentStyle)
+                    && children[start].NodeKind == SceneNodeKind.Text
+                )
                 {
                     grouped ??= CopyPrefix(children, start);
-                    children[start].Style = formattingStyleCache.GetAlignedInlineTextStyle(children[start].Style);
+                    children[start].Style = formattingStyleCache.GetAlignedInlineTextStyle(
+                        children[start].Style
+                    );
                     grouped.Add(children[start]);
                 }
-                else if (NeedsInlineAlignmentContainer(parent, parentStyle) &&
-                         IsInlineRunCandidate(parent, parentAllowsInlineContent, children[start]))
+                else if (
+                    NeedsInlineAlignmentContainer(parent, parentStyle)
+                    && IsInlineRunCandidate(parent, parentAllowsInlineContent, children[start])
+                )
                 {
                     grouped ??= CopyPrefix(children, start);
-                    grouped.Add(new HtmlSceneNode(
-                        idGenerator.Next(),
-                        SceneNodeKind.View,
-                        CreateInlineRunContainerStyle(parent, parentStyle, children, start, 1),
-                        [children[start]],
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        Role: HtmlSceneNodeRole.InlineRun));
+                    grouped.Add(
+                        new HtmlSceneNode(
+                            idGenerator.Next(),
+                            SceneNodeKind.View,
+                            CreateInlineRunContainerStyle(parent, parentStyle, children, start, 1),
+                            [children[start]],
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            Role: HtmlSceneNodeRole.InlineRun
+                        )
+                    );
                 }
                 else
                 {
@@ -420,17 +638,26 @@ internal sealed class HtmlSceneTreeBuilder
             }
 
             grouped ??= CopyPrefix(children, start);
-            grouped.Add(new HtmlSceneNode(
-                idGenerator.Next(),
-                SceneNodeKind.View,
-                CreateInlineRunContainerStyle(parent, parentStyle, children, start, index - start),
-                CopyInlineRunRange(children, start, index - start),
-                null,
-                null,
-                null,
-                null,
-                null,
-                Role: HtmlSceneNodeRole.InlineRun));
+            grouped.Add(
+                new HtmlSceneNode(
+                    idGenerator.Next(),
+                    SceneNodeKind.View,
+                    CreateInlineRunContainerStyle(
+                        parent,
+                        parentStyle,
+                        children,
+                        start,
+                        index - start
+                    ),
+                    CopyInlineRunRange(children, start, index - start),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Role: HtmlSceneNodeRole.InlineRun
+                )
+            );
         }
 
         return grouped is null ? ToArray(children) : grouped.ToArray();
@@ -441,16 +668,20 @@ internal sealed class HtmlSceneTreeBuilder
         HtmlComputedStyle parentStyle,
         List<HtmlSceneNode> children,
         int start,
-        int count)
+        int count
+    )
     {
         if (ContainsInlineControl(children, start, count))
             return formattingStyleCache.GetInlineControlRunStyle(parentStyle);
 
-        return (parentStyle.Display == HtmlDisplay.Block && !IsTableCellElement(parent)) ||
-               (IsPhrasingContainer(parent) &&
-                parentStyle.Display != HtmlDisplay.Inline &&
-                parentStyle.Display != HtmlDisplay.InlineBlock &&
-                !IsTableCellElement(parent))
+        return
+            (parentStyle.Display == HtmlDisplay.Block && !IsTableCellElement(parent))
+            || (
+                IsPhrasingContainer(parent)
+                && parentStyle.Display != HtmlDisplay.Inline
+                && parentStyle.Display != HtmlDisplay.InlineBlock
+                && !IsTableCellElement(parent)
+            )
             ? formattingStyleCache.GetInlineFlowStyle(parentStyle)
             : formattingStyleCache.GetInlineRunStyle(parentStyle);
     }
@@ -466,60 +697,104 @@ internal sealed class HtmlSceneTreeBuilder
         return false;
     }
 
-    private static bool NeedsInlineAlignmentContainer(HtmlDomElement parent, HtmlComputedStyle parentStyle)
-        => IsPhrasingContainer(parent) &&
-           parentStyle.TextAlign is SceneTextAlign.Center or SceneTextAlign.Right;
+    private static bool NeedsInlineAlignmentContainer(
+        HtmlDomElement parent,
+        HtmlComputedStyle parentStyle
+    ) =>
+        IsPhrasingContainer(parent)
+        && parentStyle.TextAlign is SceneTextAlign.Center or SceneTextAlign.Right;
 
     private static bool IsInlineControl(HtmlSceneNode node)
     {
-        if (node.NodeKind == SceneNodeKind.TextInput &&
-            (node.Style.Display == HtmlDisplay.InlineBlock || node.ControlKind == SceneControlKind.Select) &&
-            node.Style.PreferIntrinsicWidth &&
-            node.Style.Float == HtmlFloat.None)
+        if (
+            node.NodeKind == SceneNodeKind.TextInput
+            && (
+                node.Style.Display == HtmlDisplay.InlineBlock
+                || node.ControlKind == SceneControlKind.Select
+            )
+            && node.Style.PreferIntrinsicWidth
+            && node.Style.Float == HtmlFloat.None
+        )
         {
             return true;
         }
 
-        return node.NodeKind == SceneNodeKind.View &&
-               node.Style.PreferIntrinsicWidth &&
-               node.Children.Length > 0 &&
-               node.Style.Float == HtmlFloat.None &&
-               !IsTableFormattingNode(node);
+        return node.NodeKind == SceneNodeKind.View
+            && node.Style.PreferIntrinsicWidth
+            && node.Children.Length > 0
+            && node.Style.Float == HtmlFloat.None
+            && !IsTableFormattingNode(node);
     }
 
-    private static bool IsInlineRunCandidate(HtmlDomElement parent, HtmlSceneNode node)
-        => IsInlineControl(node) ||
-           (node.NodeKind == SceneNodeKind.View && node.Style.Display == HtmlDisplay.Inline) ||
-           (IsPhrasingContainer(parent) && (node.NodeKind == SceneNodeKind.Text || IsInlineBreak(node)));
+    private static bool IsInlineRunCandidate(HtmlDomElement parent, HtmlSceneNode node) =>
+        IsInlineControl(node)
+        || (node.NodeKind == SceneNodeKind.View && node.Style.Display == HtmlDisplay.Inline)
+        || (
+            IsPhrasingContainer(parent)
+            && (node.NodeKind == SceneNodeKind.Text || IsInlineBreak(node))
+        );
 
-    private static bool IsInlineRunCandidate(HtmlDomElement parent, bool parentAllowsInlineContent, HtmlSceneNode node)
-        => IsInlineControl(node) ||
-           (node.NodeKind == SceneNodeKind.View && node.Style.Display == HtmlDisplay.Inline) ||
-           (parentAllowsInlineContent && (node.NodeKind == SceneNodeKind.Text || IsInlineBreak(node)));
+    private static bool IsInlineRunCandidate(
+        HtmlDomElement parent,
+        bool parentAllowsInlineContent,
+        HtmlSceneNode node
+    ) =>
+        IsInlineControl(node)
+        || (node.NodeKind == SceneNodeKind.View && node.Style.Display == HtmlDisplay.Inline)
+        || (
+            parentAllowsInlineContent
+            && (node.NodeKind == SceneNodeKind.Text || IsInlineBreak(node))
+        );
 
-    private static bool StartsInlineRun(HtmlDomElement parent, bool parentAllowsInlineContent, List<HtmlSceneNode> children, int index)
+    private static bool StartsInlineRun(
+        HtmlDomElement parent,
+        bool parentAllowsInlineContent,
+        List<HtmlSceneNode> children,
+        int index
+    )
     {
         var node = children[index];
         if (IsInlineRunCandidate(parent, parentAllowsInlineContent, node))
             return true;
 
-        return node.NodeKind == SceneNodeKind.Image &&
-               index + 1 < children.Count &&
-               children[index + 1].NodeKind == SceneNodeKind.Text;
+        return node.NodeKind == SceneNodeKind.Image
+            && index + 1 < children.Count
+            && children[index + 1].NodeKind == SceneNodeKind.Text;
     }
 
-    private static bool IsInlineRunMember(HtmlDomElement parent, bool parentAllowsInlineContent, HtmlSceneNode node)
-        => IsInlineRunCandidate(parent, parentAllowsInlineContent, node) || node.NodeKind is SceneNodeKind.Text or SceneNodeKind.Image;
+    private static bool IsInlineRunMember(
+        HtmlDomElement parent,
+        bool parentAllowsInlineContent,
+        HtmlSceneNode node
+    ) =>
+        IsInlineRunCandidate(parent, parentAllowsInlineContent, node)
+        || node.NodeKind is SceneNodeKind.Text or SceneNodeKind.Image;
 
-    private static bool IsInlineBreak(HtmlSceneNode node)
-        => node.NodeKind == SceneNodeKind.View &&
-           node.Children.Length == 0 &&
-           node.Style.IsWidthPercent &&
-           node.Style.Width >= 100 &&
-           Math.Abs(node.Style.Height) < 0.001f;
+    private static bool IsInlineBreak(HtmlSceneNode node) =>
+        node.NodeKind == SceneNodeKind.View
+        && node.Children.Length == 0
+        && node.Style.IsWidthPercent
+        && node.Style.Width >= 100
+        && Math.Abs(node.Style.Height) < 0.001f;
 
-    private static bool IsPhrasingContainer(HtmlDomElement parent)
-        => parent.LocalName is "p" or "li" or "td" or "th" or "h1" or "h2" or "h3" or "a" or "span" or "strong" or "b" or "em" or "i" or "u" or "small" or "font";
+    private static bool IsPhrasingContainer(HtmlDomElement parent) =>
+        parent.LocalName
+            is "p"
+                or "li"
+                or "td"
+                or "th"
+                or "h1"
+                or "h2"
+                or "h3"
+                or "a"
+                or "span"
+                or "strong"
+                or "b"
+                or "em"
+                or "i"
+                or "u"
+                or "small"
+                or "font";
 
     private static bool HasDirectInlineElement(HtmlDomElement parent)
     {
@@ -536,8 +811,21 @@ internal sealed class HtmlSceneTreeBuilder
         return false;
     }
 
-    private static bool IsInlineElement(HtmlDomElement element)
-        => element.LocalName is "a" or "span" or "strong" or "b" or "em" or "i" or "u" or "small" or "font" or "br" or "button" or "select" or "input";
+    private static bool IsInlineElement(HtmlDomElement element) =>
+        element.LocalName
+            is "a"
+                or "span"
+                or "strong"
+                or "b"
+                or "em"
+                or "i"
+                or "u"
+                or "small"
+                or "font"
+                or "br"
+                or "button"
+                or "select"
+                or "input";
 
     private HtmlSceneNode? BuildElementNode(
         HtmlDomElement element,
@@ -549,10 +837,13 @@ internal sealed class HtmlSceneTreeBuilder
         int viewportHeight,
         string? markerText,
         bool isListItem,
-        HtmlComputedStyleTree styleTree)
+        HtmlComputedStyleTree styleTree
+    )
     {
-        if (element.LocalName is "style" or "script" or "meta" or "link" or "head" ||
-            IsHiddenInputElement(element))
+        if (
+            element.LocalName is "style" or "script" or "meta" or "link" or "head"
+            || IsHiddenInputElement(element)
+        )
         {
             return null;
         }
@@ -576,12 +867,14 @@ internal sealed class HtmlSceneTreeBuilder
             style = style.CloneForFormatting();
             style.ApplyListItemContainerDefaults(markerText);
         }
-        if (markerText is null &&
-            layoutConfig.CollapseTextOnlyElements &&
-            nodeKind == SceneNodeKind.View &&
-            style.CanCollapseTextOnlyContent &&
-            style.WhiteSpace == HtmlWhiteSpace.Normal &&
-            TryGetCollapsedTextContent(element, out var collapsedText))
+        if (
+            markerText is null
+            && layoutConfig.CollapseTextOnlyElements
+            && nodeKind == SceneNodeKind.View
+            && style.CanCollapseTextOnlyContent
+            && style.WhiteSpace == HtmlWhiteSpace.Normal
+            && TryGetCollapsedTextContent(element, out var collapsedText)
+        )
         {
             if (markerText is not null)
                 collapsedText = markerText + collapsedText;
@@ -597,15 +890,26 @@ internal sealed class HtmlSceneTreeBuilder
                 linkHref,
                 element.Id,
                 element.NodeId,
-                Role: role);
+                Role: role
+            );
         }
 
         var childInheritedStyle = listItemContentStyle ?? style;
-        var children = IsInputButtonElement(element)
-            ? BuildInputButtonChildren(element, style, idGenerator, linkHref)
+        var children =
+            IsInputButtonElement(element)
+                ? BuildInputButtonChildren(element, style, idGenerator, linkHref)
             : nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
-                ? BuildChildren(element, childInheritedStyle, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree)
-                : [];
+                ? BuildChildren(
+                    element,
+                    childInheritedStyle,
+                    idGenerator,
+                    linkHref,
+                    basePath,
+                    viewportWidth,
+                    viewportHeight,
+                    styleTree
+                )
+            : [];
         if (markerText is not null && children.Length > 0)
         {
             var markerStyle = formattingStyleCache.GetListMarkerStyle(style, markerText);
@@ -619,7 +923,8 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 null,
                 null,
-                Role: HtmlSceneNodeRole.ListMarker);
+                Role: HtmlSceneNodeRole.ListMarker
+            );
             var contentNode = new HtmlSceneNode(
                 idGenerator.Next(),
                 SceneNodeKind.View,
@@ -630,41 +935,56 @@ internal sealed class HtmlSceneTreeBuilder
                 null,
                 null,
                 null,
-                Role: HtmlSceneNodeRole.ListContent);
+                Role: HtmlSceneNodeRole.ListContent
+            );
             children = [markerNode, contentNode];
         }
 
-        var textContent = nodeKind == SceneNodeKind.TextInput
-            ? ResolveTextInputValue(element)
-            : null;
-        var placeholderText = nodeKind == SceneNodeKind.TextInput
-            ? element.GetAttribute("placeholder")
-            : null;
-        var imageSource = nodeKind == SceneNodeKind.Image
-            ? HtmlUrlResolver.Resolve(element.GetAttribute("src"), basePath)
-            : null;
-        if (nodeKind == SceneNodeKind.Image &&
-            imageSource is not null &&
-            TryReadImageIntrinsicSize(imageSource, out var intrinsicWidth, out var intrinsicHeight))
+        var textContent =
+            nodeKind == SceneNodeKind.TextInput ? ResolveTextInputValue(element) : null;
+        var placeholderText =
+            nodeKind == SceneNodeKind.TextInput ? element.GetAttribute("placeholder") : null;
+        var imageSource =
+            nodeKind == SceneNodeKind.Image
+                ? HtmlUrlResolver.Resolve(element.GetAttribute("src"), basePath)
+                : null;
+        if (
+            nodeKind == SceneNodeKind.Image
+            && imageSource is not null
+            && TryReadImageIntrinsicSize(
+                imageSource,
+                out var intrinsicWidth,
+                out var intrinsicHeight
+            )
+        )
         {
             style = style.CloneForFormatting();
             style.ApplyIntrinsicImageSize(intrinsicWidth, intrinsicHeight);
         }
-        else if (nodeKind == SceneNodeKind.Image &&
-                 imageSource is not null &&
-                 TryReadRuntimeImageIntrinsicSize(imageSource, out intrinsicWidth, out intrinsicHeight))
+        else if (
+            nodeKind == SceneNodeKind.Image
+            && imageSource is not null
+            && TryReadRuntimeImageIntrinsicSize(
+                imageSource,
+                out intrinsicWidth,
+                out intrinsicHeight
+            )
+        )
         {
             style = style.CloneForFormatting();
             style.ApplyIntrinsicImageSize(intrinsicWidth, intrinsicHeight);
         }
-        else if (nodeKind == SceneNodeKind.Image &&
-                 IsRemoteHttpImageSource(imageSource))
+        else if (nodeKind == SceneNodeKind.Image && IsRemoteHttpImageSource(imageSource))
         {
             style = style.CloneForFormatting();
             style.ApplyDefaultImageSize();
         }
-        var rowSpan = IsTableCellElement(element) ? ParsePositiveInt(element.GetAttribute("rowspan"), 1) : 1;
-        var colSpan = IsTableCellElement(element) ? ParsePositiveInt(element.GetAttribute("colspan"), 1) : 1;
+        var rowSpan = IsTableCellElement(element)
+            ? ParsePositiveInt(element.GetAttribute("rowspan"), 1)
+            : 1;
+        var colSpan = IsTableCellElement(element)
+            ? ParsePositiveInt(element.GetAttribute("colspan"), 1)
+            : 1;
 
         return new HtmlSceneNode(
             elementNodeId,
@@ -681,7 +1001,8 @@ internal sealed class HtmlSceneTreeBuilder
             ColSpan: colSpan,
             ControlKind: ResolveControlKind(element),
             Role: role,
-            IsChecked: IsCheckedInputElement(element));
+            IsChecked: IsCheckedInputElement(element)
+        );
     }
 
     private HtmlSceneNode[] BuildElementChildren(
@@ -693,36 +1014,55 @@ internal sealed class HtmlSceneTreeBuilder
         string? basePath,
         int viewportWidth,
         int viewportHeight,
-        HtmlComputedStyleTree styleTree)
-        => IsInputButtonElement(element)
+        HtmlComputedStyleTree styleTree
+    ) =>
+        IsInputButtonElement(element)
             ? BuildInputButtonChildren(element, style, idGenerator, linkHref)
-            : nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
-                ? BuildChildren(element, style, idGenerator, linkHref, basePath, viewportWidth, viewportHeight, styleTree)
-                : [];
+        : nodeKind is SceneNodeKind.View or SceneNodeKind.ScrollView
+            ? BuildChildren(
+                element,
+                style,
+                idGenerator,
+                linkHref,
+                basePath,
+                viewportWidth,
+                viewportHeight,
+                styleTree
+            )
+        : [];
 
-    private static HtmlSceneNodeRole ResolveSceneNodeRole(HtmlDomElement element)
-        => element.LocalName switch
+    private static HtmlSceneNodeRole ResolveSceneNodeRole(HtmlDomElement element) =>
+        element.LocalName switch
         {
             "table" => HtmlSceneNodeRole.Table,
             "thead" or "tbody" or "tfoot" => HtmlSceneNodeRole.TableSection,
             "tr" => HtmlSceneNodeRole.TableRow,
             "td" or "th" => HtmlSceneNodeRole.TableCell,
             "li" => HtmlSceneNodeRole.ListItem,
-            _ => HtmlSceneNodeRole.Normal
+            _ => HtmlSceneNodeRole.Normal,
         };
 
-    private HtmlComputedStyle ResolveElementStyle(HtmlDomElement element, HtmlComputedStyleTree styleTree)
+    private HtmlComputedStyle ResolveElementStyle(
+        HtmlDomElement element,
+        HtmlComputedStyleTree styleTree
+    )
     {
         if (styleTree.Styles.TryGetValue(element.NodeId, out var precomputedStyle))
             return precomputedStyle;
 
-        throw new InvalidOperationException($"Computed style not found for DOM node {element.NodeId.Value} ({element.LocalName}).");
+        throw new InvalidOperationException(
+            $"Computed style not found for DOM node {element.NodeId.Value} ({element.LocalName})."
+        );
     }
 
-    private static bool IsTableCellElement(HtmlDomElement element)
-        => element.LocalName is "td" or "th";
+    private static bool IsTableCellElement(HtmlDomElement element) =>
+        element.LocalName is "td" or "th";
 
-    private static bool TryReadImageIntrinsicSize(string imageSource, out float width, out float height)
+    private static bool TryReadImageIntrinsicSize(
+        string imageSource,
+        out float width,
+        out float height
+    )
     {
         width = 0;
         height = 0;
@@ -736,23 +1076,30 @@ internal sealed class HtmlSceneTreeBuilder
         return false;
     }
 
-    private static bool IsRemoteHttpImageSource(string? imageSource)
-        => Uri.TryCreate(imageSource, UriKind.Absolute, out var uri) &&
-           (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+    private static bool IsRemoteHttpImageSource(string? imageSource) =>
+        Uri.TryCreate(imageSource, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
-    private bool TryReadRuntimeImageIntrinsicSize(string imageSource, out float width, out float height)
+    private bool TryReadRuntimeImageIntrinsicSize(
+        string imageSource,
+        out float width,
+        out float height
+    )
     {
         width = 0;
         height = 0;
 
         var backendServices = options.BackendServices;
-        if (backendServices is null || ReferenceEquals(backendServices, RuntimeBackendServices.Missing))
+        if (
+            backendServices is null
+            || ReferenceEquals(backendServices, RuntimeBackendServices.Missing)
+        )
             return false;
 
         var result = backendServices.Images.ResolveImage(imageSource);
-        return result.State == RuntimeImageResolveState.Ready &&
-               !string.IsNullOrWhiteSpace(result.LocalPath) &&
-               TryReadImageIntrinsicSize(result.LocalPath, out width, out height);
+        return result.State == RuntimeImageResolveState.Ready
+            && !string.IsNullOrWhiteSpace(result.LocalPath)
+            && TryReadImageIntrinsicSize(result.LocalPath, out width, out height);
     }
 
     private static bool TryReadSvgIntrinsicSize(string path, out float width, out float height)
@@ -774,8 +1121,10 @@ internal sealed class HtmlSceneTreeBuilder
             return false;
         }
 
-        if (!TryReadSvgLengthAttribute(text, "width", out width) ||
-            !TryReadSvgLengthAttribute(text, "height", out height))
+        if (
+            !TryReadSvgLengthAttribute(text, "width", out width)
+            || !TryReadSvgLengthAttribute(text, "height", out height)
+        )
         {
             if (!TryReadSvgViewBox(text, out width, out height))
                 return false;
@@ -784,7 +1133,11 @@ internal sealed class HtmlSceneTreeBuilder
         return width > 0 && height > 0;
     }
 
-    private static bool TryReadSvgLengthAttribute(string text, string attributeName, out float value)
+    private static bool TryReadSvgLengthAttribute(
+        string text,
+        string attributeName,
+        out float value
+    )
     {
         value = 0;
         var pattern = attributeName + "=\"";
@@ -830,15 +1183,26 @@ internal sealed class HtmlSceneTreeBuilder
         if (end <= start)
             return false;
 
-        var parts = text[start..end].Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return parts.Length == 4 &&
-               float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out width) &&
-               float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out height);
+        var parts = text[start..end]
+            .Split(
+                [' ', ','],
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+            );
+        return parts.Length == 4
+            && float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out width)
+            && float.TryParse(
+                parts[3],
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out height
+            );
     }
 
     private static int ParsePositiveInt(string? value, int fallback)
     {
-        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0
+        return
+            int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            && parsed > 0
             ? parsed
             : fallback;
     }
@@ -886,7 +1250,11 @@ internal sealed class HtmlSceneTreeBuilder
         return builder?.ToString() ?? textContent ?? string.Empty;
     }
 
-    private static void AppendText(string text, ref string? textContent, ref System.Text.StringBuilder? builder)
+    private static void AppendText(
+        string text,
+        ref string? textContent,
+        ref System.Text.StringBuilder? builder
+    )
     {
         if (text.Length == 0)
             return;
@@ -913,7 +1281,8 @@ internal sealed class HtmlSceneTreeBuilder
         HtmlDomElement element,
         HtmlComputedStyle style,
         HtmlNodeIdGenerator idGenerator,
-        string? linkHref)
+        string? linkHref
+    )
     {
         var value = element.GetAttribute("value");
         if (string.IsNullOrWhiteSpace(value))
@@ -935,7 +1304,8 @@ internal sealed class HtmlSceneTreeBuilder
                 linkHref,
                 null,
                 element.NodeId,
-                Role: HtmlSceneNodeRole.InputText)
+                Role: HtmlSceneNodeRole.InputText
+            ),
         ];
     }
 
@@ -967,9 +1337,18 @@ internal sealed class HtmlSceneTreeBuilder
         return null;
     }
 
-    private HtmlSceneNode? BuildTextNode(HtmlDomText text, HtmlComputedStyle inheritedStyle, HtmlNodeIdGenerator idGenerator, string? inheritedLinkHref, bool inlineText = false)
+    private HtmlSceneNode? BuildTextNode(
+        HtmlDomText text,
+        HtmlComputedStyle inheritedStyle,
+        HtmlNodeIdGenerator idGenerator,
+        string? inheritedLinkHref,
+        bool inlineText = false
+    )
     {
-        var normalized = ApplyTextTransform(HtmlTextNormalizer.Normalize(text.Text, inheritedStyle.WhiteSpace), inheritedStyle.TextTransform);
+        var normalized = ApplyTextTransform(
+            HtmlTextNormalizer.Normalize(text.Text, inheritedStyle.WhiteSpace),
+            inheritedStyle.TextTransform
+        );
         if (normalized.Length == 0)
             return null;
 
@@ -987,7 +1366,8 @@ internal sealed class HtmlSceneTreeBuilder
             null,
             inheritedLinkHref,
             null,
-            Role: HtmlSceneNodeRole.Text);
+            Role: HtmlSceneNodeRole.Text
+        );
     }
 
     private void AddInlineTextNodes(
@@ -995,42 +1375,61 @@ internal sealed class HtmlSceneTreeBuilder
         HtmlDomText text,
         HtmlComputedStyle inheritedStyle,
         HtmlNodeIdGenerator idGenerator,
-        string? inheritedLinkHref)
+        string? inheritedLinkHref
+    )
     {
-        var normalized = ApplyTextTransform(HtmlTextNormalizer.Normalize(text.Text, inheritedStyle.WhiteSpace), inheritedStyle.TextTransform);
+        var normalized = ApplyTextTransform(
+            HtmlTextNormalizer.Normalize(text.Text, inheritedStyle.WhiteSpace),
+            inheritedStyle.TextTransform
+        );
         if (normalized.Length == 0)
             return;
 
         if (ShouldWrapAsUnsegmentedInlineText(normalized))
         {
-            nodes.Add(new HtmlSceneNode(
-                idGenerator.Next(),
-                SceneNodeKind.Text,
-                formattingStyleCache.GetInlineWrappedTextStyle(inheritedStyle),
-                [],
-                normalized,
-                null,
-                null,
-                inheritedLinkHref,
-                null,
-                Role: HtmlSceneNodeRole.Text));
+            nodes.Add(
+                new HtmlSceneNode(
+                    idGenerator.Next(),
+                    SceneNodeKind.Text,
+                    formattingStyleCache.GetInlineWrappedTextStyle(inheritedStyle),
+                    [],
+                    normalized,
+                    null,
+                    null,
+                    inheritedLinkHref,
+                    null,
+                    Role: HtmlSceneNodeRole.Text
+                )
+            );
             return;
         }
 
-        if (inheritedStyle.WhiteSpace is HtmlWhiteSpace.Pre or HtmlWhiteSpace.PreWrap or HtmlWhiteSpace.PreLine or HtmlWhiteSpace.NoWrap)
+        if (
+            inheritedStyle.WhiteSpace
+            is HtmlWhiteSpace.Pre
+                or HtmlWhiteSpace.PreWrap
+                or HtmlWhiteSpace.PreLine
+                or HtmlWhiteSpace.NoWrap
+        )
         {
-            var textStyle = formattingStyleCache.GetInlineTextStyle(inheritedStyle, preserveWhiteSpaceWrapping: true);
-            nodes.Add(new HtmlSceneNode(
-                idGenerator.Next(),
-                SceneNodeKind.Text,
-                textStyle,
-                [],
-                normalized,
-                null,
-                null,
-                inheritedLinkHref,
-                null,
-                Role: HtmlSceneNodeRole.Text));
+            var textStyle = formattingStyleCache.GetInlineTextStyle(
+                inheritedStyle,
+                preserveWhiteSpaceWrapping: true
+            );
+            nodes.Add(
+                new HtmlSceneNode(
+                    idGenerator.Next(),
+                    SceneNodeKind.Text,
+                    textStyle,
+                    [],
+                    normalized,
+                    null,
+                    null,
+                    inheritedLinkHref,
+                    null,
+                    Role: HtmlSceneNodeRole.Text
+                )
+            );
             return;
         }
 
@@ -1056,17 +1455,20 @@ internal sealed class HtmlSceneTreeBuilder
             }
 
             var wordStyle = formattingStyleCache.GetInlineTextStyle(inheritedStyle);
-            nodes.Add(new HtmlSceneNode(
-                idGenerator.Next(),
-                SceneNodeKind.Text,
-                wordStyle,
-                [],
-                word,
-                null,
-                null,
-                inheritedLinkHref,
-                null,
-                Role: HtmlSceneNodeRole.Text));
+            nodes.Add(
+                new HtmlSceneNode(
+                    idGenerator.Next(),
+                    SceneNodeKind.Text,
+                    wordStyle,
+                    [],
+                    word,
+                    null,
+                    null,
+                    inheritedLinkHref,
+                    null,
+                    Role: HtmlSceneNodeRole.Text
+                )
+            );
         }
     }
 
@@ -1088,12 +1490,12 @@ internal sealed class HtmlSceneTreeBuilder
         return hasCjk;
     }
 
-    private static string ApplyTextTransform(string text, HtmlTextTransform transform)
-        => transform switch
+    private static string ApplyTextTransform(string text, HtmlTextTransform transform) =>
+        transform switch
         {
             HtmlTextTransform.Uppercase => text.ToUpperInvariant(),
             HtmlTextTransform.Lowercase => text.ToLowerInvariant(),
-            _ => text
+            _ => text,
         };
 
     private static List<HtmlSceneNode> CopyPrefix(List<HtmlSceneNode> source, int count)
@@ -1123,9 +1525,11 @@ internal sealed class HtmlSceneTreeBuilder
         for (var index = 0; index < count; index++)
         {
             var node = source[start + index];
-            if (node.NodeKind == SceneNodeKind.Text &&
-                node.Style.Display != HtmlDisplay.Inline &&
-                (!node.Style.WrapText || containsImage))
+            if (
+                node.NodeKind == SceneNodeKind.Text
+                && node.Style.Display != HtmlDisplay.Inline
+                && (!node.Style.WrapText || containsImage)
+            )
             {
                 node.Style = formattingStyleCache.GetInlineTextStyle(node.Style);
             }
@@ -1140,8 +1544,8 @@ internal sealed class HtmlSceneTreeBuilder
         return range;
     }
 
-    private static HtmlSceneNode[] ToArray(List<HtmlSceneNode> source)
-        => source.Count == 0 ? [] : source.ToArray();
+    private static HtmlSceneNode[] ToArray(List<HtmlSceneNode> source) =>
+        source.Count == 0 ? [] : source.ToArray();
 
     private static bool IsPunctuationOnly(string text)
     {
@@ -1159,15 +1563,19 @@ internal sealed class HtmlSceneTreeBuilder
 
     private static bool CanMergeInlinePunctuation(HtmlSceneNode previous, HtmlSceneNode punctuation)
     {
-        return string.Equals(previous.LinkHref, punctuation.LinkHref, StringComparison.Ordinal) &&
-               string.Equals(previous.Style.Color, punctuation.Style.Color, StringComparison.Ordinal) &&
-               previous.Style.Underline == punctuation.Style.Underline;
+        return string.Equals(previous.LinkHref, punctuation.LinkHref, StringComparison.Ordinal)
+            && string.Equals(
+                previous.Style.Color,
+                punctuation.Style.Color,
+                StringComparison.Ordinal
+            )
+            && previous.Style.Underline == punctuation.Style.Underline;
     }
 
-    private static bool IsCjkCharacter(char ch)
-        => ch is >= '\u3040' and <= '\u30ff' ||
-           ch is >= '\u3400' and <= '\u9fff' ||
-           ch is >= '\uf900' and <= '\ufaff';
+    private static bool IsCjkCharacter(char ch) =>
+        ch is >= '\u3040' and <= '\u30ff'
+        || ch is >= '\u3400' and <= '\u9fff'
+        || ch is >= '\uf900' and <= '\ufaff';
 
     private static string GetOrderedListMarkerText(int index)
     {
@@ -1186,6 +1594,7 @@ internal sealed class HtmlSceneTreeBuilder
             cache[index] = string.Create(CultureInfo.InvariantCulture, $"{index}.");
         return cache;
     }
+
     private static SceneNodeKind ResolveNodeKind(HtmlDomElement element, HtmlComputedStyle style)
     {
         if (element.LocalName == "img")
@@ -1199,14 +1608,14 @@ internal sealed class HtmlSceneTreeBuilder
         return SceneNodeKind.View;
     }
 
-    private static SceneControlKind ResolveControlKind(HtmlDomElement element)
-        => element.LocalName switch
+    private static SceneControlKind ResolveControlKind(HtmlDomElement element) =>
+        element.LocalName switch
         {
             "select" => SceneControlKind.Select,
             "textarea" => SceneControlKind.TextArea,
             "button" => SceneControlKind.Button,
             "input" => ResolveInputControlKind(element),
-            _ => SceneControlKind.None
+            _ => SceneControlKind.None,
         };
 
     private static SceneControlKind ResolveInputControlKind(HtmlDomElement element)
@@ -1214,9 +1623,11 @@ internal sealed class HtmlSceneTreeBuilder
         var type = element.GetAttribute("type");
         if (string.Equals(type, "radio", StringComparison.OrdinalIgnoreCase))
             return SceneControlKind.Radio;
-        if (string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase))
+        if (
+            string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "button", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase)
+        )
         {
             return SceneControlKind.Button;
         }
@@ -1224,9 +1635,13 @@ internal sealed class HtmlSceneTreeBuilder
         return SceneControlKind.TextInput;
     }
 
-    private static bool IsHiddenInputElement(HtmlDomElement element)
-        => string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase) &&
-           string.Equals(element.GetAttribute("type"), "hidden", StringComparison.OrdinalIgnoreCase);
+    private static bool IsHiddenInputElement(HtmlDomElement element) =>
+        string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(
+            element.GetAttribute("type"),
+            "hidden",
+            StringComparison.OrdinalIgnoreCase
+        );
 
     private static bool IsInputButtonElement(HtmlDomElement element)
     {
@@ -1234,18 +1649,18 @@ internal sealed class HtmlSceneTreeBuilder
             return false;
 
         var type = element.GetAttribute("type");
-        return string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "button", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsRadioInputElement(HtmlDomElement element)
-        => string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase) &&
-           string.Equals(element.GetAttribute("type"), "radio", StringComparison.OrdinalIgnoreCase);
+    private static bool IsRadioInputElement(HtmlDomElement element) =>
+        string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(element.GetAttribute("type"), "radio", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsCheckedInputElement(HtmlDomElement element)
-        => string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase) &&
-           element.Attributes.ContainsKey("checked");
+    private static bool IsCheckedInputElement(HtmlDomElement element) =>
+        string.Equals(element.LocalName, "input", StringComparison.OrdinalIgnoreCase)
+        && element.Attributes.ContainsKey("checked");
 
     private static string ResolveInputButtonDefaultValue(string? type)
     {
@@ -1255,7 +1670,12 @@ internal sealed class HtmlSceneTreeBuilder
             return string.Empty;
         return "Submit";
     }
-    private static string? ResolveLinkHref(HtmlDomElement element, string? inheritedLinkHref, string? basePath)
+
+    private static string? ResolveLinkHref(
+        HtmlDomElement element,
+        string? inheritedLinkHref,
+        string? basePath
+    )
     {
         if (!string.Equals(element.LocalName, "a", StringComparison.OrdinalIgnoreCase))
             return inheritedLinkHref;
@@ -1272,13 +1692,23 @@ internal sealed class HtmlSceneTreeBuilder
 
         public void Clear() => styles.Clear();
 
-        public HtmlComputedStyle GetTextStyle(HtmlComputedStyle source)
-            => GetOrCreate(source, FormattingStyleKind.Text, null, static source => source.CreateTextStyle());
-
-        public HtmlComputedStyle GetInlineTextStyle(HtmlComputedStyle source, bool preserveWhiteSpaceWrapping = false)
-            => GetOrCreate(
+        public HtmlComputedStyle GetTextStyle(HtmlComputedStyle source) =>
+            GetOrCreate(
                 source,
-                preserveWhiteSpaceWrapping ? FormattingStyleKind.InlineTextPreserveWhiteSpace : FormattingStyleKind.InlineText,
+                FormattingStyleKind.Text,
+                null,
+                static source => source.CreateTextStyle()
+            );
+
+        public HtmlComputedStyle GetInlineTextStyle(
+            HtmlComputedStyle source,
+            bool preserveWhiteSpaceWrapping = false
+        ) =>
+            GetOrCreate(
+                source,
+                preserveWhiteSpaceWrapping
+                    ? FormattingStyleKind.InlineTextPreserveWhiteSpace
+                    : FormattingStyleKind.InlineText,
                 null,
                 static source =>
                 {
@@ -1291,28 +1721,60 @@ internal sealed class HtmlSceneTreeBuilder
                     var style = source.CreateTextStyle();
                     style.ApplyInlineTextDefaults(preserveWhiteSpaceWrapping: true);
                     return style;
-                });
+                }
+            );
 
-        public HtmlComputedStyle GetInlineWrappedTextStyle(HtmlComputedStyle source)
-            => GetOrCreate(source, FormattingStyleKind.InlineWrappedText, null, static source => HtmlComputedStyle.CreateInlineWrappedTextDefault(source.CreateTextStyle()));
+        public HtmlComputedStyle GetInlineWrappedTextStyle(HtmlComputedStyle source) =>
+            GetOrCreate(
+                source,
+                FormattingStyleKind.InlineWrappedText,
+                null,
+                static source =>
+                    HtmlComputedStyle.CreateInlineWrappedTextDefault(source.CreateTextStyle())
+            );
 
-        public HtmlComputedStyle GetAlignedInlineTextStyle(HtmlComputedStyle source)
-            => GetOrCreate(source, FormattingStyleKind.AlignedInlineText, null, HtmlComputedStyle.CreateAlignedInlineTextDefault);
+        public HtmlComputedStyle GetAlignedInlineTextStyle(HtmlComputedStyle source) =>
+            GetOrCreate(
+                source,
+                FormattingStyleKind.AlignedInlineText,
+                null,
+                HtmlComputedStyle.CreateAlignedInlineTextDefault
+            );
 
-        public HtmlComputedStyle GetInlineRunStyle(HtmlComputedStyle source)
-            => GetOrCreate(source, FormattingStyleKind.InlineRun, null, HtmlComputedStyle.CreateInlineRunDefault);
+        public HtmlComputedStyle GetInlineRunStyle(HtmlComputedStyle source) =>
+            GetOrCreate(
+                source,
+                FormattingStyleKind.InlineRun,
+                null,
+                HtmlComputedStyle.CreateInlineRunDefault
+            );
 
-        public HtmlComputedStyle GetInlineFlowStyle(HtmlComputedStyle source)
-            => GetOrCreate(source, FormattingStyleKind.InlineFlow, null, HtmlComputedStyle.CreateInlineFlowDefault);
+        public HtmlComputedStyle GetInlineFlowStyle(HtmlComputedStyle source) =>
+            GetOrCreate(
+                source,
+                FormattingStyleKind.InlineFlow,
+                null,
+                HtmlComputedStyle.CreateInlineFlowDefault
+            );
 
-        public HtmlComputedStyle GetInlineControlRunStyle(HtmlComputedStyle source)
-            => GetOrCreate(source, FormattingStyleKind.InlineControlRun, null, HtmlComputedStyle.CreateInlineControlRunDefault);
+        public HtmlComputedStyle GetInlineControlRunStyle(HtmlComputedStyle source) =>
+            GetOrCreate(
+                source,
+                FormattingStyleKind.InlineControlRun,
+                null,
+                HtmlComputedStyle.CreateInlineControlRunDefault
+            );
 
-        public HtmlComputedStyle GetInlineImageStyle(HtmlComputedStyle source)
-            => GetOrCreate(source, FormattingStyleKind.InlineImage, null, static source => source.CreateInlineImageStyle());
+        public HtmlComputedStyle GetInlineImageStyle(HtmlComputedStyle source) =>
+            GetOrCreate(
+                source,
+                FormattingStyleKind.InlineImage,
+                null,
+                static source => source.CreateInlineImageStyle()
+            );
 
-        public HtmlComputedStyle GetInlineBreakStyle(HtmlComputedStyle source)
-            => GetOrCreate(
+        public HtmlComputedStyle GetInlineBreakStyle(HtmlComputedStyle source) =>
+            GetOrCreate(
                 source,
                 FormattingStyleKind.InlineBreak,
                 null,
@@ -1321,13 +1783,19 @@ internal sealed class HtmlSceneTreeBuilder
                     var style = source.CreateTextStyle();
                     style.ApplyInlineBreakDefaults();
                     return style;
-                });
+                }
+            );
 
-        public HtmlComputedStyle GetListItemContentStyle(HtmlComputedStyle source)
-            => GetOrCreate(source, FormattingStyleKind.ListItemContent, null, static source => source.CreateListItemContentStyle());
+        public HtmlComputedStyle GetListItemContentStyle(HtmlComputedStyle source) =>
+            GetOrCreate(
+                source,
+                FormattingStyleKind.ListItemContent,
+                null,
+                static source => source.CreateListItemContentStyle()
+            );
 
-        public HtmlComputedStyle GetListMarkerStyle(HtmlComputedStyle source, string markerText)
-            => GetOrCreate(
+        public HtmlComputedStyle GetListMarkerStyle(HtmlComputedStyle source, string markerText) =>
+            GetOrCreate(
                 source,
                 FormattingStyleKind.ListMarker,
                 markerText.Length > 1 ? "wide" : "narrow",
@@ -1337,13 +1805,15 @@ internal sealed class HtmlSceneTreeBuilder
                     style.ApplyInlineTextDefaults();
                     style.ApplyListMarkerDefaults(markerText == "wide" ? "00" : "0");
                     return style;
-                });
+                }
+            );
 
         private HtmlComputedStyle GetOrCreate(
             HtmlComputedStyle source,
             FormattingStyleKind kind,
             string? discriminator,
-            Func<HtmlComputedStyle, HtmlComputedStyle> create)
+            Func<HtmlComputedStyle, HtmlComputedStyle> create
+        )
         {
             var key = new Key(source, kind, discriminator);
             if (styles.TryGetValue(key, out var style))
@@ -1359,13 +1829,17 @@ internal sealed class HtmlSceneTreeBuilder
             FormattingStyleKind kind,
             string? discriminator,
             Func<HtmlComputedStyle, HtmlComputedStyle> createDefault,
-            Func<HtmlComputedStyle, HtmlComputedStyle> createAlternate)
+            Func<HtmlComputedStyle, HtmlComputedStyle> createAlternate
+        )
         {
             var key = new Key(source, kind, discriminator);
             if (styles.TryGetValue(key, out var style))
                 return style;
 
-            style = kind == FormattingStyleKind.InlineTextPreserveWhiteSpace ? createAlternate(source) : createDefault(source);
+            style =
+                kind == FormattingStyleKind.InlineTextPreserveWhiteSpace
+                    ? createAlternate(source)
+                    : createDefault(source);
             styles[key] = style;
             return style;
         }
@@ -1374,7 +1848,8 @@ internal sealed class HtmlSceneTreeBuilder
             HtmlComputedStyle source,
             FormattingStyleKind kind,
             string? discriminator,
-            Func<HtmlComputedStyle, string, HtmlComputedStyle> create)
+            Func<HtmlComputedStyle, string, HtmlComputedStyle> create
+        )
         {
             var key = new Key(source, kind, discriminator);
             if (styles.TryGetValue(key, out var style))
@@ -1385,7 +1860,11 @@ internal sealed class HtmlSceneTreeBuilder
             return style;
         }
 
-        private readonly record struct Key(HtmlComputedStyle Source, FormattingStyleKind Kind, string? Discriminator);
+        private readonly record struct Key(
+            HtmlComputedStyle Source,
+            FormattingStyleKind Kind,
+            string? Discriminator
+        );
     }
 
     private enum FormattingStyleKind : byte
@@ -1401,7 +1880,6 @@ internal sealed class HtmlSceneTreeBuilder
         InlineImage,
         InlineBreak,
         ListItemContent,
-        ListMarker
+        ListMarker,
     }
 }
-

@@ -62,7 +62,8 @@ internal static class HtmlTextNormalizer
 
     private static string NormalizePreservingLineBreaks(string value)
     {
-        Span<char> buffer = value.Length <= 1024 ? stackalloc char[value.Length] : new char[value.Length];
+        Span<char> buffer =
+            value.Length <= 1024 ? stackalloc char[value.Length] : new char[value.Length];
         var length = 0;
         var previousHorizontalWhitespace = true;
         foreach (var ch in value)

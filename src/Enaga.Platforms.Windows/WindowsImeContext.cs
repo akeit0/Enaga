@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using NativeInlineIme.Windows;
-using Enaga.Rendering;
 using Enaga.Input;
+using Enaga.Rendering;
+using NativeInlineIme.Windows;
+
 namespace Enaga.Platforms.Windows;
 
-internal unsafe sealed class WindowsImeContext : IDisposable
+internal sealed unsafe class WindowsImeContext : IDisposable
 {
     private const int GwlWndProc = -4;
     private const uint WmChar = 0x0102;
@@ -30,7 +31,11 @@ internal unsafe sealed class WindowsImeContext : IDisposable
         inputMethod = new Imm32InputMethod();
         inputMethod.Attach(hwnd);
 
-        previousWndProc = SetWindowLongPtr(hwnd, GwlWndProc, (nint)(delegate* unmanaged<nint, uint, nint, nint, nint>)&WndProcCallBack);
+        previousWndProc = SetWindowLongPtr(
+            hwnd,
+            GwlWndProc,
+            (nint)(delegate* unmanaged<nint, uint, nint, nint, nint>)&WndProcCallBack
+        );
     }
 
     public void Update()
@@ -88,7 +93,7 @@ internal unsafe sealed class WindowsImeContext : IDisposable
     }
 
     [UnmanagedCallersOnly]
-    static private nint WndProcCallBack(nint windowHandle, uint message, nint wParam, nint lParam)
+    private static nint WndProcCallBack(nint windowHandle, uint message, nint wParam, nint lParam)
     {
         var self = (WindowsImeContext)selfHandle.Target!;
         return self.WndProc(windowHandle, message, wParam, lParam);
@@ -107,9 +112,11 @@ internal unsafe sealed class WindowsImeContext : IDisposable
         if (message == WmChar)
         {
             var character = (char)(ushort)wParam;
-            if (!char.IsControl(character) &&
-                !inputMethod.IsComposing &&
-                !inputMethod.ShouldIgnoreChar(character))
+            if (
+                !char.IsControl(character)
+                && !inputMethod.IsComposing
+                && !inputMethod.ShouldIgnoreChar(character)
+            )
             {
                 pendingCharacters.Enqueue(character);
                 pendingVisualUpdate = true;
@@ -134,7 +141,13 @@ internal unsafe sealed class WindowsImeContext : IDisposable
     private delegate nint WindowProc(nint hWnd, uint msg, nint wParam, nint lParam);
 
     [DllImport("user32.dll", EntryPoint = "CallWindowProcW")]
-    private static extern nint CallWindowProc(nint lpPrevWndFunc, nint hWnd, uint msg, nint wParam, nint lParam);
+    private static extern nint CallWindowProc(
+        nint lpPrevWndFunc,
+        nint hWnd,
+        uint msg,
+        nint wParam,
+        nint lParam
+    );
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
     private static extern nint SetWindowLongPtr64(nint hWnd, int nIndex, nint dwNewLong);

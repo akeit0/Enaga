@@ -13,7 +13,7 @@ public enum RestyleHint : uint
     ReplaceInlineStyle = 1 << 4,
     PseudoState = 1 << 5,
     MediaQuery = 1 << 6,
-    RebuildFormattingTree = 1 << 7
+    RebuildFormattingTree = 1 << 7,
 }
 
 [Flags]
@@ -32,7 +32,7 @@ internal enum PipelineInvalidation : uint
     PaintSelf = 1 << 9,
     RasterSelf = 1 << 10,
     CompositeOnly = 1 << 11,
-    HitTest = 1 << 12
+    HitTest = 1 << 12,
 }
 
 [Flags]
@@ -47,7 +47,7 @@ public enum RenderDamage : uint
     Reraster = 1 << 5,
     RebuildLayer = 1 << 6,
     RebuildHitTest = 1 << 7,
-    FullFrame = 1 << 8
+    FullFrame = 1 << 8,
 }
 
 [Flags]
@@ -57,14 +57,14 @@ public enum ElementStyleFlags : ushort
     WasRestyled = 1 << 0,
     TraversedWithoutStyling = 1 << 1,
     PrimaryStyleReused = 1 << 2,
-    SnapshotHandled = 1 << 3
+    SnapshotHandled = 1 << 3,
 }
 
 public enum RestyleKind : byte
 {
     MatchAndCascade,
     CascadeWithReplacements,
-    CascadeOnly
+    CascadeOnly,
 }
 
 public sealed class ElementStyleData<TComputedStyle>

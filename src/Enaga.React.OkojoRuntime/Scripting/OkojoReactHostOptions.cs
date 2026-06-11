@@ -1,7 +1,8 @@
-using Okojo.Hosting;
 using Enaga.Hosting;
 using Enaga.Rendering;
+using Okojo.Hosting;
 using Okojo.Node;
+
 namespace Enaga.React.OkojoRuntime;
 
 public sealed class OkojoReactHostOptions
@@ -16,7 +17,8 @@ public sealed class OkojoReactHostOptions
 
     public ReactRuntimeReloadOptions Reload { get; init; } = ReactRuntimeReloadOptions.Production;
 
-    public IRuntimeAssetResolver AssetResolver { get; init; } = RuntimeAssetResolver.FileSystemRelativeToEntry;
+    public IRuntimeAssetResolver AssetResolver { get; init; } =
+        RuntimeAssetResolver.FileSystemRelativeToEntry;
 
     public IRuntimeDiagnosticsSink Diagnostics { get; init; } = RuntimeDiagnosticsSink.None;
 

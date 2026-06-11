@@ -2,17 +2,27 @@ using Enaga.Scene;
 
 namespace Enaga.Input;
 
-public readonly record struct SceneScreenBounds(float Left, float Top, float Right, float Bottom, int Depth)
+public readonly record struct SceneScreenBounds(
+    float Left,
+    float Top,
+    float Right,
+    float Bottom,
+    int Depth
+)
 {
     public float Width => Right - Left;
     public float Height => Bottom - Top;
 
-    public bool Contains(float x, float y)
-        => x >= Left && x <= Right && y >= Top && y <= Bottom;
+    public bool Contains(float x, float y) => x >= Left && x <= Right && y >= Top && y <= Bottom;
 
-    public static bool IsHigherPriority(SceneScreenBounds candidate, int candidateZOrder, SceneScreenBounds current, int currentZOrder)
-        => candidate.Depth > current.Depth ||
-           (candidate.Depth == current.Depth && candidateZOrder > currentZOrder);
+    public static bool IsHigherPriority(
+        SceneScreenBounds candidate,
+        int candidateZOrder,
+        SceneScreenBounds current,
+        int currentZOrder
+    ) =>
+        candidate.Depth > current.Depth
+        || (candidate.Depth == current.Depth && candidateZOrder > currentZOrder);
 }
 
 public static class SceneScreenGeometry
@@ -29,7 +39,8 @@ public static class SceneScreenGeometry
         SceneLayoutCommit commit,
         IReadOnlyDictionary<SceneNodeId, SceneLayoutBox> layout,
         SceneNodeId id,
-        SceneLayoutBox box)
+        SceneLayoutBox box
+    )
     {
         var geometry = box.Geometry;
         var left = geometry.AbsLeft;
@@ -40,7 +51,10 @@ public static class SceneScreenGeometry
         var parentId = node.ParentId;
         while (parentId is { } resolvedParentId)
         {
-            if (layout.TryGetValue(resolvedParentId, out var parentBox) && parentBox.Scroll is { IsScrollContainer: true } scroll)
+            if (
+                layout.TryGetValue(resolvedParentId, out var parentBox)
+                && parentBox.Scroll is { IsScrollContainer: true } scroll
+            )
             {
                 left -= scroll.ScrollX;
                 top -= scroll.ScrollY;
@@ -52,22 +66,34 @@ public static class SceneScreenGeometry
             parentId = parentNode.ParentId;
         }
 
-        return Math.Abs(left - geometry.AbsLeft) < 0.001f && Math.Abs(top - geometry.AbsTop) < 0.001f
+        return
+            Math.Abs(left - geometry.AbsLeft) < 0.001f && Math.Abs(top - geometry.AbsTop) < 0.001f
             ? box
-            : box with { AbsLeft = left, AbsTop = top };
+            : box with
+            {
+                AbsLeft = left,
+                AbsTop = top,
+            };
     }
 
-    public static bool TryGetNodeScreenBounds(SceneLayoutCommit commit, SceneNodeId nodeId, out SceneScreenBounds bounds)
-        => TryGetNodeScreenBounds(commit, commit.Layout, nodeId, out bounds);
+    public static bool TryGetNodeScreenBounds(
+        SceneLayoutCommit commit,
+        SceneNodeId nodeId,
+        out SceneScreenBounds bounds
+    ) => TryGetNodeScreenBounds(commit, commit.Layout, nodeId, out bounds);
 
     public static bool TryGetNodeScreenBounds(
         SceneLayoutCommit commit,
         IReadOnlyDictionary<SceneNodeId, SceneLayoutBox> layout,
         SceneNodeId nodeId,
-        out SceneScreenBounds bounds)
+        out SceneScreenBounds bounds
+    )
     {
         bounds = default;
-        if (!layout.TryGetValue(nodeId, out var box) || !commit.Nodes.TryGetValue(nodeId, out var node))
+        if (
+            !layout.TryGetValue(nodeId, out var box)
+            || !commit.Nodes.TryGetValue(nodeId, out var node)
+        )
             return false;
 
         var geometry = box.Geometry;
@@ -78,7 +104,10 @@ public static class SceneScreenGeometry
         while (parentId is { } resolvedParentId)
         {
             depth++;
-            if (layout.TryGetValue(resolvedParentId, out var parentBox) && parentBox.Scroll is { IsScrollContainer: true } scroll)
+            if (
+                layout.TryGetValue(resolvedParentId, out var parentBox)
+                && parentBox.Scroll is { IsScrollContainer: true } scroll
+            )
             {
                 left -= scroll.ScrollX;
                 top -= scroll.ScrollY;
@@ -90,26 +119,35 @@ public static class SceneScreenGeometry
             parentId = parentNode.ParentId;
         }
 
-        bounds = new SceneScreenBounds(left, top, left + geometry.Width, top + geometry.Height, depth);
+        bounds = new SceneScreenBounds(
+            left,
+            top,
+            left + geometry.Width,
+            top + geometry.Height,
+            depth
+        );
         return true;
     }
 
-    public static bool TryGetScrollViewScreenBox(SceneLayoutCommit commit, SceneNodeId nodeId, out SceneLayoutBox box, out SceneScreenBounds bounds)
+    public static bool TryGetScrollViewScreenBox(
+        SceneLayoutCommit commit,
+        SceneNodeId nodeId,
+        out SceneLayoutBox box,
+        out SceneScreenBounds bounds
+    )
     {
         box = default!;
         bounds = default;
-        if (!commit.Layout.TryGetValue(nodeId, out var layoutBox) ||
-            layoutBox.NodeKind != SceneNodeKind.ScrollView ||
-            !TryGetNodeScreenBounds(commit, nodeId, out bounds))
+        if (
+            !commit.Layout.TryGetValue(nodeId, out var layoutBox)
+            || layoutBox.NodeKind != SceneNodeKind.ScrollView
+            || !TryGetNodeScreenBounds(commit, nodeId, out bounds)
+        )
         {
             return false;
         }
 
-        box = layoutBox with
-        {
-            AbsLeft = bounds.Left,
-            AbsTop = bounds.Top
-        };
+        box = layoutBox with { AbsLeft = bounds.Left, AbsTop = bounds.Top };
         return true;
     }
 }

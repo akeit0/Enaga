@@ -7,7 +7,11 @@ internal sealed class BrowserHttpRequestFactory(BrowserRequestProfile requestPro
 {
     public BrowserRequestProfile RequestProfile { get; } = requestProfile;
 
-    public HttpRequestMessage CreateRequest(HttpMethod method, Uri uri, BrowserHttpRequestOptions options)
+    public HttpRequestMessage CreateRequest(
+        HttpMethod method,
+        Uri uri,
+        BrowserHttpRequestOptions options
+    )
     {
         var request = new HttpRequestMessage(method, uri);
         ApplyDefaultHeaders(request, options);

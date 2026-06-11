@@ -25,7 +25,8 @@ internal sealed class SilkWindowInputRouter : IDisposable
     public SilkWindowInputRouter(
         IRenderRoot renderRoot,
         INativeWindowPlatformIntegration? platformIntegration,
-        Action requestFrame)
+        Action requestFrame
+    )
     {
         this.renderRoot = renderRoot ?? throw new ArgumentNullException(nameof(renderRoot));
         this.platformIntegration = platformIntegration;
@@ -61,13 +62,23 @@ internal sealed class SilkWindowInputRouter : IDisposable
 
         nextMouse.MouseMove += (_, position) =>
         {
-            inputSink.PointerMove(position.X, position.Y, GetButtonsMask(nextMouse), synthetic: false);
+            inputSink.PointerMove(
+                position.X,
+                position.Y,
+                GetButtonsMask(nextMouse),
+                synthetic: false
+            );
             ApplyPointerCursor(nextMouse);
             requestFrame();
         };
         nextMouse.MouseDown += (_, button) =>
         {
-            inputSink.PointerMove(nextMouse.Position.X, nextMouse.Position.Y, GetButtonsMask(nextMouse), synthetic: false);
+            inputSink.PointerMove(
+                nextMouse.Position.X,
+                nextMouse.Position.Y,
+                GetButtonsMask(nextMouse),
+                synthetic: false
+            );
             ApplyPointerCursor(nextMouse);
             platformIntegration?.OnPointerDown((int)button);
             inputSink.PointerDown((int)button, GetButtonsMask(nextMouse), synthetic: false);
@@ -75,14 +86,24 @@ internal sealed class SilkWindowInputRouter : IDisposable
         };
         nextMouse.MouseUp += (_, button) =>
         {
-            inputSink.PointerMove(nextMouse.Position.X, nextMouse.Position.Y, GetButtonsMask(nextMouse), synthetic: false);
+            inputSink.PointerMove(
+                nextMouse.Position.X,
+                nextMouse.Position.Y,
+                GetButtonsMask(nextMouse),
+                synthetic: false
+            );
             ApplyPointerCursor(nextMouse);
             inputSink.PointerUp((int)button, GetButtonsMask(nextMouse), synthetic: false);
             requestFrame();
         };
         nextMouse.Scroll += (_, wheel) =>
         {
-            inputSink.Wheel(wheel.X, wheel.Y, synthetic: false, keyboard is not null ? GetModifiersMask(keyboard) : 0);
+            inputSink.Wheel(
+                wheel.X,
+                wheel.Y,
+                synthetic: false,
+                keyboard is not null ? GetModifiersMask(keyboard) : 0
+            );
             requestFrame();
         };
     }
@@ -100,7 +121,7 @@ internal sealed class SilkWindowInputRouter : IDisposable
         {
             PointerCursorKind.Pointer => StandardCursor.Hand,
             PointerCursorKind.Text => StandardCursor.IBeam,
-            _ => StandardCursor.Arrow
+            _ => StandardCursor.Arrow,
         };
         if (nextMouse.Cursor.IsSupported(standardCursor))
         {
@@ -122,23 +143,23 @@ internal sealed class SilkWindowInputRouter : IDisposable
                 key.ToString(),
                 GetModifiersMask(keyboardDevice),
                 repeat: false,
-                synthetic: false);
+                synthetic: false
+            );
             requestFrame();
         };
         nextKeyboard.KeyUp += (keyboardDevice, key, _) =>
         {
             heldKeyboardKeys.Remove(key.ToString());
-            inputSink.KeyUp(
-                key.ToString(),
-                GetModifiersMask(keyboardDevice),
-                synthetic: false);
+            inputSink.KeyUp(key.ToString(), GetModifiersMask(keyboardDevice), synthetic: false);
             requestFrame();
         };
         nextKeyboard.KeyChar += (_, character) =>
         {
-            if (!char.IsControl(character) &&
-                platformIntegration?.HandlesTextInput != true &&
-                platformIntegration?.ShouldForwardTextInput(character) != false)
+            if (
+                !char.IsControl(character)
+                && platformIntegration?.HandlesTextInput != true
+                && platformIntegration?.ShouldForwardTextInput(character) != false
+            )
             {
                 inputSink.TextInput(character.ToString(), synthetic: false);
                 requestFrame();
@@ -162,13 +183,22 @@ internal sealed class SilkWindowInputRouter : IDisposable
     private static int GetModifiersMask(IKeyboard keyboardDevice)
     {
         var mask = 0;
-        if (keyboardDevice.IsKeyPressed(Key.ShiftLeft) || keyboardDevice.IsKeyPressed(Key.ShiftRight))
+        if (
+            keyboardDevice.IsKeyPressed(Key.ShiftLeft)
+            || keyboardDevice.IsKeyPressed(Key.ShiftRight)
+        )
             mask |= ShiftModifier;
-        if (keyboardDevice.IsKeyPressed(Key.ControlLeft) || keyboardDevice.IsKeyPressed(Key.ControlRight))
+        if (
+            keyboardDevice.IsKeyPressed(Key.ControlLeft)
+            || keyboardDevice.IsKeyPressed(Key.ControlRight)
+        )
             mask |= ControlModifier;
         if (keyboardDevice.IsKeyPressed(Key.AltLeft) || keyboardDevice.IsKeyPressed(Key.AltRight))
             mask |= AltModifier;
-        if (keyboardDevice.IsKeyPressed(Key.SuperLeft) || keyboardDevice.IsKeyPressed(Key.SuperRight))
+        if (
+            keyboardDevice.IsKeyPressed(Key.SuperLeft)
+            || keyboardDevice.IsKeyPressed(Key.SuperRight)
+        )
             mask |= MetaModifier;
         return mask;
     }

@@ -95,5 +95,5 @@ public enum CssPropertyId : ushort
     PlaceSelf,
     ScrollbarWidth,
     ScrollbarTrackColor,
-    ScrollbarThumbColor
+    ScrollbarThumbColor,
 }

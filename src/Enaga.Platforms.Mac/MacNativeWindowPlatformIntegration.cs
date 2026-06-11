@@ -30,9 +30,7 @@ public sealed class MacNativeWindowPlatformIntegration : INativeWindowPlatformIn
         imeContext?.ClearPendingVisualUpdate();
     }
 
-    public void OnRendered()
-    {
-    }
+    public void OnRendered() { }
 
     public void Dispose()
     {

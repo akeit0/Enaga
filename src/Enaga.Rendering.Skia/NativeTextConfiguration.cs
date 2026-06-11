@@ -5,9 +5,14 @@ public static class NativeTextConfiguration
     private static readonly object Sync = new();
     private static string? defaultFamily;
     private static string[] fallbackFamilies = [];
-    private static readonly Dictionary<string, string> RegisteredFonts = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> RegisteredFonts = new(
+        StringComparer.OrdinalIgnoreCase
+    );
 
-    public static void ConfigureFonts(string? defaultFamily = null, params string[] fallbackFamilies)
+    public static void ConfigureFonts(
+        string? defaultFamily = null,
+        params string[] fallbackFamilies
+    )
     {
         lock (Sync)
         {
@@ -36,11 +41,13 @@ public static class NativeTextConfiguration
             return new NativeTextConfigurationSnapshot(
                 defaultFamily,
                 fallbackFamilies.ToArray(),
-                RegisteredFonts.ToArray());
+                RegisteredFonts.ToArray()
+            );
     }
 }
 
 internal readonly record struct NativeTextConfigurationSnapshot(
     string? DefaultFamily,
     string[] FallbackFamilies,
-    KeyValuePair<string, string>[] RegisteredFonts);
+    KeyValuePair<string, string>[] RegisteredFonts
+);

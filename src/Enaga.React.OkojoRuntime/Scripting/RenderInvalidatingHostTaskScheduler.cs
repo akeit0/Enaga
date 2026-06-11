@@ -3,8 +3,10 @@ using Okojo.Runtime;
 
 namespace Enaga.React.OkojoRuntime;
 
-internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, TimeProvider? timeProvider = null)
-    : IHostTaskScheduler, IQueuedHostDelayScheduler, IHostTaskQueuePump, IDisposable
+internal sealed class RenderInvalidatingHostTaskScheduler(
+    Action onTaskQueued,
+    TimeProvider? timeProvider = null
+) : IHostTaskScheduler, IQueuedHostDelayScheduler, IHostTaskQueuePump, IDisposable
 {
     private readonly object gate = new();
     private readonly Dictionary<HostTaskQueueKey, Queue<QueuedWorkItem>> queues = [];
@@ -17,7 +19,11 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
         return new AgentScheduler(this, target);
     }
 
-    public IHostDelayedOperation ScheduleDelayed(TimeSpan delay, Action<object?> callback, object? state)
+    public IHostDelayedOperation ScheduleDelayed(
+        TimeSpan delay,
+        Action<object?> callback,
+        object? state
+    )
     {
         return ScheduleDelayed(delay, default, callback, state);
     }
@@ -26,7 +32,8 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
         TimeSpan delay,
         HostTaskQueueKey targetQueue,
         Action<object?> callback,
-        object? state)
+        object? state
+    )
     {
         ArgumentNullException.ThrowIfNull(callback);
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -65,7 +72,10 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
         return true;
     }
 
-    private bool TryDequeueNextAction(ReadOnlySpan<HostTaskQueueKey> preferredOrder, out QueuedWorkItem task)
+    private bool TryDequeueNextAction(
+        ReadOnlySpan<HostTaskQueueKey> preferredOrder,
+        out QueuedWorkItem task
+    )
     {
         lock (gate)
         {
@@ -73,7 +83,10 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
             {
                 for (var index = 0; index < preferredOrder.Length; index++)
                 {
-                    if (!queues.TryGetValue(preferredOrder[index], out var preferredQueue) || preferredQueue.Count == 0)
+                    if (
+                        !queues.TryGetValue(preferredOrder[index], out var preferredQueue)
+                        || preferredQueue.Count == 0
+                    )
                         continue;
 
                     task = preferredQueue.Dequeue();
@@ -123,7 +136,10 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
         onTaskQueued();
     }
 
-    private sealed class AgentScheduler(RenderInvalidatingHostTaskScheduler owner, HostTaskTarget target) : IQueuedHostAgentScheduler
+    private sealed class AgentScheduler(
+        RenderInvalidatingHostTaskScheduler owner,
+        HostTaskTarget target
+    ) : IQueuedHostAgentScheduler
     {
         private static readonly Action<object?> SEnqueueAgentTask = static state =>
         {
@@ -139,7 +155,10 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
         public void EnqueueTask(HostTaskQueueKey queueKey, Action<object?> callback, object? state)
         {
             ArgumentNullException.ThrowIfNull(callback);
-            owner.EnqueueReady(queueKey, new QueuedWorkItem(SEnqueueAgentTask, new AgentQueuedWork(target, callback, state)));
+            owner.EnqueueReady(
+                queueKey,
+                new QueuedWorkItem(SEnqueueAgentTask, new AgentQueuedWork(target, callback, state))
+            );
         }
     }
 
@@ -156,7 +175,8 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
             RenderInvalidatingHostTaskScheduler owner,
             HostTaskQueueKey targetQueue,
             Action<object?> callback,
-            object? state)
+            object? state
+        )
         {
             this.owner = owner;
             this.targetQueue = targetQueue;
@@ -184,14 +204,20 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
             TimeSpan delay,
             HostTaskQueueKey targetQueue,
             Action<object?> callback,
-            object? state)
+            object? state
+        )
         {
             var operation = new DelayedOperation(owner, targetQueue, callback, state);
             var dueTime = delay <= TimeSpan.Zero ? TimeSpan.FromTicks(1) : delay;
-            operation.timer = timeProvider.CreateTimer(static operationState =>
-            {
-                ((DelayedOperation)operationState!).OnReady();
-            }, operation, dueTime, Timeout.InfiniteTimeSpan);
+            operation.timer = timeProvider.CreateTimer(
+                static operationState =>
+                {
+                    ((DelayedOperation)operationState!).OnReady();
+                },
+                operation,
+                dueTime,
+                Timeout.InfiniteTimeSpan
+            );
             return operation;
         }
 
@@ -218,7 +244,11 @@ internal sealed class RenderInvalidatingHostTaskScheduler(Action onTaskQueued, T
         }
     }
 
-    private sealed class AgentQueuedWork(HostTaskTarget target, Action<object?> callback, object? state)
+    private sealed class AgentQueuedWork(
+        HostTaskTarget target,
+        Action<object?> callback,
+        object? state
+    )
     {
         public HostTaskTarget Target { get; } = target;
         public Action<object?> Callback { get; } = callback;

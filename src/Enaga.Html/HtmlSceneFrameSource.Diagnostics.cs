@@ -7,19 +7,17 @@ namespace Enaga.Html;
 public sealed partial class HtmlSceneFrameSource
 {
     private const HtmlPipelineInvalidation BaseCommitInvalidation =
-        HtmlPipelineInvalidation.Document |
-        HtmlPipelineInvalidation.Style |
-        HtmlPipelineInvalidation.Layout |
-        HtmlPipelineInvalidation.Fragments |
-        HtmlPipelineInvalidation.DisplayList |
-        HtmlPipelineInvalidation.Viewport;
+        HtmlPipelineInvalidation.Document
+        | HtmlPipelineInvalidation.Style
+        | HtmlPipelineInvalidation.Layout
+        | HtmlPipelineInvalidation.Fragments
+        | HtmlPipelineInvalidation.DisplayList
+        | HtmlPipelineInvalidation.Viewport;
 
-    private HtmlPipelineInvalidation pendingInvalidation =
-        HtmlPipelineInvalidation.HitTest;
+    private HtmlPipelineInvalidation pendingInvalidation = HtmlPipelineInvalidation.HitTest;
 
     private HtmlRenderDamageBits pendingDamage =
-        HtmlRenderDamageBits.FullFrame |
-        HtmlRenderDamageBits.Document;
+        HtmlRenderDamageBits.FullFrame | HtmlRenderDamageBits.Document;
 
     public HtmlPipelineMetricsSnapshot LastPipelineMetrics { get; private set; }
     public int LastDynamicPaintCandidateCount { get; private set; }
@@ -34,11 +32,11 @@ public sealed partial class HtmlSceneFrameSource
         pendingDamage |= damage;
     }
 
-    private static bool HasAny(HtmlPipelineInvalidation value, HtmlPipelineInvalidation flags)
-        => (value & flags) != 0;
+    private static bool HasAny(HtmlPipelineInvalidation value, HtmlPipelineInvalidation flags) =>
+        (value & flags) != 0;
 
-    private static bool HasAny(HtmlRenderDamageBits value, HtmlRenderDamageBits flags)
-        => (value & flags) != 0;
+    private static bool HasAny(HtmlRenderDamageBits value, HtmlRenderDamageBits flags) =>
+        (value & flags) != 0;
 
     private SceneDamageReason ResolveDamageReasons(
         HtmlPipelineInvalidation consumedInvalidation,
@@ -47,38 +45,60 @@ public sealed partial class HtmlSceneFrameSource
         int previousWidth,
         int previousHeight,
         int width,
-        int height)
+        int height
+    )
     {
         var reasons = SceneDamageReason.None;
-        if (HasAny(consumedDamage, HtmlRenderDamageBits.Document) ||
-            HasAny(consumedInvalidation, HtmlPipelineInvalidation.Document | HtmlPipelineInvalidation.Style))
+        if (
+            HasAny(consumedDamage, HtmlRenderDamageBits.Document)
+            || HasAny(
+                consumedInvalidation,
+                HtmlPipelineInvalidation.Document | HtmlPipelineInvalidation.Style
+            )
+        )
         {
             reasons |= SceneDamageReason.RuntimeReload;
         }
 
-        if (previousWidth != width || previousHeight != height ||
-            HasAny(consumedDamage, HtmlRenderDamageBits.Resize))
+        if (
+            previousWidth != width
+            || previousHeight != height
+            || HasAny(consumedDamage, HtmlRenderDamageBits.Resize)
+        )
         {
             reasons |= SceneDamageReason.Resize;
         }
 
-        if (HasAny(consumedDamage, HtmlRenderDamageBits.Scroll | HtmlRenderDamageBits.Interactive) ||
-            HasAny(consumedInvalidation, HtmlPipelineInvalidation.Scroll | HtmlPipelineInvalidation.Interactive))
+        if (
+            HasAny(consumedDamage, HtmlRenderDamageBits.Scroll | HtmlRenderDamageBits.Interactive)
+            || HasAny(
+                consumedInvalidation,
+                HtmlPipelineInvalidation.Scroll | HtmlPipelineInvalidation.Interactive
+            )
+        )
         {
             reasons |= SceneDamageReason.Scroll;
         }
 
-        if (((styleDamage & (
-                Enaga.Html.Style.RenderDamage.RebuildLayoutTree |
-                Enaga.Html.Style.RenderDamage.Relayout |
-                Enaga.Html.Style.RenderDamage.Refragment |
-                Enaga.Html.Style.RenderDamage.Repaint |
-                Enaga.Html.Style.RenderDamage.Reraster |
-                Enaga.Html.Style.RenderDamage.RebuildLayer |
-                Enaga.Html.Style.RenderDamage.RebuildHitTest |
-                Enaga.Html.Style.RenderDamage.FullFrame)) != 0 ||
-             HasAny(consumedDamage, HtmlRenderDamageBits.FullFrame)) &&
-            reasons == SceneDamageReason.None)
+        if (
+            (
+                (
+                    styleDamage
+                    & (
+                        Enaga.Html.Style.RenderDamage.RebuildLayoutTree
+                        | Enaga.Html.Style.RenderDamage.Relayout
+                        | Enaga.Html.Style.RenderDamage.Refragment
+                        | Enaga.Html.Style.RenderDamage.Repaint
+                        | Enaga.Html.Style.RenderDamage.Reraster
+                        | Enaga.Html.Style.RenderDamage.RebuildLayer
+                        | Enaga.Html.Style.RenderDamage.RebuildHitTest
+                        | Enaga.Html.Style.RenderDamage.FullFrame
+                    )
+                ) != 0
+                || HasAny(consumedDamage, HtmlRenderDamageBits.FullFrame)
+            )
+            && reasons == SceneDamageReason.None
+        )
         {
             reasons |= SceneDamageReason.FullFrameFallback;
         }
@@ -86,32 +106,44 @@ public sealed partial class HtmlSceneFrameSource
         return reasons;
     }
 
-    private void RecordDirtyMetrics(ReadOnlySpan<SceneDamageRect> dirtyRects)
-        => LastPipelineMetrics = frameBuildMetrics.WithDirtyRects(
+    private void RecordDirtyMetrics(ReadOnlySpan<SceneDamageRect> dirtyRects) =>
+        LastPipelineMetrics = frameBuildMetrics.WithDirtyRects(
             dirtyRects.Length,
-            CalculateDirtyRectArea(dirtyRects));
+            CalculateDirtyRectArea(dirtyRects)
+        );
 
-    private void RecordFullFrameMetrics(int width, int height)
-        => LastPipelineMetrics = frameBuildMetrics.WithDirtyRects(1, Math.Max(0, width) * (long)Math.Max(0, height));
+    private void RecordFullFrameMetrics(int width, int height) =>
+        LastPipelineMetrics = frameBuildMetrics.WithDirtyRects(
+            1,
+            Math.Max(0, width) * (long)Math.Max(0, height)
+        );
 
-    private void RecordNoDamageMetrics()
-        => LastPipelineMetrics = frameBuildMetrics.WithDirtyRects(0, 0);
+    private void RecordNoDamageMetrics() =>
+        LastPipelineMetrics = frameBuildMetrics.WithDirtyRects(0, 0);
 
     private SceneLayoutCommit BuildDocumentCommit(
         HtmlParsedDocument parsed,
         int width,
-        int height)
-        => BuildDocumentCommit(parsed, width, height, hoveredDomNodeIds, activeDomNodeId);
+        int height
+    ) => BuildDocumentCommit(parsed, width, height, hoveredDomNodeIds, activeDomNodeId);
 
     private SceneLayoutCommit BuildDocumentCommit(
         HtmlParsedDocument parsed,
         int width,
         int height,
         IReadOnlySet<HtmlNodeId>? hoveredNodeIds,
-        HtmlNodeId? activeNodeId)
+        HtmlNodeId? activeNodeId
+    )
     {
         frameDocumentCommitBuildCount++;
-        var commit = builder.Build(parsed, width, height, viewportScale, hoveredNodeIds, activeNodeId);
+        var commit = builder.Build(
+            parsed,
+            width,
+            height,
+            viewportScale,
+            hoveredNodeIds,
+            activeNodeId
+        );
         frameBuildMetrics = builder.LastMetrics;
         frameStyleDamage = builder.LastDamage;
         cachedBaseFragmentTree = builder.LastFragmentTree;
@@ -171,7 +203,8 @@ public sealed partial class HtmlSceneFrameSource
             int depth,
             Dictionary<HtmlNodeId, HtmlNodeId> parents,
             Dictionary<HtmlNodeId, int> depths,
-            Dictionary<HtmlNodeId, HtmlDomElement> elements)
+            Dictionary<HtmlNodeId, HtmlDomElement> elements
+        )
         {
             for (var index = 0; index < parent.Children.Count; index++)
             {
@@ -211,7 +244,7 @@ internal enum HtmlPipelineInvalidation
     Viewport = 1 << 7,
     HitTest = 1 << 8,
     Hover = 1 << 9,
-    DynamicVisual = 1 << 10
+    DynamicVisual = 1 << 10,
 }
 
 [Flags]
@@ -223,5 +256,5 @@ internal enum HtmlRenderDamageBits
     Document = 1 << 2,
     Resize = 1 << 3,
     Interactive = 1 << 4,
-    Scroll = 1 << 5
+    Scroll = 1 << 5,
 }

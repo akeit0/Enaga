@@ -6,7 +6,8 @@ namespace Enaga.Tests;
 
 public sealed class HtmlTextInputControllerTests
 {
-    private static readonly RuntimeBackendServices BackendServices = DummyRuntimeBackendServices.Create();
+    private static readonly RuntimeBackendServices BackendServices =
+        DummyRuntimeBackendServices.Create();
 
     [Fact]
     public void HandleKey_AcceptsArrowAliasesAndExtendsSelection()
@@ -50,8 +51,13 @@ public sealed class HtmlTextInputControllerTests
         Assert.Equal(string.Empty, state.CompositionText);
     }
 
-    private static HtmlTextInputController CreateController()
-        => new(BackendServices.Text, requestUpdate: () => { }, moveFocus: _ => false, setFocus: _ => { });
+    private static HtmlTextInputController CreateController() =>
+        new(
+            BackendServices.Text,
+            requestUpdate: () => { },
+            moveFocus: _ => false,
+            setFocus: _ => { }
+        );
 
     private static HtmlTextInputState CreateState(string text)
     {
@@ -60,7 +66,7 @@ public sealed class HtmlTextInputControllerTests
             Text = text,
             CaretIndex = text.Length,
             Width = 240,
-            LineHeight = 20
+            LineHeight = 20,
         };
         HtmlTextInputStateLogic.ClearSelection(state);
         return state;

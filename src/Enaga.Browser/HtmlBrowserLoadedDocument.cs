@@ -2,4 +2,7 @@ using Enaga.Html;
 
 namespace Enaga.Browser;
 
-public sealed record HtmlBrowserLoadedDocument(HtmlDocument Document, HtmlBrowserScriptRuntime? ScriptRuntime);
+public sealed record HtmlBrowserLoadedDocument(
+    HtmlDocument Document,
+    HtmlBrowserScriptRuntime? ScriptRuntime
+);

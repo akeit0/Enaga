@@ -18,10 +18,12 @@ internal sealed class HostTextInputController
         Action<NativeTextInputState> updateLayout,
         Action<NativeTextInputState, string> notifyEvent,
         Func<bool, bool> moveFocus,
-        Action<string?> setFocus)
+        Action<string?> setFocus
+    )
     {
         this.textServices = textServices ?? throw new ArgumentNullException(nameof(textServices));
-        this.ensureVisible = ensureVisible ?? throw new ArgumentNullException(nameof(ensureVisible));
+        this.ensureVisible =
+            ensureVisible ?? throw new ArgumentNullException(nameof(ensureVisible));
         this.updateLayout = updateLayout ?? throw new ArgumentNullException(nameof(updateLayout));
         this.notifyEvent = notifyEvent ?? throw new ArgumentNullException(nameof(notifyEvent));
         this.moveFocus = moveFocus ?? throw new ArgumentNullException(nameof(moveFocus));
@@ -85,59 +87,65 @@ internal sealed class HostTextInputController
         {
             case "Backspace":
             case "BackSpace":
-                {
-                    var removedSelection = DeleteSelection(state);
-                    if (!(removedSelection || state.CaretIndex > 0))
-                        break;
-
-                    if (!removedSelection)
-                    {
-                        var previousIndex = textServices.GetPreviousTextElementIndex(state.Text, state.CaretIndex);
-                        state.Text = state.Text.Remove(previousIndex, state.CaretIndex - previousIndex);
-                        state.CaretIndex = previousIndex;
-                    }
-
-                    state.CompositionText = string.Empty;
-                    state.CompositionCursorOffset = 0;
-                    state.PreferredCaretX = null;
-                    ClearSelection(state);
-                    ensureVisible(state);
-                    updateLayout(state);
-                    notifyEvent(state, "change");
+            {
+                var removedSelection = DeleteSelection(state);
+                if (!(removedSelection || state.CaretIndex > 0))
                     break;
+
+                if (!removedSelection)
+                {
+                    var previousIndex = textServices.GetPreviousTextElementIndex(
+                        state.Text,
+                        state.CaretIndex
+                    );
+                    state.Text = state.Text.Remove(previousIndex, state.CaretIndex - previousIndex);
+                    state.CaretIndex = previousIndex;
                 }
+
+                state.CompositionText = string.Empty;
+                state.CompositionCursorOffset = 0;
+                state.PreferredCaretX = null;
+                ClearSelection(state);
+                ensureVisible(state);
+                updateLayout(state);
+                notifyEvent(state, "change");
+                break;
+            }
             case "Delete":
-                {
-                    var removedSelection = DeleteSelection(state);
-                    if (!(removedSelection || state.CaretIndex < state.Text.Length))
-                        break;
-
-                    if (!removedSelection)
-                    {
-                        var nextIndex = textServices.GetNextTextElementIndex(state.Text, state.CaretIndex);
-                        state.Text = state.Text.Remove(state.CaretIndex, nextIndex - state.CaretIndex);
-                    }
-
-                    state.CompositionText = string.Empty;
-                    state.CompositionCursorOffset = 0;
-                    state.PreferredCaretX = null;
-                    ClearSelection(state);
-                    ensureVisible(state);
-                    updateLayout(state);
-                    notifyEvent(state, "change");
+            {
+                var removedSelection = DeleteSelection(state);
+                if (!(removedSelection || state.CaretIndex < state.Text.Length))
                     break;
+
+                if (!removedSelection)
+                {
+                    var nextIndex = textServices.GetNextTextElementIndex(
+                        state.Text,
+                        state.CaretIndex
+                    );
+                    state.Text = state.Text.Remove(state.CaretIndex, nextIndex - state.CaretIndex);
                 }
+
+                state.CompositionText = string.Empty;
+                state.CompositionCursorOffset = 0;
+                state.PreferredCaretX = null;
+                ClearSelection(state);
+                ensureVisible(state);
+                updateLayout(state);
+                notifyEvent(state, "change");
+                break;
+            }
             case "Left":
             case "ArrowLeft":
                 state.PreferredCaretX = null;
                 MoveSelectionCaret(
                     state,
                     hasShift
-                        ? textServices.GetPreviousTextElementIndex(state.Text, state.CaretIndex)
-                        : HasSelection(state)
-                            ? Math.Min(state.SelectionStart, state.SelectionEnd)
-                            : textServices.GetPreviousTextElementIndex(state.Text, state.CaretIndex),
-                    hasShift);
+                            ? textServices.GetPreviousTextElementIndex(state.Text, state.CaretIndex)
+                        : HasSelection(state) ? Math.Min(state.SelectionStart, state.SelectionEnd)
+                        : textServices.GetPreviousTextElementIndex(state.Text, state.CaretIndex),
+                    hasShift
+                );
                 ensureVisible(state);
                 updateLayout(state);
                 break;
@@ -146,12 +154,11 @@ internal sealed class HostTextInputController
                 state.PreferredCaretX = null;
                 MoveSelectionCaret(
                     state,
+                    hasShift ? textServices.GetNextTextElementIndex(state.Text, state.CaretIndex)
+                        : HasSelection(state) ? Math.Max(state.SelectionStart, state.SelectionEnd)
+                        : textServices.GetNextTextElementIndex(state.Text, state.CaretIndex),
                     hasShift
-                        ? textServices.GetNextTextElementIndex(state.Text, state.CaretIndex)
-                        : HasSelection(state)
-                            ? Math.Max(state.SelectionStart, state.SelectionEnd)
-                            : textServices.GetNextTextElementIndex(state.Text, state.CaretIndex),
-                    hasShift);
+                );
                 ensureVisible(state);
                 updateLayout(state);
                 break;
@@ -172,7 +179,8 @@ internal sealed class HostTextInputController
                 MoveSelectionCaret(
                     state,
                     state.Multiline ? MoveCaretToLineEdge(state, toEnd: false) : 0,
-                    hasShift);
+                    hasShift
+                );
                 ensureVisible(state);
                 updateLayout(state);
                 break;
@@ -181,7 +189,8 @@ internal sealed class HostTextInputController
                 MoveSelectionCaret(
                     state,
                     state.Multiline ? MoveCaretToLineEdge(state, toEnd: true) : state.Text.Length,
-                    hasShift);
+                    hasShift
+                );
                 ensureVisible(state);
                 updateLayout(state);
                 break;
@@ -214,11 +223,15 @@ internal sealed class HostTextInputController
             return;
         }
 
-        state.CaretIndex = textServices.SnapCaretIndex(state.Text, Math.Clamp(caretIndex, 0, state.Text.Length));
+        state.CaretIndex = textServices.SnapCaretIndex(
+            state.Text,
+            Math.Clamp(caretIndex, 0, state.Text.Length)
+        );
         ClearSelection(state);
     }
 
-    public void ClearSelection(NativeTextInputState state) => TextInputStateLogic.ClearSelection(state);
+    public void ClearSelection(NativeTextInputState state) =>
+        TextInputStateLogic.ClearSelection(state);
 
     public void SetSelection(NativeTextInputState state, int anchorIndex, int caretIndex)
     {
@@ -233,13 +246,15 @@ internal sealed class HostTextInputController
         state.CaretIndex = state.Text.Length;
     }
 
-    public bool DeleteSelection(NativeTextInputState state) => TextInputStateLogic.DeleteSelection(state);
+    public bool DeleteSelection(NativeTextInputState state) =>
+        TextInputStateLogic.DeleteSelection(state);
 
     public void SelectWordAt(NativeTextInputState state, int caretIndex)
     {
-        var adjustedIndex = caretIndex >= state.Text.Length && state.Text.Length > 0
-            ? state.Text.Length - 1
-            : caretIndex;
+        var adjustedIndex =
+            caretIndex >= state.Text.Length && state.Text.Length > 0
+                ? state.Text.Length - 1
+                : caretIndex;
         var (start, end) = SelectWordRange(state.Text, adjustedIndex);
         state.SelectionAnchorIndex = start;
         state.SelectionStart = start;
@@ -247,12 +262,34 @@ internal sealed class HostTextInputController
         state.CaretIndex = end;
     }
 
-    private void MoveCaretVertically(NativeTextInputState state, int lineDelta, bool extendSelection)
+    private void MoveCaretVertically(
+        NativeTextInputState state,
+        int lineDelta,
+        bool extendSelection
+    )
     {
         var textStyle = CreateTextInputTextStyle(state);
         var textWidth = Math.Max(0, state.Width - state.PaddingLeft - state.PaddingRight);
-        var preferredX = state.PreferredCaretX ?? textServices.GetCaretPosition(textStyle, state.Text, state.LineHeight, textWidth, state.CaretIndex).X;
-        var caretIndex = textServices.MoveCaretVertical(textStyle, state.Text, state.LineHeight, textWidth, state.CaretIndex, lineDelta, preferredX);
+        var preferredX =
+            state.PreferredCaretX
+            ?? textServices
+                .GetCaretPosition(
+                    textStyle,
+                    state.Text,
+                    state.LineHeight,
+                    textWidth,
+                    state.CaretIndex
+                )
+                .X;
+        var caretIndex = textServices.MoveCaretVertical(
+            textStyle,
+            state.Text,
+            state.LineHeight,
+            textWidth,
+            state.CaretIndex,
+            lineDelta,
+            preferredX
+        );
         state.PreferredCaretX = preferredX;
         MoveSelectionCaret(state, caretIndex, extendSelection);
     }
@@ -265,7 +302,8 @@ internal sealed class HostTextInputController
             state.LineHeight,
             Math.Max(0, state.Width - state.PaddingLeft - state.PaddingRight),
             state.CaretIndex,
-            toEnd);
+            toEnd
+        );
     }
 
     private static (int Start, int End) SelectWordRange(string text, int caretIndex)
@@ -329,6 +367,7 @@ internal sealed class HostTextInputController
             state.Color,
             TextAlign: state.TextAlign,
             WrapText: state.Multiline,
-            Font: new SceneFont(state.FontSize, state.FontFamily, state.FontWeight));
+            Font: new SceneFont(state.FontSize, state.FontFamily, state.FontWeight)
+        );
     }
 }

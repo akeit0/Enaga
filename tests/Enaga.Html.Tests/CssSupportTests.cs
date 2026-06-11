@@ -10,7 +10,8 @@ public sealed class CssSupportTests
     public void RenderFrame_AppliesFlexOrderProperty()
     {
         var source = new HtmlSceneFrameSource(
-            new HtmlDocument("""
+            new HtmlDocument(
+                """
                 <body>
                   <div id="row">
                     <div id="a"></div>
@@ -26,8 +27,10 @@ public sealed class CssSupportTests
                 #a { order: 2; }
                 #b { order: -1; }
                 #c { order: 1; }
-                """),
-            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
         var a = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "a").Key];
@@ -44,11 +47,15 @@ public sealed class CssSupportTests
         var source = new HtmlSceneFrameSource(
             new HtmlDocument(
                 "<body><div id='card'></div></body>",
-                "body { padding: 0; } #card { width: 120px; aspect-ratio: 2 / 1; background: #123456; }"),
-            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                "body { padding: 0; } #card { width: 120px; aspect-ratio: 2 / 1; background: #123456; }"
+            ),
+            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var card = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key];
+        var card = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "card").Key
+        ];
 
         Assert.Equal(120, card.Width);
         Assert.Equal(60, card.Height);
@@ -58,7 +65,8 @@ public sealed class CssSupportTests
     public void RenderFrame_AppliesSpaceEvenlyAndPlaceAlignmentAliases()
     {
         var source = new HtmlSceneFrameSource(
-            new HtmlDocument("""
+            new HtmlDocument(
+                """
                 <body>
                   <div id="row">
                     <div id="first"></div>
@@ -71,13 +79,21 @@ public sealed class CssSupportTests
                 #row { display: flex; flex-direction: row; width: 200px; height: 100px; justify-content: space-evenly; place-items: center; }
                 #first, #second { width: 20px; height: 20px; }
                 #second { place-self: end; }
-                """),
-            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
-        var row = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key];
-        var first = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key];
-        var second = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key];
+        var row = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "row").Key
+        ];
+        var first = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "first").Key
+        ];
+        var second = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "second").Key
+        ];
 
         Assert.Equal(row.AbsLeft + 160f / 3f, first.AbsLeft, precision: 0);
         Assert.Equal(row.AbsTop + 40, first.AbsTop, precision: 0);
@@ -88,7 +104,8 @@ public sealed class CssSupportTests
     public void RenderFrame_AppliesAttributeSelectors()
     {
         var source = new HtmlSceneFrameSource(
-            new HtmlDocument("""
+            new HtmlDocument(
+                """
                 <body>
                   <input id="email" type="email" data-role="primary login" />
                   <input id="search" type="search" data-role="secondary" />
@@ -99,12 +116,18 @@ public sealed class CssSupportTests
                 input[type="email"] { border-color: #112233; }
                 [data-role~="login"] { background-color: #445566; }
                 [data-file$=".pdf" i] { color: #778899; }
-                """),
-            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(360, 180, TimeSpan.Zero);
-        var email = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "email").Key];
-        var search = frame.Commit.Layout[frame.Commit.Nodes.Single(pair => pair.Value.Label == "search").Key];
+        var email = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "email").Key
+        ];
+        var search = frame.Commit.Layout[
+            frame.Commit.Nodes.Single(pair => pair.Value.Label == "search").Key
+        ];
         var downloadText = frame.Commit.Layout.Values.Single(box => box.TextContent == "report");
 
         Assert.Equal("#112233", email.BorderColor);
@@ -117,7 +140,8 @@ public sealed class CssSupportTests
     public void RenderFrame_FlattensDisplayContents()
     {
         var source = new HtmlSceneFrameSource(
-            new HtmlDocument("""
+            new HtmlDocument(
+                """
                 <body>
                   <div id="row">
                     <span id="wrapper"><span id="child">A</span></span>
@@ -130,8 +154,10 @@ public sealed class CssSupportTests
                 #row { display: flex; flex-direction: row; gap: 8px; }
                 #wrapper { display: contents; }
                 #child, #sibling { display: block; width: 20px; height: 20px; }
-                """),
-            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+                """
+            ),
+            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
 
         var frame = source.RenderFrame(320, 180, TimeSpan.Zero);
 

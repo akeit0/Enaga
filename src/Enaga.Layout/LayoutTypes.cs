@@ -8,19 +8,19 @@ public enum LayoutChildKind : byte
     Element,
     Button,
     Divider,
-    Spacer
+    Spacer,
 }
 
 public enum LayoutAxis : byte
 {
     Column,
-    Row
+    Row,
 }
 
 public enum LayoutDirection : byte
 {
     Ltr,
-    Rtl
+    Rtl,
 }
 
 public enum FlexDirection : byte
@@ -28,40 +28,40 @@ public enum FlexDirection : byte
     Column,
     ColumnReverse,
     Row,
-    RowReverse
+    RowReverse,
 }
 
 public enum FlexWrap : byte
 {
     NoWrap,
-    Wrap
+    Wrap,
 }
 
 public enum PositionMode : byte
 {
     Absolute,
     Relative,
-    Static
+    Static,
 }
 
 public enum BoxSizingMode : byte
 {
     BorderBox,
-    ContentBox
+    ContentBox,
 }
 
 public enum LayoutAvailableSpaceKind : byte
 {
     Definite,
     MinContent,
-    MaxContent
+    MaxContent,
 }
 
 public enum LayoutRunMode : byte
 {
     ComputeSize,
     PerformLayout,
-    PerformHiddenLayout
+    PerformHiddenLayout,
 }
 
 public readonly struct LayoutAvailableSpace
@@ -76,12 +76,14 @@ public readonly struct LayoutAvailableSpace
     public float Value { get; }
     public bool IsDefinite => Kind == LayoutAvailableSpaceKind.Definite;
 
-    public static LayoutAvailableSpace Definite(float value) => new(LayoutAvailableSpaceKind.Definite, value);
+    public static LayoutAvailableSpace Definite(float value) =>
+        new(LayoutAvailableSpaceKind.Definite, value);
+
     public static LayoutAvailableSpace MinContent => new(LayoutAvailableSpaceKind.MinContent);
     public static LayoutAvailableSpace MaxContent => new(LayoutAvailableSpaceKind.MaxContent);
 
-    public float Resolve(float fallback)
-        => Kind == LayoutAvailableSpaceKind.Definite ? Math.Max(0, Value) : Math.Max(0, fallback);
+    public float Resolve(float fallback) =>
+        Kind == LayoutAvailableSpaceKind.Definite ? Math.Max(0, Value) : Math.Max(0, fallback);
 }
 
 public readonly struct LayoutSize
@@ -146,7 +148,8 @@ public readonly struct LayoutInput : IEquatable<LayoutInput>
         LayoutKnownSize KnownDimensions,
         LayoutKnownSize ParentSize,
         LayoutAvailableSize AvailableSpace,
-        LayoutRunMode RunMode)
+        LayoutRunMode RunMode
+    )
     {
         this.KnownDimensions = KnownDimensions;
         this.ParentSize = ParentSize;
@@ -160,23 +163,31 @@ public readonly struct LayoutInput : IEquatable<LayoutInput>
     public LayoutRunMode RunMode { get; }
     public bool PerformsLayout => RunMode != LayoutRunMode.ComputeSize;
 
-    public static LayoutInput Definite(float width, float height, LayoutRunMode runMode = LayoutRunMode.PerformLayout)
-        => new(
+    public static LayoutInput Definite(
+        float width,
+        float height,
+        LayoutRunMode runMode = LayoutRunMode.PerformLayout
+    ) =>
+        new(
             new LayoutKnownSize(width, height),
             new LayoutKnownSize(width, height),
-            new LayoutAvailableSize(LayoutAvailableSpace.Definite(width), LayoutAvailableSpace.Definite(height)),
-            runMode);
+            new LayoutAvailableSize(
+                LayoutAvailableSpace.Definite(width),
+                LayoutAvailableSpace.Definite(height)
+            ),
+            runMode
+        );
 
-    public bool Equals(LayoutInput other)
-        => Nullable.Equals(KnownDimensions.Width, other.KnownDimensions.Width)
-            && Nullable.Equals(KnownDimensions.Height, other.KnownDimensions.Height)
-            && Nullable.Equals(ParentSize.Width, other.ParentSize.Width)
-            && Nullable.Equals(ParentSize.Height, other.ParentSize.Height)
-            && AvailableSpace.Width.Kind == other.AvailableSpace.Width.Kind
-            && AvailableSpace.Width.Value.Equals(other.AvailableSpace.Width.Value)
-            && AvailableSpace.Height.Kind == other.AvailableSpace.Height.Kind
-            && AvailableSpace.Height.Value.Equals(other.AvailableSpace.Height.Value)
-            && RunMode == other.RunMode;
+    public bool Equals(LayoutInput other) =>
+        Nullable.Equals(KnownDimensions.Width, other.KnownDimensions.Width)
+        && Nullable.Equals(KnownDimensions.Height, other.KnownDimensions.Height)
+        && Nullable.Equals(ParentSize.Width, other.ParentSize.Width)
+        && Nullable.Equals(ParentSize.Height, other.ParentSize.Height)
+        && AvailableSpace.Width.Kind == other.AvailableSpace.Width.Kind
+        && AvailableSpace.Width.Value.Equals(other.AvailableSpace.Width.Value)
+        && AvailableSpace.Height.Kind == other.AvailableSpace.Height.Kind
+        && AvailableSpace.Height.Value.Equals(other.AvailableSpace.Height.Value)
+        && RunMode == other.RunMode;
 
     public override bool Equals(object? obj) => obj is LayoutInput other && Equals(other);
 
@@ -229,12 +240,16 @@ public readonly struct LayoutBoxEdges
 
     public static LayoutBoxEdges Zero => new(0, 0, 0, 0);
 
-    public static LayoutBoxEdges ReplaceSidesWithReservedGutter(LayoutBoxEdges padding, LayoutBoxEdges reservedGutter)
-        => new(
+    public static LayoutBoxEdges ReplaceSidesWithReservedGutter(
+        LayoutBoxEdges padding,
+        LayoutBoxEdges reservedGutter
+    ) =>
+        new(
             reservedGutter.Left > 0 ? reservedGutter.Left : padding.Left,
             reservedGutter.Top > 0 ? reservedGutter.Top : padding.Top,
             reservedGutter.Right > 0 ? reservedGutter.Right : padding.Right,
-            reservedGutter.Bottom > 0 ? reservedGutter.Bottom : padding.Bottom);
+            reservedGutter.Bottom > 0 ? reservedGutter.Bottom : padding.Bottom
+        );
 }
 
 public readonly struct LayoutContainerStyle : IEquatable<LayoutContainerStyle>
@@ -247,7 +262,8 @@ public readonly struct LayoutContainerStyle : IEquatable<LayoutContainerStyle>
         float ColumnGap = 0,
         CrossAlignment AlignItems = CrossAlignment.Stretch,
         MainAxisJustification JustifyContent = MainAxisJustification.Start,
-        LayoutBoxEdges Padding = default)
+        LayoutBoxEdges Padding = default
+    )
     {
         this.FlexDirection = FlexDirection;
         this.Direction = Direction;
@@ -268,24 +284,24 @@ public readonly struct LayoutContainerStyle : IEquatable<LayoutContainerStyle>
     public MainAxisJustification JustifyContent { get; }
     public LayoutBoxEdges Padding { get; }
 
-    public float ResolveContentWidth(float outerWidth)
-        => Math.Max(0, outerWidth - Padding.Left - Padding.Right);
+    public float ResolveContentWidth(float outerWidth) =>
+        Math.Max(0, outerWidth - Padding.Left - Padding.Right);
 
-    public float ResolveContentHeight(float outerHeight)
-        => Math.Max(0, outerHeight - Padding.Top - Padding.Bottom);
+    public float ResolveContentHeight(float outerHeight) =>
+        Math.Max(0, outerHeight - Padding.Top - Padding.Bottom);
 
-    public bool Equals(LayoutContainerStyle other)
-        => FlexDirection == other.FlexDirection
-            && Direction == other.Direction
-            && FlexWrap == other.FlexWrap
-            && RowGap.Equals(other.RowGap)
-            && ColumnGap.Equals(other.ColumnGap)
-            && AlignItems == other.AlignItems
-            && JustifyContent == other.JustifyContent
-            && Padding.Left.Equals(other.Padding.Left)
-            && Padding.Top.Equals(other.Padding.Top)
-            && Padding.Right.Equals(other.Padding.Right)
-            && Padding.Bottom.Equals(other.Padding.Bottom);
+    public bool Equals(LayoutContainerStyle other) =>
+        FlexDirection == other.FlexDirection
+        && Direction == other.Direction
+        && FlexWrap == other.FlexWrap
+        && RowGap.Equals(other.RowGap)
+        && ColumnGap.Equals(other.ColumnGap)
+        && AlignItems == other.AlignItems
+        && JustifyContent == other.JustifyContent
+        && Padding.Left.Equals(other.Padding.Left)
+        && Padding.Top.Equals(other.Padding.Top)
+        && Padding.Right.Equals(other.Padding.Right)
+        && Padding.Bottom.Equals(other.Padding.Bottom);
 
     public override bool Equals(object? obj) => obj is LayoutContainerStyle other && Equals(other);
 
@@ -311,7 +327,14 @@ public readonly record struct LayoutNodeId(int Value);
 
 public readonly struct LayoutCacheKey : IEquatable<LayoutCacheKey>
 {
-    public LayoutCacheKey(LayoutNodeId NodeId, uint StyleVersion, uint LayoutVersion, LayoutInput Input, LayoutContainerStyle ContainerStyle, uint ContextVersion = 0)
+    public LayoutCacheKey(
+        LayoutNodeId NodeId,
+        uint StyleVersion,
+        uint LayoutVersion,
+        LayoutInput Input,
+        LayoutContainerStyle ContainerStyle,
+        uint ContextVersion = 0
+    )
     {
         this.NodeId = NodeId;
         this.StyleVersion = StyleVersion;
@@ -328,18 +351,25 @@ public readonly struct LayoutCacheKey : IEquatable<LayoutCacheKey>
     public LayoutContainerStyle ContainerStyle { get; }
     public uint ContextVersion { get; }
 
-    public bool Equals(LayoutCacheKey other)
-        => NodeId.Equals(other.NodeId)
-            && StyleVersion == other.StyleVersion
-            && LayoutVersion == other.LayoutVersion
-            && Input.Equals(other.Input)
-            && ContainerStyle.Equals(other.ContainerStyle)
-            && ContextVersion == other.ContextVersion;
+    public bool Equals(LayoutCacheKey other) =>
+        NodeId.Equals(other.NodeId)
+        && StyleVersion == other.StyleVersion
+        && LayoutVersion == other.LayoutVersion
+        && Input.Equals(other.Input)
+        && ContainerStyle.Equals(other.ContainerStyle)
+        && ContextVersion == other.ContextVersion;
 
     public override bool Equals(object? obj) => obj is LayoutCacheKey other && Equals(other);
 
-    public override int GetHashCode()
-        => HashCode.Combine(NodeId, StyleVersion, LayoutVersion, Input, ContainerStyle, ContextVersion);
+    public override int GetHashCode() =>
+        HashCode.Combine(
+            NodeId,
+            StyleVersion,
+            LayoutVersion,
+            Input,
+            ContainerStyle,
+            ContextVersion
+        );
 }
 
 public interface ILayoutCache
@@ -368,9 +398,11 @@ public sealed class LayoutOutputCache : ILayoutCache
             return false;
         }
 
-        if (key.Input.PerformsLayout &&
-            nodeEntries.HasFinalLayout &&
-            nodeEntries.FinalLayoutKey.Equals(key))
+        if (
+            key.Input.PerformsLayout
+            && nodeEntries.HasFinalLayout
+            && nodeEntries.FinalLayoutKey.Equals(key)
+        )
         {
             output = nodeEntries.FinalLayoutOutput;
             return true;
@@ -406,9 +438,11 @@ public sealed class LayoutOutputCache : ILayoutCache
             nodeEntries = NodeEntryList.Empty;
             entriesByNode[key.NodeId] = nodeEntries;
         }
-        else if (key.Input.PerformsLayout &&
-                 nodeEntries.HasFinalLayout &&
-                 nodeEntries.FinalLayoutKey.Equals(key))
+        else if (
+            key.Input.PerformsLayout
+            && nodeEntries.HasFinalLayout
+            && nodeEntries.FinalLayoutKey.Equals(key)
+        )
         {
             nodeEntries.FinalLayoutOutput = output;
             entriesByNode[key.NodeId] = nodeEntries;
@@ -422,8 +456,7 @@ public sealed class LayoutOutputCache : ILayoutCache
         if (nodeEntries.TotalCount >= MaxEntriesPerNode)
             RemoveOldestEntry(ref nodeEntries);
 
-        if (key.Input.PerformsLayout &&
-            !nodeEntries.HasFinalLayout)
+        if (key.Input.PerformsLayout && !nodeEntries.HasFinalLayout)
         {
             nodeEntries.FinalLayoutKey = key;
             nodeEntries.FinalLayoutOutput = output;
@@ -460,7 +493,11 @@ public sealed class LayoutOutputCache : ILayoutCache
         freeNodeEntry = -1;
     }
 
-    private bool TryUpdateNodeEntry(NodeEntryList nodeEntries, LayoutCacheKey key, LayoutOutput output)
+    private bool TryUpdateNodeEntry(
+        NodeEntryList nodeEntries,
+        LayoutCacheKey key,
+        LayoutOutput output
+    )
     {
         var slot = nodeEntries.Head;
         while (slot >= 0)
@@ -477,7 +514,11 @@ public sealed class LayoutOutputCache : ILayoutCache
         return false;
     }
 
-    private void AddNodeEntry(ref NodeEntryList nodeEntries, LayoutCacheKey key, LayoutOutput output)
+    private void AddNodeEntry(
+        ref NodeEntryList nodeEntries,
+        LayoutCacheKey key,
+        LayoutOutput output
+    )
     {
         var slot = AllocateNodeEntrySlot();
         nodeEntryKeys[slot] = key;
@@ -591,7 +632,7 @@ public enum CrossAlignment : byte
     Start,
     Center,
     End,
-    Stretch
+    Stretch,
 }
 
 public enum MainAxisJustification : byte
@@ -601,7 +642,7 @@ public enum MainAxisJustification : byte
     End,
     SpaceBetween,
     SpaceAround,
-    SpaceEvenly
+    SpaceEvenly,
 }
 
 [Flags]
@@ -611,7 +652,7 @@ public enum LayoutAutoMarginFlags : byte
     Left = 1 << 0,
     Top = 1 << 1,
     Right = 1 << 2,
-    Bottom = 1 << 3
+    Bottom = 1 << 3,
 }
 
 [Flags]
@@ -628,7 +669,7 @@ public enum LayoutValueUnitFlags : ushort
     MaxWidthPercent = 1 << 7,
     MinHeightPercent = 1 << 8,
     MaxHeightPercent = 1 << 9,
-    FlexBasisPercent = 1 << 10
+    FlexBasisPercent = 1 << 10,
 }
 
 public static class LayoutValue
@@ -642,9 +683,7 @@ public static class LayoutValue
         if (!IsSet(value))
             return Unset;
 
-        return isPercent
-            ? relativeTo * (value * 0.01f)
-            : value;
+        return isPercent ? relativeTo * (value * 0.01f) : value;
     }
 }
 
@@ -655,7 +694,8 @@ public static class LayoutBoxModel
         bool isPercent,
         float availableSize,
         float contentInset,
-        BoxSizingMode boxSizing)
+        BoxSizingMode boxSizing
+    )
     {
         if (!LayoutValue.IsSet(value))
             return value;
@@ -678,16 +718,32 @@ public static class LayoutBoxModel
         bool maxIsPercent,
         float availableSize,
         float contentInset,
-        BoxSizingMode boxSizing)
+        BoxSizingMode boxSizing
+    )
     {
         var result = float.IsFinite(value) ? Math.Max(value, contentInset) : contentInset;
-        var resolvedMin = ResolveOuterSize(minValue, minIsPercent, availableSize, contentInset, boxSizing);
-        var resolvedMax = ResolveOuterSize(maxValue, maxIsPercent, availableSize, contentInset, boxSizing);
+        var resolvedMin = ResolveOuterSize(
+            minValue,
+            minIsPercent,
+            availableSize,
+            contentInset,
+            boxSizing
+        );
+        var resolvedMax = ResolveOuterSize(
+            maxValue,
+            maxIsPercent,
+            availableSize,
+            contentInset,
+            boxSizing
+        );
         if (LayoutValue.IsSet(resolvedMin))
             result = Math.Max(result, Math.Max(0, resolvedMin));
 
         if (LayoutValue.IsSet(resolvedMax))
-            result = Math.Min(result, Math.Max(LayoutValue.IsSet(resolvedMin) ? resolvedMin : contentInset, resolvedMax));
+            result = Math.Min(
+                result,
+                Math.Max(LayoutValue.IsSet(resolvedMin) ? resolvedMin : contentInset, resolvedMax)
+            );
 
         return Math.Max(0, result);
     }
@@ -710,13 +766,14 @@ public static class FlexLayout
             FlexDirection.RowReverse => layoutDirection != LayoutDirection.Rtl,
             FlexDirection.Column => false,
             FlexDirection.ColumnReverse => true,
-            _ => false
+            _ => false,
         };
     }
 
     public static bool IsCrossAxisReversed(FlexDirection direction, LayoutDirection layoutDirection)
     {
-        return ResolveAxis(direction) == LayoutAxis.Column && layoutDirection == LayoutDirection.Rtl;
+        return ResolveAxis(direction) == LayoutAxis.Column
+            && layoutDirection == LayoutDirection.Rtl;
     }
 }
 
@@ -763,7 +820,8 @@ public readonly struct LayoutChildRequest
         float BorderLeft = 0,
         float BorderTop = 0,
         float BorderRight = 0,
-        float BorderBottom = 0)
+        float BorderBottom = 0
+    )
     {
         this.Kind = Kind;
         this.Left = Left;

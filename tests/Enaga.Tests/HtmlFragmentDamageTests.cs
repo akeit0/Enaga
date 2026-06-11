@@ -8,8 +8,7 @@ public sealed class HtmlFragmentDamageTests
     [Fact]
     public void Diff_without_previous_tree_marks_current_visual_overflow()
     {
-        var current = CreateTree(
-            Fragment(1, new HtmlLayoutRect(10.2f, 20.1f, 30.4f, 40.6f)));
+        var current = CreateTree(Fragment(1, new HtmlLayoutRect(10.2f, 20.1f, 30.4f, 40.6f)));
 
         var damage = HtmlFragmentDamage.Diff(null, current);
 
@@ -22,10 +21,8 @@ public sealed class HtmlFragmentDamageTests
     [Fact]
     public void Diff_unions_old_and_new_visual_overflow_when_fragment_moves()
     {
-        var previous = CreateTree(
-            Fragment(1, new HtmlLayoutRect(10, 10, 20, 20)));
-        var current = CreateTree(
-            Fragment(1, new HtmlLayoutRect(25, 15, 20, 20)));
+        var previous = CreateTree(Fragment(1, new HtmlLayoutRect(10, 10, 20, 20)));
+        var current = CreateTree(Fragment(1, new HtmlLayoutRect(25, 15, 20, 20)));
 
         var damage = HtmlFragmentDamage.Diff(previous, current);
 
@@ -39,9 +36,9 @@ public sealed class HtmlFragmentDamageTests
     {
         var previous = CreateTree(
             Fragment(1, new HtmlLayoutRect(0, 0, 10, 10)),
-            Fragment(2, new HtmlLayoutRect(40, 50, 10, 10)));
-        var current = CreateTree(
-            Fragment(1, new HtmlLayoutRect(0, 0, 10, 10)));
+            Fragment(2, new HtmlLayoutRect(40, 50, 10, 10))
+        );
+        var current = CreateTree(Fragment(1, new HtmlLayoutRect(0, 0, 10, 10)));
 
         var damage = HtmlFragmentDamage.Diff(previous, current);
 
@@ -53,10 +50,8 @@ public sealed class HtmlFragmentDamageTests
     [Fact]
     public void Diff_ignores_unchanged_fragment()
     {
-        var previous = CreateTree(
-            Fragment(1, new HtmlLayoutRect(0, 0, 10, 10)));
-        var current = CreateTree(
-            Fragment(1, new HtmlLayoutRect(0, 0, 10, 10)));
+        var previous = CreateTree(Fragment(1, new HtmlLayoutRect(0, 0, 10, 10)));
+        var current = CreateTree(Fragment(1, new HtmlLayoutRect(0, 0, 10, 10)));
 
         var damage = HtmlFragmentDamage.Diff(previous, current);
 
@@ -64,11 +59,11 @@ public sealed class HtmlFragmentDamageTests
         Assert.Empty(damage.DirtyRects);
     }
 
-    private static HtmlFragmentTree CreateTree(params HtmlFragment[] fragments)
-        => new(new HtmlFragmentId(fragments[0].Id.Value), fragments);
+    private static HtmlFragmentTree CreateTree(params HtmlFragment[] fragments) =>
+        new(new HtmlFragmentId(fragments[0].Id.Value), fragments);
 
-    private static HtmlFragment Fragment(int id, HtmlLayoutRect visualOverflow)
-        => new(
+    private static HtmlFragment Fragment(int id, HtmlLayoutRect visualOverflow) =>
+        new(
             new HtmlFragmentId(id),
             new HtmlFormattingNodeId(id),
             ParentId: null,
@@ -76,5 +71,6 @@ public sealed class HtmlFragmentDamageTests
             HtmlFragmentKind.BlockBox,
             BorderBox: visualOverflow,
             VisualOverflow: visualOverflow,
-            PaintVersion: 1);
+            PaintVersion: 1
+        );
 }

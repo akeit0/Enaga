@@ -11,7 +11,7 @@ public enum LowLevelRepaintRequestKind
     NextKeyDown = 6,
     NextKeyUp = 7,
     NextTextInput = 8,
-    NextInput = 9
+    NextInput = 9,
 }
 
 [Flags]
@@ -26,25 +26,30 @@ public enum LowLevelRepaintEventKind
     KeyDown = 1 << 5,
     KeyUp = 1 << 6,
     TextInput = 1 << 7,
-    AnyInput = PointerMove | PointerDown | PointerUp | Wheel | KeyDown | KeyUp | TextInput
+    AnyInput = PointerMove | PointerDown | PointerUp | Wheel | KeyDown | KeyUp | TextInput,
 }
 
 public readonly record struct LowLevelRepaintRequest(
     LowLevelRepaintRequestKind Kind,
     SceneDamageRect RepaintRect,
-    SceneDamageRect? SensitiveRect = null);
+    SceneDamageRect? SensitiveRect = null
+);
 
 public readonly record struct LowLevelRepaintEvent(
     LowLevelRepaintEventKind Kind,
     float X = float.NaN,
-    float Y = float.NaN)
+    float Y = float.NaN
+)
 {
     public bool HasPointer => !float.IsNaN(X) && !float.IsNaN(Y);
 }
 
 public static class LowLevelRepaintMatcher
 {
-    public static bool IsMatch(LowLevelRepaintRequest request, ReadOnlySpan<LowLevelRepaintEvent> events)
+    public static bool IsMatch(
+        LowLevelRepaintRequest request,
+        ReadOnlySpan<LowLevelRepaintEvent> events
+    )
     {
         if (request.Kind == LowLevelRepaintRequestKind.NoRepaint)
             return false;
@@ -66,28 +71,48 @@ public static class LowLevelRepaintMatcher
         if (request.SensitiveRect is not { } sensitiveRect)
             return true;
 
-        return repaintEvent.HasPointer &&
-               repaintEvent.X >= sensitiveRect.X &&
-               repaintEvent.Y >= sensitiveRect.Y &&
-               repaintEvent.X <= sensitiveRect.X + sensitiveRect.Width &&
-               repaintEvent.Y <= sensitiveRect.Y + sensitiveRect.Height;
+        return repaintEvent.HasPointer
+            && repaintEvent.X >= sensitiveRect.X
+            && repaintEvent.Y >= sensitiveRect.Y
+            && repaintEvent.X <= sensitiveRect.X + sensitiveRect.Width
+            && repaintEvent.Y <= sensitiveRect.Y + sensitiveRect.Height;
     }
 
-    private static bool MatchesKind(LowLevelRepaintRequestKind requestKind, LowLevelRepaintEventKind eventKind)
+    private static bool MatchesKind(
+        LowLevelRepaintRequestKind requestKind,
+        LowLevelRepaintEventKind eventKind
+    )
     {
         return requestKind switch
         {
             LowLevelRepaintRequestKind.NoRepaint => false,
-            LowLevelRepaintRequestKind.NextFrame => eventKind.HasFlag(LowLevelRepaintEventKind.Frame),
-            LowLevelRepaintRequestKind.NextPointerMove => eventKind.HasFlag(LowLevelRepaintEventKind.PointerMove),
-            LowLevelRepaintRequestKind.NextPointerDown => eventKind.HasFlag(LowLevelRepaintEventKind.PointerDown),
-            LowLevelRepaintRequestKind.NextPointerUp => eventKind.HasFlag(LowLevelRepaintEventKind.PointerUp),
-            LowLevelRepaintRequestKind.NextWheel => eventKind.HasFlag(LowLevelRepaintEventKind.Wheel),
-            LowLevelRepaintRequestKind.NextKeyDown => eventKind.HasFlag(LowLevelRepaintEventKind.KeyDown),
-            LowLevelRepaintRequestKind.NextKeyUp => eventKind.HasFlag(LowLevelRepaintEventKind.KeyUp),
-            LowLevelRepaintRequestKind.NextTextInput => eventKind.HasFlag(LowLevelRepaintEventKind.TextInput),
-            LowLevelRepaintRequestKind.NextInput => (eventKind & LowLevelRepaintEventKind.AnyInput) != 0,
-            _ => false
+            LowLevelRepaintRequestKind.NextFrame => eventKind.HasFlag(
+                LowLevelRepaintEventKind.Frame
+            ),
+            LowLevelRepaintRequestKind.NextPointerMove => eventKind.HasFlag(
+                LowLevelRepaintEventKind.PointerMove
+            ),
+            LowLevelRepaintRequestKind.NextPointerDown => eventKind.HasFlag(
+                LowLevelRepaintEventKind.PointerDown
+            ),
+            LowLevelRepaintRequestKind.NextPointerUp => eventKind.HasFlag(
+                LowLevelRepaintEventKind.PointerUp
+            ),
+            LowLevelRepaintRequestKind.NextWheel => eventKind.HasFlag(
+                LowLevelRepaintEventKind.Wheel
+            ),
+            LowLevelRepaintRequestKind.NextKeyDown => eventKind.HasFlag(
+                LowLevelRepaintEventKind.KeyDown
+            ),
+            LowLevelRepaintRequestKind.NextKeyUp => eventKind.HasFlag(
+                LowLevelRepaintEventKind.KeyUp
+            ),
+            LowLevelRepaintRequestKind.NextTextInput => eventKind.HasFlag(
+                LowLevelRepaintEventKind.TextInput
+            ),
+            LowLevelRepaintRequestKind.NextInput => (eventKind & LowLevelRepaintEventKind.AnyInput)
+                != 0,
+            _ => false,
         };
     }
 }

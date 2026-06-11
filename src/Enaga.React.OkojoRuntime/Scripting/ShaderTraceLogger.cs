@@ -25,7 +25,10 @@ internal sealed class ShaderTraceLogger(IRuntimeDiagnosticsSink diagnostics)
         observedFrames++;
     }
 
-    public void RecordShaderOnly(ReadOnlySpan<SceneDamageRect> dirtyRects, bool shaderAnimationEnabled)
+    public void RecordShaderOnly(
+        ReadOnlySpan<SceneDamageRect> dirtyRects,
+        bool shaderAnimationEnabled
+    )
     {
         if (!IsEnabled() || !shaderAnimationEnabled || dirtyRects.Length == 0)
             return;
@@ -53,25 +56,33 @@ internal sealed class ShaderTraceLogger(IRuntimeDiagnosticsSink diagnostics)
         fullRenderReasons |= damageReasons;
     }
 
-    public void FlushIfDue(double elapsedMs, int frameCount, bool shaderAnimationEnabled, bool renderInvalidated)
+    public void FlushIfDue(
+        double elapsedMs,
+        int frameCount,
+        bool shaderAnimationEnabled,
+        bool renderInvalidated
+    )
     {
         if (!IsEnabled() || elapsedMs < nextTraceAtMs)
             return;
 
-        diagnostics.Write(new RuntimeDiagnosticEvent(
-            RuntimeDiagnosticArea.ShaderTrace,
-            SourceName,
-            $"frame={frameCount} " +
-            $"elapsed={elapsedMs:F1}ms " +
-            $"enabled={shaderAnimationEnabled} " +
-            $"invalidated={renderInvalidated} " +
-            $"observed={observedFrames} " +
-            $"shaderOnly={shaderOnlyFrames} " +
-            $"fullRender={fullRenderFrames} " +
-            $"noDamage={noDamageFrames} " +
-            $"dirtyRects={shaderDirtyRectCount} " +
-            $"dirtyPixels={shaderDirtyPixels} " +
-            $"fullRenderReasons={fullRenderReasons}"));
+        diagnostics.Write(
+            new RuntimeDiagnosticEvent(
+                RuntimeDiagnosticArea.ShaderTrace,
+                SourceName,
+                $"frame={frameCount} "
+                    + $"elapsed={elapsedMs:F1}ms "
+                    + $"enabled={shaderAnimationEnabled} "
+                    + $"invalidated={renderInvalidated} "
+                    + $"observed={observedFrames} "
+                    + $"shaderOnly={shaderOnlyFrames} "
+                    + $"fullRender={fullRenderFrames} "
+                    + $"noDamage={noDamageFrames} "
+                    + $"dirtyRects={shaderDirtyRectCount} "
+                    + $"dirtyPixels={shaderDirtyPixels} "
+                    + $"fullRenderReasons={fullRenderReasons}"
+            )
+        );
 
         observedFrames = 0;
         shaderOnlyFrames = 0;

@@ -1,5 +1,5 @@
-using Enaga.Scene;
 using Enaga.Html.Dom;
+using Enaga.Scene;
 
 namespace Enaga.Html;
 
@@ -9,12 +9,16 @@ internal readonly record struct HtmlSceneNodeId(int Value, int FragmentIndex = 0
 
     public bool IsFragment => FragmentIndex > 0;
 
-    public static HtmlSceneNodeId Fragment(HtmlSceneNodeId source, int fragmentIndex)
-        => new(source.Value, fragmentIndex + 1);
+    public static HtmlSceneNodeId Fragment(HtmlSceneNodeId source, int fragmentIndex) =>
+        new(source.Value, fragmentIndex + 1);
 
-    public override string ToString()
-        => IsFragment
-            ? string.Concat(Value.ToString(System.Globalization.CultureInfo.InvariantCulture), ":frag:", (FragmentIndex - 1).ToString(System.Globalization.CultureInfo.InvariantCulture))
+    public override string ToString() =>
+        IsFragment
+            ? string.Concat(
+                Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ":frag:",
+                (FragmentIndex - 1).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            )
             : Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
 
@@ -30,7 +34,7 @@ internal enum HtmlSceneNodeRole : byte
     ListContent,
     InlineRun,
     Text,
-    InputText
+    InputText,
 }
 
 internal sealed record HtmlSceneNode(
@@ -48,7 +52,8 @@ internal sealed record HtmlSceneNode(
     int ColSpan = 1,
     SceneControlKind ControlKind = SceneControlKind.None,
     HtmlSceneNodeRole Role = HtmlSceneNodeRole.Normal,
-    bool IsChecked = false)
+    bool IsChecked = false
+)
 {
     public HtmlSceneNodeId Id { get; set; } = Id;
 
@@ -69,7 +74,8 @@ internal sealed record HtmlStyledSceneTree(
     HtmlComputedStyle RootStyle,
     HtmlSceneNode[] RootChildren,
     uint StyleStoreGeneration,
-    HtmlNodeId RootDomNodeId);
+    HtmlNodeId RootDomNodeId
+);
 
 internal readonly record struct HtmlPlacedNode(
     HtmlSceneNode Node,
@@ -79,14 +85,19 @@ internal readonly record struct HtmlPlacedNode(
     float Width,
     float Height,
     int FragmentIndex = -1,
-    string? TextContentOverride = null)
+    string? TextContentOverride = null
+)
 {
-    public HtmlSceneNodeId Id => FragmentIndex >= 0 ? HtmlSceneNodeId.Fragment(Node.Id, FragmentIndex) : Node.Id;
+    public HtmlSceneNodeId Id =>
+        FragmentIndex >= 0 ? HtmlSceneNodeId.Fragment(Node.Id, FragmentIndex) : Node.Id;
 
     public string? TextContent => TextContentOverride ?? Node.TextContent;
 }
 
-internal readonly record struct HtmlChildRelation(HtmlSceneNodeId ParentId, HtmlSceneNodeId[] ChildIds);
+internal readonly record struct HtmlChildRelation(
+    HtmlSceneNodeId ParentId,
+    HtmlSceneNodeId[] ChildIds
+);
 
 internal sealed class HtmlNodeIdGenerator
 {

@@ -5,7 +5,6 @@ using Svg.Skia;
 
 namespace Enaga.Rendering.Skia;
 
-
 internal sealed class SkiaImageAsset : IDisposable
 {
     private SkiaImageAsset(SKImage? rasterImage, SKPicture? vectorPicture, SKRect sourceRect)
@@ -19,11 +18,15 @@ internal sealed class SkiaImageAsset : IDisposable
     public SKPicture? VectorPicture { get; }
     public SKRect SourceRect { get; }
 
-    public static SkiaImageAsset CreateRaster(SKImage rasterImage)
-        => new(rasterImage, null, SKRect.Create(rasterImage.Width, rasterImage.Height));
+    public static SkiaImageAsset CreateRaster(SKImage rasterImage) =>
+        new(rasterImage, null, SKRect.Create(rasterImage.Width, rasterImage.Height));
 
-    public static SkiaImageAsset CreateVector(SKPicture vectorPicture, SKRect sourceRect)
-        => new(null, vectorPicture, sourceRect.Width > 0 && sourceRect.Height > 0 ? sourceRect : SKRect.Create(1, 1));
+    public static SkiaImageAsset CreateVector(SKPicture vectorPicture, SKRect sourceRect) =>
+        new(
+            null,
+            vectorPicture,
+            sourceRect.Width > 0 && sourceRect.Height > 0 ? sourceRect : SKRect.Create(1, 1)
+        );
 
     public void Dispose()
     {
@@ -34,7 +37,11 @@ internal sealed class SkiaImageAsset : IDisposable
 
 internal static class SkiaImageAssetLoader
 {
-    public static bool TryLoadFromPath(string? localPath, out SkiaImageAsset? asset, out string? error)
+    public static bool TryLoadFromPath(
+        string? localPath,
+        out SkiaImageAsset? asset,
+        out string? error
+    )
     {
         asset = null;
         error = null;
@@ -49,9 +56,7 @@ internal static class SkiaImageAssetLoader
 
         try
         {
-            asset = IsSvgPath(localPath)
-                ? LoadVectorImage(localPath)
-                : LoadRasterImage(localPath);
+            asset = IsSvgPath(localPath) ? LoadVectorImage(localPath) : LoadRasterImage(localPath);
 
             if (asset is not null)
                 return true;
@@ -87,8 +92,8 @@ internal static class SkiaImageAssetLoader
         return asset;
     }
 
-    private static bool IsSvgPath(string localPath)
-        => string.Equals(Path.GetExtension(localPath), ".svg", StringComparison.OrdinalIgnoreCase);
+    private static bool IsSvgPath(string localPath) =>
+        string.Equals(Path.GetExtension(localPath), ".svg", StringComparison.OrdinalIgnoreCase);
 
     private static SkiaImageAsset? LoadRasterImage(string localPath)
     {

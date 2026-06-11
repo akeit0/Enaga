@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+
 namespace Enaga.React.OkojoRuntime;
 
 internal sealed class HostInputState
@@ -110,10 +111,10 @@ internal sealed class HostInputState
 
     public bool IsDoubleClick(string id, float x, float y, double elapsedMs)
     {
-        return string.Equals(LastPrimaryClickTextInputId, id, StringComparison.Ordinal) &&
-               elapsedMs - LastPrimaryClickElapsedMs <= DoubleClickThresholdMs &&
-               Math.Abs(x - LastPrimaryClickX) <= DoubleClickThresholdPx &&
-               Math.Abs(y - LastPrimaryClickY) <= DoubleClickThresholdPx;
+        return string.Equals(LastPrimaryClickTextInputId, id, StringComparison.Ordinal)
+            && elapsedMs - LastPrimaryClickElapsedMs <= DoubleClickThresholdMs
+            && Math.Abs(x - LastPrimaryClickX) <= DoubleClickThresholdPx
+            && Math.Abs(y - LastPrimaryClickY) <= DoubleClickThresholdPx;
     }
 
     public bool TryDequeueCoalescedEvent(out HostInputEvent inputEvent)
@@ -149,6 +150,14 @@ internal sealed class HostInputState
     }
 }
 
-internal readonly record struct HostKeyRepeatState(double NextRepeatAtMs, int Modifiers, double IntervalMs);
+internal readonly record struct HostKeyRepeatState(
+    double NextRepeatAtMs,
+    int Modifiers,
+    double IntervalMs
+);
 
-internal readonly record struct HostPrintableRepeatState(string Key, string Text, bool NativeInputAccepted);
+internal readonly record struct HostPrintableRepeatState(
+    string Key,
+    string Text,
+    bool NativeInputAccepted
+);

@@ -8,13 +8,16 @@ public sealed class HtmlDomDocumentTests
     [Fact]
     public void ToDomDocument_IndexesElementsForHostDomApi()
     {
-        var parsed = new HtmlDocumentParser().Parse("""
+        var parsed = new HtmlDocumentParser().Parse(
+            """
             <body>
               <main id="app">
                 <button id="run" class="primary action">Run</button>
               </main>
             </body>
-            """, basePath: "site");
+            """,
+            basePath: "site"
+        );
 
         var document = parsed.ToDomDocument();
         var button = document.GetElementById("run");
@@ -24,14 +27,18 @@ public sealed class HtmlDomDocumentTests
         Assert.Equal(button, document.QuerySelector("#run"));
         Assert.Equal(button, document.QuerySelector(".action"));
         Assert.Equal(button, document.GetElementsByTagName("button").Single());
-        Assert.Equal(document.GetElementById("app")!.NodeId, document.GetParentNodeId(button.NodeId));
+        Assert.Equal(
+            document.GetElementById("app")!.NodeId,
+            document.GetParentNodeId(button.NodeId)
+        );
         Assert.Contains(button, document.EnumerateSelfAndAncestors(button.NodeId));
     }
 
     [Fact]
     public void Parse_ExposesExecutableInlineScriptsFromHtmlSide()
     {
-        var parsed = new HtmlDocumentParser().Parse("""
+        var parsed = new HtmlDocumentParser().Parse(
+            """
             <head>
               <script>window.first = 1;</script>
               <script src="/app.js">ignored()</script>
@@ -39,9 +46,14 @@ public sealed class HtmlDomDocumentTests
               <script type="text/javascript">window.second = 2;</script>
             </head>
             <body></body>
-            """, basePath: null);
+            """,
+            basePath: null
+        );
 
-        Assert.Equal(["window.first = 1;", "window.second = 2;"], parsed.GetExecutableInlineScriptTexts());
+        Assert.Equal(
+            ["window.first = 1;", "window.second = 2;"],
+            parsed.GetExecutableInlineScriptTexts()
+        );
         Assert.Equal(4, parsed.AuthorScripts.Count);
         Assert.True(parsed.AuthorScripts[1].HasSource);
     }
@@ -49,11 +61,14 @@ public sealed class HtmlDomDocumentTests
     [Fact]
     public void DomDocument_ExposesInnerTextAndCreateElement()
     {
-        var parsed = new HtmlDocumentParser().Parse("""
+        var parsed = new HtmlDocumentParser().Parse(
+            """
             <body>
               <main id="app">Hello <span>world</span><script>ignored()</script><style>.x{}</style></main>
             </body>
-            """, basePath: null);
+            """,
+            basePath: null
+        );
         var document = parsed.ToDomDocument();
 
         Assert.Equal("Hello world", document.GetElementById("app")!.InnerText);
@@ -68,9 +83,12 @@ public sealed class HtmlDomDocumentTests
     [Fact]
     public void DomDocument_SetTextContentUpdatesTreeAndSerialization()
     {
-        var parsed = new HtmlDocumentParser().Parse("""
+        var parsed = new HtmlDocumentParser().Parse(
+            """
             <body><main id="app"><span>old</span></main></body>
-            """, basePath: null);
+            """,
+            basePath: null
+        );
         var document = parsed.ToDomDocument();
         var app = document.GetElementById("app")!;
 
@@ -85,7 +103,10 @@ public sealed class HtmlDomDocumentTests
     [Fact]
     public void DomDocument_AppendChildAttachesCreatedElement()
     {
-        var parsed = new HtmlDocumentParser().Parse("<body><main id=\"app\"></main></body>", basePath: null);
+        var parsed = new HtmlDocumentParser().Parse(
+            "<body><main id=\"app\"></main></body>",
+            basePath: null
+        );
         var document = parsed.ToDomDocument();
         var app = document.GetElementById("app")!;
         var button = document.CreateElement("button");
@@ -95,13 +116,19 @@ public sealed class HtmlDomDocumentTests
 
         Assert.NotNull(updatedParent);
         Assert.Equal("Run", document.GetElementById("app")!.TextContent);
-        Assert.Equal("<body><main id=\"app\"><button>Run</button></main></body>", document.ToHtml());
+        Assert.Equal(
+            "<body><main id=\"app\"><button>Run</button></main></body>",
+            document.ToHtml()
+        );
     }
 
     [Fact]
     public void DomDocument_SetAndRemoveAttributeUpdatesIndexesAndSerialization()
     {
-        var parsed = new HtmlDocumentParser().Parse("<body><main id=\"app\"></main></body>", basePath: null);
+        var parsed = new HtmlDocumentParser().Parse(
+            "<body><main id=\"app\"></main></body>",
+            basePath: null
+        );
         var document = parsed.ToDomDocument();
         var app = document.GetElementById("app")!;
 
@@ -111,7 +138,10 @@ public sealed class HtmlDomDocumentTests
         Assert.Null(document.GetElementById("app"));
         Assert.Equal(updated, document.GetElementById("root"));
         Assert.Equal(updated, document.QuerySelector(".panel"));
-        Assert.Equal("<body><main id=\"root\" class=\"active panel\"></main></body>", document.ToHtml());
+        Assert.Equal(
+            "<body><main id=\"root\" class=\"active panel\"></main></body>",
+            document.ToHtml()
+        );
 
         updated = document.RemoveAttribute(updated!.NodeId, "class");
 

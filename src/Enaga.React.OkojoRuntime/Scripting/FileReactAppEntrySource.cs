@@ -6,7 +6,11 @@ public sealed class FileReactAppEntrySource : IReactAppEntrySource
     private readonly string assetBasePath;
     private readonly string[] watchPaths;
 
-    public FileReactAppEntrySource(string entryPath, IEnumerable<string>? watchPaths = null, string? assetBasePath = null)
+    public FileReactAppEntrySource(
+        string entryPath,
+        IEnumerable<string>? watchPaths = null,
+        string? assetBasePath = null
+    )
     {
         if (string.IsNullOrWhiteSpace(entryPath))
             throw new InvalidOperationException("A valid React entry path is required.");
@@ -15,11 +19,13 @@ public sealed class FileReactAppEntrySource : IReactAppEntrySource
         this.assetBasePath = string.IsNullOrWhiteSpace(assetBasePath)
             ? this.entryPath
             : Path.GetFullPath(assetBasePath);
-        this.watchPaths = watchPaths?.Where(static path => !string.IsNullOrWhiteSpace(path))
-                             .Select(Path.GetFullPath)
-                             .Distinct(StringComparer.OrdinalIgnoreCase)
-                             .ToArray()
-                          ?? [this.entryPath];
+        this.watchPaths =
+            watchPaths
+                ?.Where(static path => !string.IsNullOrWhiteSpace(path))
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+            ?? [this.entryPath];
     }
 
     public string DisplayPath => entryPath;
@@ -33,7 +39,5 @@ public sealed class FileReactAppEntrySource : IReactAppEntrySource
 
     public string PrepareEntryPath() => entryPath;
 
-    public void Dispose()
-    {
-    }
+    public void Dispose() { }
 }

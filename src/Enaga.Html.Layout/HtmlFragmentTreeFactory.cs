@@ -12,25 +12,29 @@ internal static class HtmlFragmentTreeFactory
         float rootHeight,
         List<HtmlPlacedNode> placedNodes,
         SceneNodeMap<SceneLayoutBox>? layout = null,
-        HtmlFragmentTree? previousTree = null)
+        HtmlFragmentTree? previousTree = null
+    )
     {
         var rootFragmentId = CreateFragmentId(rootId);
         var rootSceneNodeId = sceneNodeIds.GetOrCreate(rootId);
         var fragments = new List<HtmlFragment>(placedNodes.Count + 5);
         var rootRect = new HtmlLayoutRect(0, 0, rootWidth, rootHeight);
-        fragments.Add(CreateOrReuseFragment(
-            previousTree,
-            rootFragmentId,
-            CreateFormattingNodeId(rootId),
-            ParentId: null,
-            Children: [],
-            HtmlFragmentKind.BlockBox,
-            rootRect,
-            rootRect,
-            PaintVersion: 1,
-            rootSceneNodeId,
-            rootId,
-            HtmlGeneratedFragmentRole.None));
+        fragments.Add(
+            CreateOrReuseFragment(
+                previousTree,
+                rootFragmentId,
+                CreateFormattingNodeId(rootId),
+                ParentId: null,
+                Children: [],
+                HtmlFragmentKind.BlockBox,
+                rootRect,
+                rootRect,
+                PaintVersion: 1,
+                rootSceneNodeId,
+                rootId,
+                HtmlGeneratedFragmentRole.None
+            )
+        );
         if (layout is not null && layout.TryGetValue(rootSceneNodeId, out var rootBox))
             AddScrollBarFragments(fragments, previousTree, rootId, rootId, rootFragmentId, rootBox);
 
@@ -40,29 +44,46 @@ internal static class HtmlFragmentTreeFactory
             var id = placed.Id;
             var sceneNodeId = sceneNodeIds.GetOrCreate(id);
             var kind = ResolveFragmentKind(placed.Node);
-            var rect = new HtmlLayoutRect(placed.AbsLeft, placed.AbsTop, placed.Width, placed.Height);
-            fragments.Add(CreateOrReuseFragment(
-                previousTree,
-                CreateFragmentId(id),
-                CreateFormattingNodeId(placed.Node.Id),
-                ParentId: placed.ParentId is null ? rootFragmentId : CreateFragmentId(placed.ParentId.Value),
-                Children: [],
-                kind,
-                borderBox: rect,
-                visualOverflow: ResolveVisualOverflow(placed, rect),
-                PaintVersion: ResolvePaintVersion(placed),
-                sceneNodeId,
-                placed.Node.Id,
-                HtmlGeneratedFragmentRole.None));
+            var rect = new HtmlLayoutRect(
+                placed.AbsLeft,
+                placed.AbsTop,
+                placed.Width,
+                placed.Height
+            );
+            fragments.Add(
+                CreateOrReuseFragment(
+                    previousTree,
+                    CreateFragmentId(id),
+                    CreateFormattingNodeId(placed.Node.Id),
+                    ParentId: placed.ParentId is null
+                        ? rootFragmentId
+                        : CreateFragmentId(placed.ParentId.Value),
+                    Children: [],
+                    kind,
+                    borderBox: rect,
+                    visualOverflow: ResolveVisualOverflow(placed, rect),
+                    PaintVersion: ResolvePaintVersion(placed),
+                    sceneNodeId,
+                    placed.Node.Id,
+                    HtmlGeneratedFragmentRole.None
+                )
+            );
             if (layout is not null && layout.TryGetValue(sceneNodeId, out var box))
-                AddScrollBarFragments(fragments, previousTree, id, placed.Node.Id, CreateFragmentId(id), box);
+                AddScrollBarFragments(
+                    fragments,
+                    previousTree,
+                    id,
+                    placed.Node.Id,
+                    CreateFragmentId(id),
+                    box
+                );
         }
 
         return new HtmlFragmentTree(rootFragmentId, fragments);
     }
 
-    private static HtmlFragmentKind ResolveFragmentKind(HtmlPlacedNode placed)
-        => ResolveFragmentKind(placed.Node);
+    private static HtmlFragmentKind ResolveFragmentKind(HtmlPlacedNode placed) =>
+        ResolveFragmentKind(placed.Node);
 
     private static HtmlFragmentKind ResolveFragmentKind(HtmlSceneNode node)
     {
@@ -76,7 +97,7 @@ internal static class HtmlFragmentTreeFactory
             Enaga.Scene.SceneNodeKind.Text => HtmlFragmentKind.TextRun,
             Enaga.Scene.SceneNodeKind.Image => HtmlFragmentKind.Image,
             Enaga.Scene.SceneNodeKind.ScrollView => HtmlFragmentKind.BlockBox,
-            _ => HtmlFragmentKind.BlockBox
+            _ => HtmlFragmentKind.BlockBox,
         };
     }
 
@@ -86,7 +107,8 @@ internal static class HtmlFragmentTreeFactory
         HtmlSceneNodeId sceneNodeId,
         HtmlSceneNodeId sourceSceneNodeId,
         HtmlFragmentId parentId,
-        SceneLayoutBox box)
+        SceneLayoutBox box
+    )
     {
         if (box.NodeKind != SceneNodeKind.ScrollView)
             return;
@@ -102,8 +124,14 @@ internal static class HtmlFragmentTreeFactory
                 sourceSceneNodeId,
                 parentId,
                 HtmlGeneratedFragmentRole.VerticalScrollBarGutter,
-                new HtmlLayoutRect(box.AbsLeft + box.Width - gutterWidth, box.AbsTop, gutterWidth, box.Height),
-                paintVersion);
+                new HtmlLayoutRect(
+                    box.AbsLeft + box.Width - gutterWidth,
+                    box.AbsTop,
+                    gutterWidth,
+                    box.Height
+                ),
+                paintVersion
+            );
             AddGeneratedFragment(
                 fragments,
                 previousTree,
@@ -112,7 +140,8 @@ internal static class HtmlFragmentTreeFactory
                 parentId,
                 HtmlGeneratedFragmentRole.VerticalScrollBarThumb,
                 ToLayoutRect(vertical.ThumbRect),
-                paintVersion);
+                paintVersion
+            );
         }
 
         if (SceneScrollBarLayout.ResolveHorizontalScrollBar(box) is { } horizontal)
@@ -125,8 +154,14 @@ internal static class HtmlFragmentTreeFactory
                 sourceSceneNodeId,
                 parentId,
                 HtmlGeneratedFragmentRole.HorizontalScrollBarGutter,
-                new HtmlLayoutRect(box.AbsLeft, box.AbsTop + box.Height - gutterHeight, box.Width, gutterHeight),
-                paintVersion);
+                new HtmlLayoutRect(
+                    box.AbsLeft,
+                    box.AbsTop + box.Height - gutterHeight,
+                    box.Width,
+                    gutterHeight
+                ),
+                paintVersion
+            );
             AddGeneratedFragment(
                 fragments,
                 previousTree,
@@ -135,7 +170,8 @@ internal static class HtmlFragmentTreeFactory
                 parentId,
                 HtmlGeneratedFragmentRole.HorizontalScrollBarThumb,
                 ToLayoutRect(horizontal.ThumbRect),
-                paintVersion);
+                paintVersion
+            );
         }
     }
 
@@ -147,24 +183,28 @@ internal static class HtmlFragmentTreeFactory
         HtmlFragmentId parentId,
         HtmlGeneratedFragmentRole role,
         HtmlLayoutRect rect,
-        uint paintVersion)
+        uint paintVersion
+    )
     {
         if (rect.IsEmpty)
             return;
 
-        fragments.Add(CreateOrReuseFragment(
-            previousTree,
-            CreateGeneratedFragmentId(sceneNodeId, role),
-            CreateFormattingNodeId(sourceSceneNodeId),
-            parentId,
-            Children: [],
-            HtmlFragmentKind.ScrollBar,
-            rect,
-            rect,
-            paintVersion,
-            SceneNodeId: default,
-            sourceSceneNodeId,
-            role));
+        fragments.Add(
+            CreateOrReuseFragment(
+                previousTree,
+                CreateGeneratedFragmentId(sceneNodeId, role),
+                CreateFormattingNodeId(sourceSceneNodeId),
+                parentId,
+                Children: [],
+                HtmlFragmentKind.ScrollBar,
+                rect,
+                rect,
+                paintVersion,
+                SceneNodeId: default,
+                sourceSceneNodeId,
+                role
+            )
+        );
     }
 
     private static HtmlFragment CreateOrReuseFragment(
@@ -179,20 +219,23 @@ internal static class HtmlFragmentTreeFactory
         uint PaintVersion,
         SceneNodeId SceneNodeId,
         HtmlSceneNodeId SourceSceneNodeId,
-        HtmlGeneratedFragmentRole GeneratedRole)
+        HtmlGeneratedFragmentRole GeneratedRole
+    )
     {
-        if (previousTree is not null &&
-            previousTree.TryGetFragment(id, out var previous) &&
-            previous.SourceNodeId == sourceNodeId &&
-            previous.ParentId == ParentId &&
-            previous.Children.Count == Children.Count &&
-            previous.Kind == kind &&
-            previous.BorderBox == borderBox &&
-            previous.VisualOverflow == visualOverflow &&
-            previous.PaintVersion == PaintVersion &&
-            previous.SceneNodeId == SceneNodeId &&
-            previous.SourceSceneNodeId == SourceSceneNodeId &&
-            previous.GeneratedRole == GeneratedRole)
+        if (
+            previousTree is not null
+            && previousTree.TryGetFragment(id, out var previous)
+            && previous.SourceNodeId == sourceNodeId
+            && previous.ParentId == ParentId
+            && previous.Children.Count == Children.Count
+            && previous.Kind == kind
+            && previous.BorderBox == borderBox
+            && previous.VisualOverflow == visualOverflow
+            && previous.PaintVersion == PaintVersion
+            && previous.SceneNodeId == SceneNodeId
+            && previous.SourceSceneNodeId == SourceSceneNodeId
+            && previous.GeneratedRole == GeneratedRole
+        )
         {
             return previous;
         }
@@ -208,34 +251,55 @@ internal static class HtmlFragmentTreeFactory
             PaintVersion,
             SceneNodeId,
             SourceSceneNodeId,
-            GeneratedRole);
+            GeneratedRole
+        );
     }
 
-    private static HtmlLayoutRect ToLayoutRect(SceneScrollBarLayout.ScrollBarRect rect)
-        => new(rect.Left, rect.Top, rect.Width, rect.Height);
+    private static HtmlLayoutRect ToLayoutRect(SceneScrollBarLayout.ScrollBarRect rect) =>
+        new(rect.Left, rect.Top, rect.Width, rect.Height);
 
-    private static HtmlLayoutRect ResolveVisualOverflow(HtmlPlacedNode placed, HtmlLayoutRect borderBox)
+    private static HtmlLayoutRect ResolveVisualOverflow(
+        HtmlPlacedNode placed,
+        HtmlLayoutRect borderBox
+    )
     {
         var style = placed.Node.Style;
         var shadowOutset = 0f;
         if (style.BackgroundShadows is { Length: > 0 } shadows)
         {
             for (var index = 0; index < shadows.Length; index++)
-                shadowOutset = Math.Max(shadowOutset, Math.Abs(shadows[index].OffsetX) + Math.Abs(shadows[index].OffsetY) + shadows[index].Blur + shadows[index].Spread);
+                shadowOutset = Math.Max(
+                    shadowOutset,
+                    Math.Abs(shadows[index].OffsetX)
+                        + Math.Abs(shadows[index].OffsetY)
+                        + shadows[index].Blur
+                        + shadows[index].Spread
+                );
         }
         if (style.TextShadows is { Length: > 0 } textShadows)
         {
             for (var index = 0; index < textShadows.Length; index++)
-                shadowOutset = Math.Max(shadowOutset, Math.Abs(textShadows[index].OffsetX) + Math.Abs(textShadows[index].OffsetY) + textShadows[index].Blur);
+                shadowOutset = Math.Max(
+                    shadowOutset,
+                    Math.Abs(textShadows[index].OffsetX)
+                        + Math.Abs(textShadows[index].OffsetY)
+                        + textShadows[index].Blur
+                );
         }
 
         var borderOutset = Math.Max(
             Math.Max(style.BorderLeftWidth, style.BorderRightWidth),
-            Math.Max(style.BorderTopWidth, style.BorderBottomWidth));
+            Math.Max(style.BorderTopWidth, style.BorderBottomWidth)
+        );
         var outset = Math.Max(0, Math.Max(shadowOutset, borderOutset));
         return outset <= 0
             ? borderBox
-            : new HtmlLayoutRect(borderBox.Left - outset, borderBox.Top - outset, borderBox.Width + outset * 2, borderBox.Height + outset * 2);
+            : new HtmlLayoutRect(
+                borderBox.Left - outset,
+                borderBox.Top - outset,
+                borderBox.Width + outset * 2,
+                borderBox.Height + outset * 2
+            );
     }
 
     private static uint ResolvePaintVersion(HtmlPlacedNode placed)
@@ -284,17 +348,17 @@ internal static class HtmlFragmentTreeFactory
         return unchecked((uint)hash.ToHashCode());
     }
 
-    private static HtmlFragmentId CreateFragmentId(HtmlSceneNodeId id)
-        => new(StableHash(id));
+    private static HtmlFragmentId CreateFragmentId(HtmlSceneNodeId id) => new(StableHash(id));
 
-    private static HtmlFragmentId CreateGeneratedFragmentId(HtmlSceneNodeId id, HtmlGeneratedFragmentRole role)
-        => new(StableHash(id, (int)role));
+    private static HtmlFragmentId CreateGeneratedFragmentId(
+        HtmlSceneNodeId id,
+        HtmlGeneratedFragmentRole role
+    ) => new(StableHash(id, (int)role));
 
-    private static HtmlFormattingNodeId CreateFormattingNodeId(HtmlSceneNodeId id)
-        => new(StableHash(id));
+    private static HtmlFormattingNodeId CreateFormattingNodeId(HtmlSceneNodeId id) =>
+        new(StableHash(id));
 
-    private static int StableHash(HtmlSceneNodeId id)
-        => StableHash(id, 0);
+    private static int StableHash(HtmlSceneNodeId id) => StableHash(id, 0);
 
     private static int StableHash(HtmlSceneNodeId id, int discriminator)
     {

@@ -15,13 +15,8 @@ public sealed class SceneCommitPainterScrollBarTests
     public void ResolveVerticalScrollBar_ReturnsNullWhenContentFitsViewport()
     {
         var metrics = SceneCommitPainter.ResolveVerticalScrollBar(
-            new SceneLayoutBox(
-                SceneNodeKind.ScrollView,
-                20,
-                40,
-                200,
-                180,
-                ContentHeight: 180));
+            new SceneLayoutBox(SceneNodeKind.ScrollView, 20, 40, 200, 180, ContentHeight: 180)
+        );
 
         Assert.Null(metrics);
     }
@@ -30,13 +25,8 @@ public sealed class SceneCommitPainterScrollBarTests
     public void ResolveHorizontalScrollBar_ReturnsNullWhenHorizontalScrollIsDisabled()
     {
         var metrics = SceneCommitPainter.ResolveHorizontalScrollBar(
-            new SceneLayoutBox(
-                SceneNodeKind.ScrollView,
-                20,
-                40,
-                200,
-                100,
-                ContentWidth: 400));
+            new SceneLayoutBox(SceneNodeKind.ScrollView, 20, 40, 200, 100, ContentWidth: 400)
+        );
 
         Assert.Null(metrics);
     }
@@ -52,7 +42,9 @@ public sealed class SceneCommitPainterScrollBarTests
                 200,
                 100,
                 ScrollY: 100,
-                ContentHeight: 300));
+                ContentHeight: 300
+            )
+        );
 
         Assert.NotNull(metrics);
         Assert.True(Math.Abs(210f - metrics.Value.TrackRect.Left) < 0.001f);
@@ -73,7 +65,8 @@ public sealed class SceneCommitPainterScrollBarTests
             100,
             100,
             ScrollBarWidth: 6,
-            ContentHeight: 300);
+            ContentHeight: 300
+        );
 
         var metrics = SceneCommitPainter.ResolveVerticalScrollBar(box);
 
@@ -95,7 +88,8 @@ public sealed class SceneCommitPainterScrollBarTests
             100,
             100,
             ScrollBarWidth: 12 / 1.3f,
-            ContentHeight: 300);
+            ContentHeight: 300
+        );
 
         var metrics = SceneCommitPainter.ResolvePresentationVerticalScrollBar(box, 1.3f, 130, 130);
 
@@ -117,7 +111,8 @@ public sealed class SceneCommitPainterScrollBarTests
             93,
             100,
             ScrollBarWidth: 12 / 1.3f,
-            ContentHeight: 300);
+            ContentHeight: 300
+        );
 
         var metrics = SceneCommitPainter.ResolvePresentationVerticalScrollBar(box, 1.3f, 120, 130);
 
@@ -137,7 +132,8 @@ public sealed class SceneCommitPainterScrollBarTests
             93,
             100,
             ScrollBarWidth: 12,
-            ContentHeight: 300);
+            ContentHeight: 300
+        );
 
         var metrics = SceneCommitPainter.ResolvePresentationVerticalScrollBar(box, 1, 140, 180);
 
@@ -158,7 +154,8 @@ public sealed class SceneCommitPainterScrollBarTests
             80,
             100,
             ScrollBarWidth: 12,
-            ContentHeight: 300);
+            ContentHeight: 300
+        );
 
         var metrics = SceneCommitPainter.ResolvePresentationVerticalScrollBar(box, 3, 240, 300);
 
@@ -178,7 +175,8 @@ public sealed class SceneCommitPainterScrollBarTests
             80,
             100,
             ScrollBarWidth: 4,
-            ContentHeight: 300);
+            ContentHeight: 300
+        );
 
         var metrics = SceneCommitPainter.ResolvePresentationVerticalScrollBar(box, 3, 240, 300);
 
@@ -203,7 +201,16 @@ public sealed class SceneCommitPainterScrollBarTests
         var layout = new Dictionary<SceneNodeId, SceneLayoutBox>
         {
             [Root] = new(SceneNodeKind.View, 0, 0, 100, 100),
-            [Body] = new(SceneNodeKind.ScrollView, 0, 0, 93, 100, ScrollBarWidth: 12, ContentHeight: 300, ScrollBarTrackColor: "#1f1f1f"),
+            [Body] = new(
+                SceneNodeKind.ScrollView,
+                0,
+                0,
+                93,
+                100,
+                ScrollBarWidth: 12,
+                ContentHeight: 300,
+                ScrollBarTrackColor: "#1f1f1f"
+            ),
         };
         var commit = new SceneLayoutCommit(Root, new SceneViewport(140, 180), nodes, layout, []);
 
@@ -230,8 +237,26 @@ public sealed class SceneCommitPainterScrollBarTests
         var layout = new Dictionary<SceneNodeId, SceneLayoutBox>
         {
             [Root] = new(SceneNodeKind.View, 0, 0, 100, 100),
-            [Body] = new(SceneNodeKind.ScrollView, 0, 0, 100, 100, ScrollY: 40, ContentHeight: 240, ScrollBarTrackColor: "#1f1f1f"),
-            [Pane] = new(SceneNodeKind.ScrollView, 10, 80, 50, 40, ContentHeight: 120, ScrollBarWidth: 10, ScrollBarTrackColor: "#ff0000"),
+            [Body] = new(
+                SceneNodeKind.ScrollView,
+                0,
+                0,
+                100,
+                100,
+                ScrollY: 40,
+                ContentHeight: 240,
+                ScrollBarTrackColor: "#1f1f1f"
+            ),
+            [Pane] = new(
+                SceneNodeKind.ScrollView,
+                10,
+                80,
+                50,
+                40,
+                ContentHeight: 120,
+                ScrollBarWidth: 10,
+                ScrollBarTrackColor: "#ff0000"
+            ),
         };
         var commit = new SceneLayoutCommit(Root, new SceneViewport(120, 120), nodes, layout, []);
 
@@ -251,7 +276,8 @@ public sealed class SceneCommitPainterScrollBarTests
             200,
             100,
             ScrollY: 100,
-            ContentHeight: 300);
+            ContentHeight: 300
+        );
         var metrics = SceneCommitPainter.ResolveVerticalScrollBar(box);
 
         Assert.NotNull(metrics);
@@ -260,7 +286,8 @@ public sealed class SceneCommitPainterScrollBarTests
             metrics.Value.ThumbRect.MidX,
             metrics.Value.ThumbRect.Top + 6,
             out var resolved,
-            out var grabOffsetY);
+            out var grabOffsetY
+        );
 
         Assert.True(hit);
         Assert.Equal(metrics.Value, resolved);
@@ -276,14 +303,19 @@ public sealed class SceneCommitPainterScrollBarTests
             40,
             200,
             100,
-            ContentHeight: 300);
+            ContentHeight: 300
+        );
         var metrics = SceneCommitPainter.ResolveVerticalScrollBar(box);
 
         Assert.NotNull(metrics);
-        var topScroll = SceneCommitPainter.ResolveVerticalScrollOffsetFromThumbTop(box, metrics.Value.TrackRect.Top);
+        var topScroll = SceneCommitPainter.ResolveVerticalScrollOffsetFromThumbTop(
+            box,
+            metrics.Value.TrackRect.Top
+        );
         var bottomScroll = SceneCommitPainter.ResolveVerticalScrollOffsetFromThumbTop(
             box,
-            metrics.Value.TrackRect.Bottom - metrics.Value.ThumbRect.Height);
+            metrics.Value.TrackRect.Bottom - metrics.Value.ThumbRect.Height
+        );
 
         Assert.True(Math.Abs(0 - topScroll) < 0.001f);
         Assert.True(Math.Abs(200 - bottomScroll) < 0.001f);
@@ -300,7 +332,8 @@ public sealed class SceneCommitPainterScrollBarTests
             100,
             ScrollX: 100,
             ContentWidth: 400,
-            HorizontalScrollEnabled: true);
+            HorizontalScrollEnabled: true
+        );
         var metrics = SceneCommitPainter.ResolveHorizontalScrollBar(box);
 
         Assert.NotNull(metrics);
@@ -309,7 +342,8 @@ public sealed class SceneCommitPainterScrollBarTests
             metrics.Value.ThumbRect.Left + 8,
             metrics.Value.ThumbRect.MidY,
             out var resolved,
-            out var grabOffsetX);
+            out var grabOffsetX
+        );
 
         Assert.True(hit);
         Assert.Equal(metrics.Value, resolved);
@@ -326,14 +360,19 @@ public sealed class SceneCommitPainterScrollBarTests
             200,
             100,
             ContentWidth: 400,
-            HorizontalScrollEnabled: true);
+            HorizontalScrollEnabled: true
+        );
         var metrics = SceneCommitPainter.ResolveHorizontalScrollBar(box);
 
         Assert.NotNull(metrics);
-        var leftScroll = SceneCommitPainter.ResolveHorizontalScrollOffsetFromThumbLeft(box, metrics.Value.TrackRect.Left);
+        var leftScroll = SceneCommitPainter.ResolveHorizontalScrollOffsetFromThumbLeft(
+            box,
+            metrics.Value.TrackRect.Left
+        );
         var rightScroll = SceneCommitPainter.ResolveHorizontalScrollOffsetFromThumbLeft(
             box,
-            metrics.Value.TrackRect.Right - metrics.Value.ThumbRect.Width);
+            metrics.Value.TrackRect.Right - metrics.Value.ThumbRect.Width
+        );
 
         Assert.True(Math.Abs(0 - leftScroll) < 0.001f);
         Assert.True(Math.Abs(200 - rightScroll) < 0.001f);

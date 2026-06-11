@@ -28,7 +28,9 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
     private IDCompositionVisual? compositionVisual;
     private GRContext? grContext;
     private readonly ID3D12Resource?[] backBuffers = new ID3D12Resource[SwapChainBufferCount];
-    private readonly GRBackendRenderTarget?[] renderTargets = new GRBackendRenderTarget[SwapChainBufferCount];
+    private readonly GRBackendRenderTarget?[] renderTargets = new GRBackendRenderTarget[
+        SwapChainBufferCount
+    ];
     private readonly SKSurface?[] surfaces = new SKSurface[SwapChainBufferCount];
     private float lastPointerX = float.NaN;
     private float lastPointerY = float.NaN;
@@ -38,7 +40,10 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
     private int height;
     private bool disposed;
 
-    public WindowsDirectCompositionOverlayHost(IRenderRoot renderRoot, WindowsDirectCompositionOverlayOptions options)
+    public WindowsDirectCompositionOverlayHost(
+        IRenderRoot renderRoot,
+        WindowsDirectCompositionOverlayOptions options
+    )
     {
         this.renderRoot = renderRoot ?? throw new ArgumentNullException(nameof(renderRoot));
         this.options = options ?? throw new ArgumentNullException(nameof(options));
@@ -49,16 +54,18 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
 
     public bool HitTestOverlayInput(float x, float y)
     {
-        return renderRoot is IOverlayInputHitTestSource hitTestSource &&
-               hitTestSource.HitTestOverlayInput(x, y);
+        return renderRoot is IOverlayInputHitTestSource hitTestSource
+            && hitTestSource.HitTestOverlayInput(x, y);
     }
 
     public void PointerMove(float x, float y, int buttons, bool synthetic = false)
     {
-        if (x.Equals(lastPointerX) &&
-            y.Equals(lastPointerY) &&
-            buttons == lastPointerButtons &&
-            synthetic == lastPointerSynthetic)
+        if (
+            x.Equals(lastPointerX)
+            && y.Equals(lastPointerY)
+            && buttons == lastPointerButtons
+            && synthetic == lastPointerSynthetic
+        )
         {
             return;
         }
@@ -93,7 +100,13 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
         width = nextWidth;
         height = nextHeight;
         ReleaseSurfaces();
-        swapChain?.ResizeBuffers(SwapChainBufferCount, (uint)width, (uint)height, Format.B8G8R8A8_UNorm, SwapChainFlags.None);
+        swapChain?.ResizeBuffers(
+            SwapChainBufferCount,
+            (uint)width,
+            (uint)height,
+            Format.B8G8R8A8_UNorm,
+            SwapChainFlags.None
+        );
     }
 
     public void Tick(TimeSpan elapsed)
@@ -104,8 +117,10 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
 
         surface.Canvas.Clear(SKColors.Transparent);
         renderRoot.Render(surface.Canvas, width, height, elapsed);
-        if (renderRoot is IRenderDiagnosticsProvider diagnosticsProvider &&
-            !diagnosticsProvider.GetRenderRootDiagnosticsSnapshot().PaintedFrame)
+        if (
+            renderRoot is IRenderDiagnosticsProvider diagnosticsProvider
+            && !diagnosticsProvider.GetRenderRootDiagnosticsSnapshot().PaintedFrame
+        )
         {
             return;
         }
@@ -142,12 +157,20 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
     private void Initialize()
     {
         if (options.TargetWindowHandle == 0)
-            throw new ArgumentException("TargetWindowHandle must be a valid HWND.", nameof(options));
+            throw new ArgumentException(
+                "TargetWindowHandle must be a valid HWND.",
+                nameof(options)
+            );
 
         dxgiFactory = CreateDXGIFactory2<IDXGIFactory2>(false);
         dxgiAdapter = SelectHardwareAdapter(dxgiFactory);
-        d3dDevice = D3D12CreateDevice<ID3D12Device2>(dxgiAdapter.NativePointer, FeatureLevel.Level_11_0);
-        commandQueue = d3dDevice.CreateCommandQueue(new CommandQueueDescription(CommandListType.Direct));
+        d3dDevice = D3D12CreateDevice<ID3D12Device2>(
+            dxgiAdapter.NativePointer,
+            FeatureLevel.Level_11_0
+        );
+        commandQueue = d3dDevice.CreateCommandQueue(
+            new CommandQueueDescription(CommandListType.Direct)
+        );
         using var compositionSwapChain = dxgiFactory.CreateSwapChainForComposition(
             commandQueue,
             new SwapChainDescription1
@@ -162,11 +185,16 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
                 Scaling = Scaling.Stretch,
                 SwapEffect = SwapEffect.FlipSequential,
                 AlphaMode = AlphaMode.Premultiplied,
-            });
+            }
+        );
         swapChain = compositionSwapChain.QueryInterface<IDXGISwapChain3>();
 
         compositionDevice = DCompositionCreateDevice<IDCompositionDevice>(null!);
-        compositionDevice.CreateTargetForHwnd(options.TargetWindowHandle, options.IsTopmostInTarget, out compositionTarget);
+        compositionDevice.CreateTargetForHwnd(
+            options.TargetWindowHandle,
+            options.IsTopmostInTarget,
+            out compositionTarget
+        );
         compositionVisual = compositionDevice.CreateVisual();
         compositionVisual.SetContent(swapChain);
         compositionTarget.SetRoot(compositionVisual);
@@ -178,7 +206,8 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
             Device = d3dDevice,
             Queue = commandQueue,
         };
-        grContext = GRContext.CreateDirect3D(backendContext)
+        grContext =
+            GRContext.CreateDirect3D(backendContext)
             ?? throw new InvalidOperationException("Unable to create Skia Direct3D context.");
     }
 
@@ -196,7 +225,13 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
                 continue;
             }
 
-            if (D3D12CreateDevice<ID3D12Device2>(adapter.NativePointer, FeatureLevel.Level_11_0, out var testDevice).Success)
+            if (
+                D3D12CreateDevice<ID3D12Device2>(
+                    adapter.NativePointer,
+                    FeatureLevel.Level_11_0,
+                    out var testDevice
+                ).Success
+            )
             {
                 testDevice?.Dispose();
                 return adapter;
@@ -205,7 +240,9 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
             adapter.Dispose();
         }
 
-        throw new InvalidOperationException("No hardware DXGI adapter supports D3D12 feature level 11_0.");
+        throw new InvalidOperationException(
+            "No hardware DXGI adapter supports D3D12 feature level 11_0."
+        );
     }
 
     private SKSurface? EnsureSurface()
@@ -227,8 +264,11 @@ public sealed class WindowsDirectCompositionOverlayHost : IDisposable
             LevelCount = 1,
         };
         var renderTarget = new GRBackendRenderTarget(width, height, textureInfo);
-        var surface = SKSurface.Create(grContext, renderTarget, GRSurfaceOrigin.TopLeft, SKColorType.Bgra8888)
-            ?? throw new InvalidOperationException("Unable to create Skia surface for DirectComposition swapchain.");
+        var surface =
+            SKSurface.Create(grContext, renderTarget, GRSurfaceOrigin.TopLeft, SKColorType.Bgra8888)
+            ?? throw new InvalidOperationException(
+                "Unable to create Skia surface for DirectComposition swapchain."
+            );
         backBuffers[backBufferIndex] = backBuffer;
         renderTargets[backBufferIndex] = renderTarget;
         surfaces[backBufferIndex] = surface;

@@ -4,7 +4,8 @@ public readonly record struct HtmlNodeId(int Value)
 {
     public bool IsValid => Value > 0;
 
-    public override string ToString() => Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    public override string ToString() =>
+        Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
 
 public readonly record struct HtmlDocumentVersion(uint Value)

@@ -10,9 +10,11 @@ public sealed record UpsertNodeMutation(
     SceneNodeId Id,
     SceneNodeKind Kind,
     SceneNodeId? ParentId = null,
-    string? Label = null) : SceneMutation;
+    string? Label = null
+) : SceneMutation;
 
-public sealed record SetChildrenMutation(SceneNodeId ParentId, SceneNodeId[] Children) : SceneMutation;
+public sealed record SetChildrenMutation(SceneNodeId ParentId, SceneNodeId[] Children)
+    : SceneMutation;
 
 public sealed record SetLayoutMutation(SceneNodeId Id, SceneLayoutBox Layout) : SceneMutation;
 

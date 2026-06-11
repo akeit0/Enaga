@@ -19,7 +19,8 @@ public sealed class SceneScrollBarDragControllerTests
             vertical.Value.ThumbRect.Left + 1,
             vertical.Value.ThumbRect.Top + 4,
             out var axis,
-            out var thumbOffset);
+            out var thumbOffset
+        );
 
         Assert.True(hit);
         Assert.Equal(SceneScrollBarDragAxis.Vertical, axis);
@@ -42,15 +43,16 @@ public sealed class SceneScrollBarDragControllerTests
             box,
             state,
             vertical.Value.ThumbRect.Left + 1,
-            vertical.Value.TrackRect.Bottom);
+            vertical.Value.TrackRect.Bottom
+        );
 
         Assert.True(changed);
         Assert.Equal(300, state.ScrollY);
         Assert.Equal(300, state.TargetScrollY);
     }
 
-    private static SceneLayoutBox CreateScrollBox()
-        => new(
+    private static SceneLayoutBox CreateScrollBox() =>
+        new(
             SceneNodeKind.ScrollView,
             10,
             20,
@@ -58,7 +60,8 @@ public sealed class SceneScrollBarDragControllerTests
             100,
             ScrollY: 0,
             IsScrollContainer: true,
-            ContentHeight: 400);
+            ContentHeight: 400
+        );
 
     private sealed class TestScrollState : ISceneScrollOffsetState
     {

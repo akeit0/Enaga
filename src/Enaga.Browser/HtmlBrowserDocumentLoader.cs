@@ -8,22 +8,26 @@ public static class HtmlBrowserDocumentLoader
     public static HtmlBrowserLoadedDocument Load(
         string documentSource,
         string? styleSheetSource = null,
-        HtmlBrowserDocumentLoadOptions? options = null)
-        => LoadAsync(documentSource, styleSheetSource, options).GetAwaiter().GetResult();
+        HtmlBrowserDocumentLoadOptions? options = null
+    ) => LoadAsync(documentSource, styleSheetSource, options).GetAwaiter().GetResult();
 
     public static async Task<HtmlBrowserLoadedDocument> LoadAsync(
         string documentSource,
         string? styleSheetSource = null,
         HtmlBrowserDocumentLoadOptions? options = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         options ??= HtmlBrowserDocumentLoadOptions.Default;
         var normalizedSource = NormalizeNavigationSource(documentSource);
-        var document = await HtmlDocumentLoader.LoadAsync(
-            normalizedSource,
-            styleSheetSource,
-            options.DocumentHttpClientOptions,
-            cancellationToken).ConfigureAwait(false);
+        var document = await HtmlDocumentLoader
+            .LoadAsync(
+                normalizedSource,
+                styleSheetSource,
+                options.DocumentHttpClientOptions,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
         return ProcessLoadedDocument(document, normalizedSource, options);
     }
 
@@ -31,7 +35,8 @@ public static class HtmlBrowserDocumentLoader
         string documentSource,
         string? styleSheetSource,
         HtmlBrowserDocumentLoadOptions? options,
-        out HtmlBrowserLoadedDocument loadedDocument)
+        out HtmlBrowserLoadedDocument loadedDocument
+    )
     {
         loadedDocument = default!;
         try
@@ -63,8 +68,10 @@ public static class HtmlBrowserDocumentLoader
         if (trimmed.Length == 0)
             return string.Empty;
 
-        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.IsFile))
+        if (
+            Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.IsFile)
+        )
         {
             return trimmed;
         }
@@ -72,9 +79,10 @@ public static class HtmlBrowserDocumentLoader
         if (File.Exists(trimmed))
             return Path.GetFullPath(trimmed);
 
-        return trimmed.Contains('.', StringComparison.Ordinal) &&
-               !trimmed.Contains('\\') &&
-               !trimmed.Contains('/')
+        return
+            trimmed.Contains('.', StringComparison.Ordinal)
+            && !trimmed.Contains('\\')
+            && !trimmed.Contains('/')
             ? "https://" + trimmed
             : Path.GetFullPath(trimmed);
     }
@@ -82,12 +90,20 @@ public static class HtmlBrowserDocumentLoader
     private static HtmlBrowserLoadedDocument ProcessLoadedDocument(
         HtmlDocument document,
         string documentSource,
-        HtmlBrowserDocumentLoadOptions options)
+        HtmlBrowserDocumentLoadOptions options
+    )
     {
         var scriptRuntime = options.EnableScripts
-            ? HtmlBrowserScriptRuntime.CreateAndRun(document, documentSource, options.ScriptRuntimeOptions)
+            ? HtmlBrowserScriptRuntime.CreateAndRun(
+                document,
+                documentSource,
+                options.ScriptRuntimeOptions
+            )
             : null;
 
-        return new HtmlBrowserLoadedDocument(scriptRuntime?.CurrentDocument ?? document, scriptRuntime);
+        return new HtmlBrowserLoadedDocument(
+            scriptRuntime?.CurrentDocument ?? document,
+            scriptRuntime
+        );
     }
 }

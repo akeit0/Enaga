@@ -23,12 +23,13 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
         BackColor = Color.White;
         ForeColor = Color.FromArgb(15, 23, 42);
         SetStyle(
-            ControlStyles.AllPaintingInWmPaint |
-            ControlStyles.OptimizedDoubleBuffer |
-            ControlStyles.ResizeRedraw |
-            ControlStyles.Selectable |
-            ControlStyles.UserPaint,
-            true);
+            ControlStyles.AllPaintingInWmPaint
+                | ControlStyles.OptimizedDoubleBuffer
+                | ControlStyles.ResizeRedraw
+                | ControlStyles.Selectable
+                | ControlStyles.UserPaint,
+            true
+        );
         Size = new Size(520, 48);
     }
 
@@ -47,7 +48,9 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
         {
             var display = BuildDisplayState();
             using var graphics = CreateGraphics();
-            var x = HorizontalPadding + MeasureTextWidth(graphics, display.DisplayText[..display.CaretIndex]);
+            var x =
+                HorizontalPadding
+                + MeasureTextWidth(graphics, display.DisplayText[..display.CaretIndex]);
             return new RectangleF(x, VerticalPadding, 2, Font.Height + 4);
         }
     }
@@ -114,10 +117,21 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
 
         if (display.PreeditLength > 0)
         {
-            var preeditLeft = HorizontalPadding + MeasureTextWidth(e.Graphics, display.DisplayText[..display.PreeditStart]);
-            var preeditWidth = MeasureTextWidth(e.Graphics, display.DisplayText.Substring(display.PreeditStart, display.PreeditLength));
+            var preeditLeft =
+                HorizontalPadding
+                + MeasureTextWidth(e.Graphics, display.DisplayText[..display.PreeditStart]);
+            var preeditWidth = MeasureTextWidth(
+                e.Graphics,
+                display.DisplayText.Substring(display.PreeditStart, display.PreeditLength)
+            );
             using var preeditBrush = new SolidBrush(Color.FromArgb(220, 239, 255));
-            e.Graphics.FillRectangle(preeditBrush, preeditLeft, baselineY + Font.Height + 1, Math.Max(2, preeditWidth), 3);
+            e.Graphics.FillRectangle(
+                preeditBrush,
+                preeditLeft,
+                baselineY + Font.Height + 1,
+                Math.Max(2, preeditWidth),
+                3
+            );
         }
 
         if (display.SelectionLeft >= 0 && display.SelectionRight > display.SelectionLeft)
@@ -128,12 +142,19 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
                 display.SelectionLeft,
                 baselineY,
                 display.SelectionRight - display.SelectionLeft,
-                Font.Height + 6);
+                Font.Height + 6
+            );
         }
 
         using var textBrush = new SolidBrush(ForeColor);
         using var format = StringFormat.GenericTypographic;
-        e.Graphics.DrawString(display.DisplayText, Font, textBrush, new PointF(HorizontalPadding, baselineY), format);
+        e.Graphics.DrawString(
+            display.DisplayText,
+            Font,
+            textBrush,
+            new PointF(HorizontalPadding, baselineY),
+            format
+        );
 
         if (Focused)
         {
@@ -159,7 +180,13 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
     protected override bool IsInputKey(Keys keyData)
     {
         var keyCode = keyData & Keys.KeyCode;
-        return keyCode is Keys.Left or Keys.Right or Keys.Home or Keys.End or Keys.Delete or Keys.Back
+        return keyCode
+                is Keys.Left
+                    or Keys.Right
+                    or Keys.Home
+                    or Keys.End
+                    or Keys.Delete
+                    or Keys.Back
             || base.IsInputKey(keyData);
     }
 
@@ -314,7 +341,8 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
         using var graphics = CreateGraphics();
         for (var index = 0; index <= display.DisplayText.Length; index++)
         {
-            var width = HorizontalPadding + MeasureTextWidth(graphics, display.DisplayText[..index]);
+            var width =
+                HorizontalPadding + MeasureTextWidth(graphics, display.DisplayText[..index]);
             if (point.X < width)
                 return DisplayIndexToTextIndex(display, index);
         }
@@ -330,11 +358,19 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
         var end = Math.Max(selectionStart, selectionEnd);
         if (string.IsNullOrEmpty(preeditText))
         {
-            return new DisplayState(textValue, -1, 0, caretIndex, GetSelectionLeft(), GetSelectionRight());
+            return new DisplayState(
+                textValue,
+                -1,
+                0,
+                caretIndex,
+                GetSelectionLeft(),
+                GetSelectionRight()
+            );
         }
 
         var displayText = textValue.Remove(start, end - start).Insert(start, preeditText);
-        var caretDisplayIndex = start + Math.Clamp(preeditCursor ?? preeditText.Length, 0, preeditText.Length);
+        var caretDisplayIndex =
+            start + Math.Clamp(preeditCursor ?? preeditText.Length, 0, preeditText.Length);
         return new DisplayState(displayText, start, preeditText.Length, caretDisplayIndex, -1, -1);
     }
 
@@ -344,7 +380,8 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
             return -1;
 
         using var graphics = CreateGraphics();
-        return HorizontalPadding + MeasureTextWidth(graphics, textValue[..Math.Min(selectionStart, selectionEnd)]);
+        return HorizontalPadding
+            + MeasureTextWidth(graphics, textValue[..Math.Min(selectionStart, selectionEnd)]);
     }
 
     private float GetSelectionRight()
@@ -353,7 +390,8 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
             return -1;
 
         using var graphics = CreateGraphics();
-        return HorizontalPadding + MeasureTextWidth(graphics, textValue[..Math.Max(selectionStart, selectionEnd)]);
+        return HorizontalPadding
+            + MeasureTextWidth(graphics, textValue[..Math.Max(selectionStart, selectionEnd)]);
     }
 
     private int DisplayIndexToTextIndex(DisplayState display, int displayIndex)
@@ -383,5 +421,6 @@ internal sealed class ImeTextBoxControl : Control, ITextInputClient
         int PreeditLength,
         int CaretIndex,
         float SelectionLeft,
-        float SelectionRight);
+        float SelectionRight
+    );
 }

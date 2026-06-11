@@ -1,12 +1,13 @@
-using Enaga.Rendering;
 using Enaga.React.OkojoRuntime;
+using Enaga.Rendering;
 using Xunit;
 
 namespace Enaga.Tests;
 
 public sealed class TextInputStateLogicTests
 {
-    private static readonly RuntimeBackendServices BackendServices = DummyRuntimeBackendServices.Create();
+    private static readonly RuntimeBackendServices BackendServices =
+        DummyRuntimeBackendServices.Create();
 
     [Fact]
     public void ApplyExternalValue_IgnoresStaleControlledValueWhileHostChangeIsPending()
@@ -125,7 +126,7 @@ public sealed class TextInputStateLogicTests
             SelectionStart = text.Length,
             SelectionEnd = text.Length,
             SelectionAnchorIndex = text.Length,
-            LastKnownExternalText = text
+            LastKnownExternalText = text,
         };
     }
 }

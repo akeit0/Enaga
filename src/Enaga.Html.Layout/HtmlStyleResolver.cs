@@ -19,7 +19,8 @@ internal sealed class HtmlStyleResolver(HtmlOptions options, LayoutEngineConfig 
         bool isActive,
         int viewportWidth,
         int viewportHeight,
-        string? basePath)
+        string? basePath
+    )
     {
         var style = HtmlComputedStyle.CreateDefault(options, layoutConfig);
         if (inherited is not null)
@@ -36,7 +37,8 @@ internal sealed class HtmlStyleResolver(HtmlOptions options, LayoutEngineConfig 
             isHovered,
             viewportWidth,
             viewportHeight,
-            matchingRules);
+            matchingRules
+        );
         for (var index = 0; index < matchingRules.Count; index++)
             style.Apply(matchingRules[index].Declarations);
 

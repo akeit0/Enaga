@@ -6,27 +6,30 @@ using System.Security.Cryptography;
 
 namespace Enaga.Rendering.Skia;
 
-
 internal enum WebImageCacheState
 {
     Pending,
     Ready,
-    Failed
+    Failed,
 }
 
 internal readonly record struct WebImageCacheResult(
     WebImageCacheState State,
     string? LocalPath = null,
-    string? Error = null);
+    string? Error = null
+);
 
 internal static class WebImageCache
 {
     private static readonly HttpClient HttpClient = CreateHttpClient();
-    private static readonly ConcurrentDictionary<string, RemoteImageEntry> RemoteEntries = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, RemoteImageEntry> RemoteEntries = new(
+        StringComparer.Ordinal
+    );
     private static readonly string CacheDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Enaga",
-        "image-cache");
+        "image-cache"
+    );
     private static readonly TimeSpan MaxEntryAge = TimeSpan.FromDays(30);
     private static readonly TimeSpan CleanupThrottle = TimeSpan.FromMinutes(1);
     private const int MaxCacheFileCount = 128;
@@ -36,8 +39,10 @@ internal static class WebImageCache
 
     public static WebImageCacheResult Resolve(string source)
     {
-        if (!Uri.TryCreate(source, UriKind.Absolute, out var uri) ||
-            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (
+            !Uri.TryCreate(source, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        )
             return ResolveLocal(source);
 
         Directory.CreateDirectory(CacheDirectory);
@@ -71,7 +76,10 @@ internal static class WebImageCache
     private static WebImageCacheResult ResolveLocal(string source)
     {
         if (string.IsNullOrWhiteSpace(source))
-            return new WebImageCacheResult(WebImageCacheState.Failed, Error: "Image source is empty.");
+            return new WebImageCacheResult(
+                WebImageCacheState.Failed,
+                Error: "Image source is empty."
+            );
 
         var resolvedPath = source;
         if (Uri.TryCreate(source, UriKind.Absolute, out var uri))
@@ -82,13 +90,19 @@ internal static class WebImageCache
             }
             else
             {
-                return new WebImageCacheResult(WebImageCacheState.Failed, Error: $"Unsupported image URI scheme: {uri.Scheme}");
+                return new WebImageCacheResult(
+                    WebImageCacheState.Failed,
+                    Error: $"Unsupported image URI scheme: {uri.Scheme}"
+                );
             }
         }
 
         return File.Exists(resolvedPath)
             ? new WebImageCacheResult(WebImageCacheState.Ready, resolvedPath)
-            : new WebImageCacheResult(WebImageCacheState.Failed, Error: $"Image file was not found: {resolvedPath}");
+            : new WebImageCacheResult(
+                WebImageCacheState.Failed,
+                Error: $"Image file was not found: {resolvedPath}"
+            );
     }
 
     private static string BuildCachePath(Uri uri, string source)
@@ -110,7 +124,9 @@ internal static class WebImageCache
             var tempPath = $"{entry.CachePath}.tmp";
             try
             {
-                using var response = await HttpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+                using var response = await HttpClient
+                    .GetAsync(uri, HttpCompletionOption.ResponseHeadersRead)
+                    .ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
                 await File.WriteAllBytesAsync(tempPath, bytes).ConfigureAwait(false);
@@ -200,11 +216,15 @@ internal static class WebImageCache
         }
         catch (IOException ex)
         {
-            Console.Error.WriteLine($"[WebImageCache] Failed to delete {file.FullName}: {ex.Message}");
+            Console.Error.WriteLine(
+                $"[WebImageCache] Failed to delete {file.FullName}: {ex.Message}"
+            );
         }
         catch (UnauthorizedAccessException ex)
         {
-            Console.Error.WriteLine($"[WebImageCache] Failed to delete {file.FullName}: {ex.Message}");
+            Console.Error.WriteLine(
+                $"[WebImageCache] Failed to delete {file.FullName}: {ex.Message}"
+            );
         }
     }
 
@@ -218,14 +238,23 @@ internal static class WebImageCache
     {
         var handler = new SocketsHttpHandler
         {
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
+            AutomaticDecompression =
+                DecompressionMethods.GZip
+                | DecompressionMethods.Deflate
+                | DecompressionMethods.Brotli,
         };
         var client = new HttpClient(handler);
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Enaga.Rendering.Skia/1.0 Safari/537.36");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Enaga.Rendering.Skia/1.0 Safari/537.36"
+        );
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/avif"));
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/webp"));
-        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/svg+xml"));
-        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/*", 0.8));
+        client.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("image/svg+xml")
+        );
+        client.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("image/*", 0.8)
+        );
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*", 0.5));
         return client;
     }

@@ -1,13 +1,14 @@
 using System.Collections.Concurrent;
+using Enaga.Input;
 using Enaga.Rendering;
+using Enaga.Scene;
 using Okojo;
 using Okojo.Annotations;
 using Okojo.Hosting;
 using Okojo.Objects;
 using Okojo.Runtime;
 using Okojo.WebPlatform;
-using Enaga.Scene;
-using Enaga.Input;
+
 namespace Enaga.React.OkojoRuntime;
 
 [GenerateJsGlobals]
@@ -19,7 +20,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
         WebTaskQueueKeys.Messages,
         WebTaskQueueKeys.Network,
         HostingTaskQueueKeys.Default,
-        WebTaskQueueKeys.Rendering
+        WebTaskQueueKeys.Rendering,
     ];
     private readonly FileSystemWatcher fileWatcher;
     private readonly RuntimeBackendServices backendServices;
@@ -27,7 +28,10 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
     private readonly HostPump hostPump;
     private readonly JsRealm realm;
     private readonly JsRuntime runtime;
-    private readonly SceneNodeIdentityMap<string> sceneNodeIds = new("root", StringComparer.Ordinal);
+    private readonly SceneNodeIdentityMap<string> sceneNodeIds = new(
+        "root",
+        StringComparer.Ordinal
+    );
     private readonly SceneStore sceneStore;
     private readonly ConcurrentQueue<HostInputEvent> inputEvents = new();
     private readonly string scriptFilePath;
@@ -46,13 +50,19 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
     private bool reloadRequested = true;
     private bool setupRan;
 
-    public OkojoSceneScriptHost(string scriptFilePath, RuntimeBackendServices? backendServices = null)
+    public OkojoSceneScriptHost(
+        string scriptFilePath,
+        RuntimeBackendServices? backendServices = null
+    )
     {
         sceneStore = new SceneStore(sceneNodeIds.RootId, new SceneViewport(1280, 800));
         this.scriptFilePath = scriptFilePath;
         this.backendServices = backendServices ?? RuntimeBackendServices.Missing;
-        hostTaskScheduler = new RenderInvalidatingHostTaskScheduler(() => InvalidateRender(SceneDamageReason.FullFrameFallback));
-        runtime = JsRuntime.CreateBuilder()
+        hostTaskScheduler = new RenderInvalidatingHostTaskScheduler(() =>
+            InvalidateRender(SceneDamageReason.FullFrameFallback)
+        );
+        runtime = JsRuntime
+            .CreateBuilder()
             .UseLowLevelHost(host => host.UseTaskScheduler(hostTaskScheduler))
             .UseWebDelayScheduler(hostTaskScheduler)
             .UseWebTimerQueue(WebTaskQueueKeys.Timers)
@@ -71,8 +81,12 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
 
         fileWatcher = new FileSystemWatcher(directory, fileName)
         {
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime,
-            EnableRaisingEvents = true
+            NotifyFilter =
+                NotifyFilters.LastWrite
+                | NotifyFilters.Size
+                | NotifyFilters.FileName
+                | NotifyFilters.CreationTime,
+            EnableRaisingEvents = true,
         };
         fileWatcher.Changed += OnScriptChanged;
         fileWatcher.Created += OnScriptChanged;
@@ -159,9 +173,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
                 PumpRuntimeJobs();
             }
 
-            Invoke(renderFunction,
-                elapsed.TotalMilliseconds,
-                JsValue.FromInt32(FrameCount));
+            Invoke(renderFunction, elapsed.TotalMilliseconds, JsValue.FromInt32(FrameCount));
             PumpRuntimeJobs();
             LastError = null;
             renderInvalidated = false;
@@ -172,11 +184,7 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
         }
 
         FrameCount++;
-        return SceneFrameResult.FullFrame(
-            sceneStore.Snapshot(),
-            Width,
-            Height,
-            damageReasons);
+        return SceneFrameResult.FullFrame(sceneStore.Snapshot(), Width, Height, damageReasons);
     }
 
     public void PointerMove(float x, float y, int buttons, bool synthetic)
@@ -185,21 +193,45 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
         MouseY = y;
         MouseButtons = buttons;
         LastInputSynthetic = synthetic;
-        inputEvents.Enqueue(new HostInputEvent(HostInputEventType.Move, x, y, 0, buttons, 0, 0, synthetic));
+        inputEvents.Enqueue(
+            new HostInputEvent(HostInputEventType.Move, x, y, 0, buttons, 0, 0, synthetic)
+        );
     }
 
     public void PointerDown(int button, int buttons, bool synthetic)
     {
         MouseButtons = buttons;
         LastInputSynthetic = synthetic;
-        inputEvents.Enqueue(new HostInputEvent(HostInputEventType.Down, MouseX, MouseY, button, buttons, 0, 0, synthetic));
+        inputEvents.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.Down,
+                MouseX,
+                MouseY,
+                button,
+                buttons,
+                0,
+                0,
+                synthetic
+            )
+        );
     }
 
     public void PointerUp(int button, int buttons, bool synthetic)
     {
         MouseButtons = buttons;
         LastInputSynthetic = synthetic;
-        inputEvents.Enqueue(new HostInputEvent(HostInputEventType.Up, MouseX, MouseY, button, buttons, 0, 0, synthetic));
+        inputEvents.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.Up,
+                MouseX,
+                MouseY,
+                button,
+                buttons,
+                0,
+                0,
+                synthetic
+            )
+        );
     }
 
     public void Wheel(float deltaX, float deltaY, bool synthetic, int modifiers = 0)
@@ -207,7 +239,18 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
         LastWheelDeltaX = deltaX;
         LastWheelDeltaY = deltaY;
         LastInputSynthetic = synthetic;
-        inputEvents.Enqueue(new HostInputEvent(HostInputEventType.Wheel, MouseX, MouseY, 0, MouseButtons, deltaX, deltaY, synthetic));
+        inputEvents.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.Wheel,
+                MouseX,
+                MouseY,
+                0,
+                MouseButtons,
+                deltaX,
+                deltaY,
+                synthetic
+            )
+        );
     }
 
     public void KeyDown(string key, int modifiers, bool repeat, bool synthetic)
@@ -216,7 +259,21 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
         KeyModifiers = modifiers;
         KeyRepeat = repeat;
         LastInputSynthetic = synthetic;
-        inputEvents.Enqueue(new HostInputEvent(HostInputEventType.KeyDown, MouseX, MouseY, 0, MouseButtons, 0, 0, synthetic, Key: key, Modifiers: modifiers, Repeat: repeat));
+        inputEvents.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.KeyDown,
+                MouseX,
+                MouseY,
+                0,
+                MouseButtons,
+                0,
+                0,
+                synthetic,
+                Key: key,
+                Modifiers: modifiers,
+                Repeat: repeat
+            )
+        );
     }
 
     public void KeyUp(string key, int modifiers, bool synthetic)
@@ -225,7 +282,20 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
         KeyModifiers = modifiers;
         KeyRepeat = false;
         LastInputSynthetic = synthetic;
-        inputEvents.Enqueue(new HostInputEvent(HostInputEventType.KeyUp, MouseX, MouseY, 0, MouseButtons, 0, 0, synthetic, Key: key, Modifiers: modifiers));
+        inputEvents.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.KeyUp,
+                MouseX,
+                MouseY,
+                0,
+                MouseButtons,
+                0,
+                0,
+                synthetic,
+                Key: key,
+                Modifiers: modifiers
+            )
+        );
     }
 
     public void TextInput(string text, bool synthetic)
@@ -235,7 +305,19 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
 
         LastTextInput = text;
         LastInputSynthetic = synthetic;
-        inputEvents.Enqueue(new HostInputEvent(HostInputEventType.TextInput, MouseX, MouseY, 0, MouseButtons, 0, 0, synthetic, Text: text));
+        inputEvents.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.TextInput,
+                MouseX,
+                MouseY,
+                0,
+                MouseButtons,
+                0,
+                0,
+                synthetic,
+                Text: text
+            )
+        );
     }
 
     [JsGlobalFunction("setRootBackground")]
@@ -268,7 +350,10 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
 
     private void ApplyRootLayout(string color)
     {
-        sceneStore.SetLayout(sceneNodeIds.RootId, new SceneLayoutBox(SceneNodeKind.View, 0, 0, Width, Height, color));
+        sceneStore.SetLayout(
+            sceneNodeIds.RootId,
+            new SceneLayoutBox(SceneNodeKind.View, 0, 0, Width, Height, color)
+        );
     }
 
     private void DrainInputQueue()
@@ -280,47 +365,61 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
                 switch (inputEvent.Type)
                 {
                     case HostInputEventType.Move:
-                        Invoke(pointerMoveFunction,
+                        Invoke(
+                            pointerMoveFunction,
                             (double)inputEvent.X,
                             (double)inputEvent.Y,
                             JsValue.FromInt32(inputEvent.Buttons),
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.Down:
-                        Invoke(pointerDownFunction,
+                        Invoke(
+                            pointerDownFunction,
                             JsValue.FromInt32(inputEvent.Button),
                             JsValue.FromInt32(inputEvent.Buttons),
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.Up:
-                        Invoke(pointerUpFunction,
+                        Invoke(
+                            pointerUpFunction,
                             JsValue.FromInt32(inputEvent.Button),
                             JsValue.FromInt32(inputEvent.Buttons),
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.Wheel:
-                        Invoke(wheelFunction,
+                        Invoke(
+                            wheelFunction,
                             (double)inputEvent.DeltaX,
                             (double)inputEvent.DeltaY,
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.KeyDown:
-                        Invoke(keyDownFunction,
+                        Invoke(
+                            keyDownFunction,
                             inputEvent.Key ?? string.Empty,
                             JsValue.FromInt32(inputEvent.Modifiers),
                             inputEvent.Repeat,
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.KeyUp:
-                        Invoke(keyUpFunction,
+                        Invoke(
+                            keyUpFunction,
                             inputEvent.Key ?? string.Empty,
                             JsValue.FromInt32(inputEvent.Modifiers),
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.TextInput:
-                        Invoke(textInputFunction,
+                        Invoke(
+                            textInputFunction,
                             inputEvent.Text ?? string.Empty,
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                 }
 
@@ -372,9 +471,10 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
 
     private JsFunction? TryGetGlobalFunction(string name)
     {
-        return realm.Global.TryGetValue(name, out var value) &&
-               value.TryGetObject(out var obj) &&
-               obj is JsFunction function
+        return
+            realm.Global.TryGetValue(name, out var value)
+            && value.TryGetObject(out var obj)
+            && obj is JsFunction function
             ? function
             : null;
     }
@@ -385,7 +485,8 @@ public sealed partial class OkojoSceneScriptHost : ISceneFrameSource, IInputSink
         pendingDamageReasons |= reason;
     }
 
-    private SceneDamageReason ConsumeFrameDamageReasons() => SceneDamageReasonState.Consume(ref pendingDamageReasons, animationEnabled);
+    private SceneDamageReason ConsumeFrameDamageReasons() =>
+        SceneDamageReasonState.Consume(ref pendingDamageReasons, animationEnabled);
 
     private void PumpRuntimeJobs()
     {

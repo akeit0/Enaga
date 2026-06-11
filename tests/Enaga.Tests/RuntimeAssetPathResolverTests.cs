@@ -9,7 +9,10 @@ public sealed class RuntimeAssetPathResolverTests
     public void Resolve_FileUri_ReturnsLocalPath()
     {
         var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.svg");
-        File.WriteAllText(filePath, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 8 8\" />");
+        File.WriteAllText(
+            filePath,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 8 8\" />"
+        );
         try
         {
             var fileUri = new Uri(filePath).AbsoluteUri;

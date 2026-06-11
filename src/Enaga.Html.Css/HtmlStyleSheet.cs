@@ -24,11 +24,13 @@ internal sealed class HtmlStyleSheet
             HtmlCssParser.ParseRules(styleText, rules, ref order);
 
         HtmlCssParser.ParseRules(extraCss, rules, ref order);
-        rules.Sort(static (left, right) =>
-        {
-            var specificity = left.Specificity.CompareTo(right.Specificity);
-            return specificity != 0 ? specificity : left.Order.CompareTo(right.Order);
-        });
+        rules.Sort(
+            static (left, right) =>
+            {
+                var specificity = left.Specificity.CompareTo(right.Specificity);
+                return specificity != 0 ? specificity : left.Order.CompareTo(right.Order);
+            }
+        );
         return new HtmlStyleSheet([.. rules]);
     }
 
@@ -51,7 +53,8 @@ internal sealed class HtmlStyleSheet
         IReadOnlyList<bool> ancestorHoverStates,
         int viewportWidth,
         int viewportHeight,
-        out string? color)
+        out string? color
+    )
     {
         var supported = TryResolvePaintOnlyHoveredProperty(
             element,
@@ -62,7 +65,8 @@ internal sealed class HtmlStyleSheet
             viewportHeight,
             CssPropertyId.Color,
             out var matched,
-            out color);
+            out color
+        );
         return supported && matched && !string.IsNullOrWhiteSpace(color);
     }
 
@@ -74,8 +78,9 @@ internal sealed class HtmlStyleSheet
         int viewportWidth,
         int viewportHeight,
         out bool matched,
-        out string? color)
-        => TryResolvePaintOnlyHoveredProperty(
+        out string? color
+    ) =>
+        TryResolvePaintOnlyHoveredProperty(
             element,
             ancestors,
             ancestorHoverStates,
@@ -84,7 +89,8 @@ internal sealed class HtmlStyleSheet
             viewportHeight,
             CssPropertyId.Background,
             out matched,
-            out color);
+            out color
+        );
 
     private bool TryResolvePaintOnlyHoveredProperty(
         HtmlDomElement element,
@@ -95,7 +101,8 @@ internal sealed class HtmlStyleSheet
         int viewportHeight,
         CssPropertyId property,
         out bool matched,
-        out string? value)
+        out string? value
+    )
     {
         value = null;
         matched = false;
@@ -103,14 +110,27 @@ internal sealed class HtmlStyleSheet
         for (var index = 0; index < candidates.Length; index++)
         {
             var rule = rules[candidates[index]];
-            if (!rule.HasHoverDependency ||
-                !rule.Matches(element, ancestors, ancestorHoverStates, isHovered, viewportWidth, viewportHeight))
+            if (
+                !rule.HasHoverDependency
+                || !rule.Matches(
+                    element,
+                    ancestors,
+                    ancestorHoverStates,
+                    isHovered,
+                    viewportWidth,
+                    viewportHeight
+                )
+            )
             {
                 continue;
             }
 
             var declarations = rule.Declarations.AsSpan();
-            for (var declarationIndex = 0; declarationIndex < declarations.Length; declarationIndex++)
+            for (
+                var declarationIndex = 0;
+                declarationIndex < declarations.Length;
+                declarationIndex++
+            )
             {
                 var declaration = declarations[declarationIndex];
                 if (declaration.Property is not (CssPropertyId.Color or CssPropertyId.Background))
@@ -134,13 +154,23 @@ internal sealed class HtmlStyleSheet
         bool isHovered,
         int viewportWidth,
         int viewportHeight,
-        List<HtmlCssRule> matches)
+        List<HtmlCssRule> matches
+    )
     {
         var candidates = GetCandidateIndices(element);
         for (var index = 0; index < candidates.Length; index++)
         {
             var rule = rules[candidates[index]];
-            if (rule.Matches(element, ancestors, ancestorHoverStates, isHovered, viewportWidth, viewportHeight))
+            if (
+                rule.Matches(
+                    element,
+                    ancestors,
+                    ancestorHoverStates,
+                    isHovered,
+                    viewportWidth,
+                    viewportHeight
+                )
+            )
                 matches.Add(rule);
         }
     }
@@ -173,7 +203,11 @@ internal sealed class HtmlStyleSheet
     }
 }
 
-internal readonly record struct HtmlRuleCandidateKey(string LocalName, string? Id, string? ClassName);
+internal readonly record struct HtmlRuleCandidateKey(
+    string LocalName,
+    string? Id,
+    string? ClassName
+);
 
 internal sealed class HtmlRuleIndex
 {
@@ -186,7 +220,8 @@ internal sealed class HtmlRuleIndex
         Dictionary<string, List<int>> byId,
         Dictionary<string, List<int>> byClass,
         Dictionary<string, List<int>> byTag,
-        List<int> universal)
+        List<int> universal
+    )
     {
         this.byId = byId;
         this.byClass = byClass;
@@ -252,7 +287,10 @@ internal sealed class HtmlRuleIndex
                 while (cursor < className.Length && !char.IsWhiteSpace(className[cursor]))
                     cursor++;
 
-                if (start < cursor && byClass.TryGetValue(className[start..cursor].ToString(), out var classRules))
+                if (
+                    start < cursor
+                    && byClass.TryGetValue(className[start..cursor].ToString(), out var classRules)
+                )
                     AddCandidates(candidates, seen, classRules);
             }
         }
@@ -291,7 +329,8 @@ internal sealed record HtmlCssRule(
     HtmlCssDeclarationBlock Declarations,
     int Specificity,
     int Order,
-    HtmlMediaCondition? MediaCondition)
+    HtmlMediaCondition? MediaCondition
+)
 {
     public bool Matches(
         HtmlDomElement element,
@@ -299,19 +338,19 @@ internal sealed record HtmlCssRule(
         IReadOnlyList<bool> ancestorHoverStates,
         bool isHovered,
         int viewportWidth,
-        int viewportHeight)
-        => (MediaCondition is null || MediaCondition.Matches(viewportWidth, viewportHeight)) &&
-           Selector.Matches(element, ancestors, ancestorHoverStates, isHovered);
+        int viewportHeight
+    ) =>
+        (MediaCondition is null || MediaCondition.Matches(viewportWidth, viewportHeight))
+        && Selector.Matches(element, ancestors, ancestorHoverStates, isHovered);
 
-    public bool CanMatchRightmost(HtmlDomElement element)
-        => Selector.CanMatchRightmost(element);
+    public bool CanMatchRightmost(HtmlDomElement element) => Selector.CanMatchRightmost(element);
 
     public HtmlSelectorPart RightmostPart => Selector.RightmostPart;
 
     public bool HasHoverDependency => Selector.HasHoverDependency;
 
-    public bool HasHoverDependencyOn(HtmlDomElement element)
-        => Selector.HasHoverDependencyOn(element);
+    public bool HasHoverDependencyOn(HtmlDomElement element) =>
+        Selector.HasHoverDependencyOn(element);
 }
 
 internal sealed class HtmlSelector
@@ -345,8 +384,7 @@ internal sealed class HtmlSelector
     public static bool TryParse(ReadOnlySpan<char> selectorText, out HtmlSelector selector)
     {
         selector = default!;
-        if (selectorText.IsWhiteSpace() ||
-            HasUnsupportedSiblingCombinator(selectorText))
+        if (selectorText.IsWhiteSpace() || HasUnsupportedSiblingCombinator(selectorText))
         {
             return false;
         }
@@ -415,18 +453,27 @@ internal sealed class HtmlSelector
                 normalizedSelector = normalizedSelector[..^":hover".Length];
                 parsedPseudo = true;
             }
-            else if (normalizedSelector.EndsWith(":first-child".AsSpan(), StringComparison.OrdinalIgnoreCase))
+            else if (
+                normalizedSelector.EndsWith(
+                    ":first-child".AsSpan(),
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
             {
                 requiresFirstChild = true;
                 normalizedSelector = normalizedSelector[..^":first-child".Length];
                 parsedPseudo = true;
             }
-            else if (normalizedSelector.EndsWith(":link".AsSpan(), StringComparison.OrdinalIgnoreCase))
+            else if (
+                normalizedSelector.EndsWith(":link".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            )
             {
                 normalizedSelector = normalizedSelector[..^":link".Length];
                 parsedPseudo = true;
             }
-            else if (normalizedSelector.EndsWith(":visited".AsSpan(), StringComparison.OrdinalIgnoreCase))
+            else if (
+                normalizedSelector.EndsWith(":visited".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            )
             {
                 normalizedSelector = normalizedSelector[..^":visited".Length];
                 parsedPseudo = true;
@@ -494,7 +541,8 @@ internal sealed class HtmlSelector
             classNames,
             attributes.Count == 0 ? [] : [.. attributes],
             requiresHover,
-            requiresFirstChild);
+            requiresFirstChild
+        );
         return true;
     }
 
@@ -615,7 +663,10 @@ internal sealed class HtmlSelector
         return false;
     }
 
-    private static bool TryParseAttributeSelector(ReadOnlySpan<char> selectorText, out HtmlAttributeSelector selector)
+    private static bool TryParseAttributeSelector(
+        ReadOnlySpan<char> selectorText,
+        out HtmlAttributeSelector selector
+    )
     {
         selector = default;
         var text = selectorText.Trim();
@@ -623,9 +674,7 @@ internal sealed class HtmlSelector
             return false;
 
         var caseInsensitive = false;
-        if (text.Length >= 2 &&
-            char.IsWhiteSpace(text[^2]) &&
-            (text[^1] is 'i' or 'I'))
+        if (text.Length >= 2 && char.IsWhiteSpace(text[^2]) && (text[^1] is 'i' or 'I'))
         {
             caseInsensitive = true;
             text = text[..^2].TrimEnd();
@@ -633,15 +682,50 @@ internal sealed class HtmlSelector
 
         var opIndex = -1;
         var match = HtmlAttributeMatch.Exists;
-        if (TryFindAttributeOperator(text, "~=", HtmlAttributeMatch.Includes, out opIndex, out match) ||
-            TryFindAttributeOperator(text, "|=", HtmlAttributeMatch.DashMatch, out opIndex, out match) ||
-            TryFindAttributeOperator(text, "^=", HtmlAttributeMatch.Prefix, out opIndex, out match) ||
-            TryFindAttributeOperator(text, "$=", HtmlAttributeMatch.Suffix, out opIndex, out match) ||
-            TryFindAttributeOperator(text, "*=", HtmlAttributeMatch.Substring, out opIndex, out match) ||
-            TryFindAttributeOperator(text, "=", HtmlAttributeMatch.Exact, out opIndex, out match))
+        if (
+            TryFindAttributeOperator(
+                text,
+                "~=",
+                HtmlAttributeMatch.Includes,
+                out opIndex,
+                out match
+            )
+            || TryFindAttributeOperator(
+                text,
+                "|=",
+                HtmlAttributeMatch.DashMatch,
+                out opIndex,
+                out match
+            )
+            || TryFindAttributeOperator(
+                text,
+                "^=",
+                HtmlAttributeMatch.Prefix,
+                out opIndex,
+                out match
+            )
+            || TryFindAttributeOperator(
+                text,
+                "$=",
+                HtmlAttributeMatch.Suffix,
+                out opIndex,
+                out match
+            )
+            || TryFindAttributeOperator(
+                text,
+                "*=",
+                HtmlAttributeMatch.Substring,
+                out opIndex,
+                out match
+            )
+            || TryFindAttributeOperator(text, "=", HtmlAttributeMatch.Exact, out opIndex, out match)
+        )
         {
             var name = text[..opIndex].Trim().ToString();
-            var value = TrimQuotes(text[(opIndex + (match == HtmlAttributeMatch.Exact ? 1 : 2))..].Trim()).ToString();
+            var value = TrimQuotes(
+                    text[(opIndex + (match == HtmlAttributeMatch.Exact ? 1 : 2))..].Trim()
+                )
+                .ToString();
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrEmpty(value))
                 return false;
 
@@ -653,7 +737,12 @@ internal sealed class HtmlSelector
         if (string.IsNullOrWhiteSpace(attrName))
             return false;
 
-        selector = new HtmlAttributeSelector(attrName, HtmlAttributeMatch.Exists, null, caseInsensitive);
+        selector = new HtmlAttributeSelector(
+            attrName,
+            HtmlAttributeMatch.Exists,
+            null,
+            caseInsensitive
+        );
         return true;
     }
 
@@ -662,7 +751,8 @@ internal sealed class HtmlSelector
         string op,
         HtmlAttributeMatch operatorMatch,
         out int opIndex,
-        out HtmlAttributeMatch match)
+        out HtmlAttributeMatch match
+    )
     {
         opIndex = text.IndexOf(op.AsSpan(), StringComparison.Ordinal);
         match = operatorMatch;
@@ -672,9 +762,12 @@ internal sealed class HtmlSelector
     private static ReadOnlySpan<char> TrimQuotes(ReadOnlySpan<char> value)
     {
         var trimmed = value.Trim();
-        return trimmed.Length >= 2 &&
-               ((trimmed[0] == '"' && trimmed[^1] == '"') ||
-                (trimmed[0] == '\'' && trimmed[^1] == '\''))
+        return
+            trimmed.Length >= 2
+            && (
+                (trimmed[0] == '"' && trimmed[^1] == '"')
+                || (trimmed[0] == '\'' && trimmed[^1] == '\'')
+            )
             ? trimmed[1..^1]
             : trimmed;
     }
@@ -706,9 +799,22 @@ internal sealed class HtmlSelector
         return filtered;
     }
 
-    public bool Matches(HtmlDomElement element, IReadOnlyList<HtmlDomElement> ancestors, IReadOnlyList<bool> ancestorHoverStates, bool isHovered)
+    public bool Matches(
+        HtmlDomElement element,
+        IReadOnlyList<HtmlDomElement> ancestors,
+        IReadOnlyList<bool> ancestorHoverStates,
+        bool isHovered
+    )
     {
-        if (parts.Length == 0 || !PartMatches(parts[^1], element, ancestors.Count > 0 ? ancestors[^1] : null, isHovered))
+        if (
+            parts.Length == 0
+            || !PartMatches(
+                parts[^1],
+                element,
+                ancestors.Count > 0 ? ancestors[^1] : null,
+                isHovered
+            )
+        )
             return false;
 
         var ancestorIndex = ancestors.Count - 1;
@@ -717,12 +823,15 @@ internal sealed class HtmlSelector
             var combinator = combinators[partIndex];
             if (combinator == HtmlSelectorCombinator.Child)
             {
-                if (ancestorIndex < 0 ||
-                    !PartMatches(
+                if (
+                    ancestorIndex < 0
+                    || !PartMatches(
                         parts[partIndex],
                         ancestors[ancestorIndex],
                         ancestorIndex > 0 ? ancestors[ancestorIndex - 1] : null,
-                        IsAncestorHovered(ancestorHoverStates, ancestorIndex)))
+                        IsAncestorHovered(ancestorHoverStates, ancestorIndex)
+                    )
+                )
                 {
                     return false;
                 }
@@ -734,11 +843,14 @@ internal sealed class HtmlSelector
             var matched = false;
             while (ancestorIndex >= 0)
             {
-                if (PartMatches(
+                if (
+                    PartMatches(
                         parts[partIndex],
                         ancestors[ancestorIndex],
                         ancestorIndex > 0 ? ancestors[ancestorIndex - 1] : null,
-                        IsAncestorHovered(ancestorHoverStates, ancestorIndex)))
+                        IsAncestorHovered(ancestorHoverStates, ancestorIndex)
+                    )
+                )
                 {
                     matched = true;
                     ancestorIndex--;
@@ -755,8 +867,8 @@ internal sealed class HtmlSelector
         return true;
     }
 
-    public bool CanMatchRightmost(HtmlDomElement element)
-        => parts.Length > 0 && parts[^1].CanMatchElementIdentity(element);
+    public bool CanMatchRightmost(HtmlDomElement element) =>
+        parts.Length > 0 && parts[^1].CanMatchElementIdentity(element);
 
     public HtmlSelectorPart RightmostPart => parts[^1];
 
@@ -764,8 +876,7 @@ internal sealed class HtmlSelector
     {
         for (var index = 0; index < parts.Length; index++)
         {
-            if (parts[index].RequiresHover &&
-                parts[index].CanMatchElementIdentity(element))
+            if (parts[index].RequiresHover && parts[index].CanMatchElementIdentity(element))
             {
                 return true;
             }
@@ -774,14 +885,22 @@ internal sealed class HtmlSelector
         return false;
     }
 
-    private static bool PartMatches(HtmlSelectorPart part, HtmlDomElement element, HtmlDomElement? parent, bool isHovered)
-        => part.Matches(element, isHovered) &&
-           (!part.RequiresFirstChild || IsFirstElementChild(element, parent));
+    private static bool PartMatches(
+        HtmlSelectorPart part,
+        HtmlDomElement element,
+        HtmlDomElement? parent,
+        bool isHovered
+    ) =>
+        part.Matches(element, isHovered)
+        && (!part.RequiresFirstChild || IsFirstElementChild(element, parent));
 
-    private static bool IsAncestorHovered(IReadOnlyList<bool> ancestorHoverStates, int ancestorIndex)
-        => ancestorIndex >= 0 &&
-           ancestorIndex < ancestorHoverStates.Count &&
-           ancestorHoverStates[ancestorIndex];
+    private static bool IsAncestorHovered(
+        IReadOnlyList<bool> ancestorHoverStates,
+        int ancestorIndex
+    ) =>
+        ancestorIndex >= 0
+        && ancestorIndex < ancestorHoverStates.Count
+        && ancestorHoverStates[ancestorIndex];
 
     private static bool IsFirstElementChild(HtmlDomElement element, HtmlDomElement? parent)
     {
@@ -815,7 +934,7 @@ internal sealed class HtmlSelector
 internal enum HtmlSelectorCombinator : byte
 {
     Descendant,
-    Child
+    Child,
 }
 
 internal enum HtmlAttributeMatch : byte
@@ -826,10 +945,15 @@ internal enum HtmlAttributeMatch : byte
     DashMatch,
     Prefix,
     Suffix,
-    Substring
+    Substring,
 }
 
-internal readonly record struct HtmlAttributeSelector(string Name, HtmlAttributeMatch Match, string? Value, bool CaseInsensitive)
+internal readonly record struct HtmlAttributeSelector(
+    string Name,
+    HtmlAttributeMatch Match,
+    string? Value,
+    bool CaseInsensitive
+)
 {
     public bool Matches(HtmlDomElement element)
     {
@@ -841,21 +965,27 @@ internal readonly record struct HtmlAttributeSelector(string Name, HtmlAttribute
             return true;
 
         var expected = Value ?? string.Empty;
-        var comparison = CaseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var comparison = CaseInsensitive
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
         return Match switch
         {
             HtmlAttributeMatch.Exact => string.Equals(attrValue, expected, comparison),
             HtmlAttributeMatch.Includes => AttributeListIncludes(attrValue, expected, comparison),
-            HtmlAttributeMatch.DashMatch => string.Equals(attrValue, expected, comparison) ||
-                                            attrValue.StartsWith(expected + "-", comparison),
+            HtmlAttributeMatch.DashMatch => string.Equals(attrValue, expected, comparison)
+                || attrValue.StartsWith(expected + "-", comparison),
             HtmlAttributeMatch.Prefix => attrValue.StartsWith(expected, comparison),
             HtmlAttributeMatch.Suffix => attrValue.EndsWith(expected, comparison),
             HtmlAttributeMatch.Substring => attrValue.Contains(expected, comparison),
-            _ => false
+            _ => false,
         };
     }
 
-    private static bool AttributeListIncludes(string value, string expected, StringComparison comparison)
+    private static bool AttributeListIncludes(
+        string value,
+        string expected,
+        StringComparison comparison
+    )
     {
         var span = value.AsSpan();
         var index = 0;
@@ -876,15 +1006,22 @@ internal readonly record struct HtmlAttributeSelector(string Name, HtmlAttribute
     }
 }
 
-internal readonly record struct HtmlSelectorPart(string? TagName, string? Id, string[] ClassNames, HtmlAttributeSelector[] AttributeSelectors, bool RequiresHover, bool RequiresFirstChild)
+internal readonly record struct HtmlSelectorPart(
+    string? TagName,
+    string? Id,
+    string[] ClassNames,
+    HtmlAttributeSelector[] AttributeSelectors,
+    bool RequiresHover,
+    bool RequiresFirstChild
+)
 {
     public int Specificity =>
-        (string.IsNullOrEmpty(Id) ? 0 : 100) +
-        ClassNames.Length * 10 +
-        AttributeSelectors.Length * 10 +
-        (string.IsNullOrEmpty(TagName) ? 0 : 1) +
-        (RequiresHover ? 10 : 0) +
-        (RequiresFirstChild ? 10 : 0);
+        (string.IsNullOrEmpty(Id) ? 0 : 100)
+        + ClassNames.Length * 10
+        + AttributeSelectors.Length * 10
+        + (string.IsNullOrEmpty(TagName) ? 0 : 1)
+        + (RequiresHover ? 10 : 0)
+        + (RequiresFirstChild ? 10 : 0);
 
     public bool Matches(HtmlDomElement element, bool isHovered)
     {
@@ -895,9 +1032,11 @@ internal readonly record struct HtmlSelectorPart(string? TagName, string? Id, st
 
     public bool CanMatchElementIdentity(HtmlDomElement element)
     {
-        if (TagName is not null &&
-            TagName != "*" &&
-            !string.Equals(TagName, element.LocalName, StringComparison.OrdinalIgnoreCase))
+        if (
+            TagName is not null
+            && TagName != "*"
+            && !string.Equals(TagName, element.LocalName, StringComparison.OrdinalIgnoreCase)
+        )
         {
             return false;
         }

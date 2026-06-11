@@ -16,14 +16,16 @@ internal sealed class HtmlSceneEmitter(
     float rootLayoutWidth,
     float rootLayoutHeight,
     float viewportScale,
-    SceneLayoutCommit? previousCommit)
+    SceneLayoutCommit? previousCommit
+)
 {
     public SceneLayoutCommit Emit(
         SceneNodeKind rootKind,
         HtmlComputedStyle rootStyle,
         List<HtmlPlacedNode> placedNodes,
         List<HtmlChildRelation> childRelations,
-        HtmlPipelineMetrics metrics)
+        HtmlPipelineMetrics metrics
+    )
     {
         metrics.AddDisplayListCommandsRebuilt(placedNodes.Count + 1);
         childMap.Clear();
@@ -47,8 +49,24 @@ internal sealed class HtmlSceneEmitter(
             rootKind,
             ParentId: null,
             childMap.TryGetValue(rootSceneNodeId, out var rootChildren) ? rootChildren : [],
-            Label: null);
-        layout[rootSceneNodeId] = CreateLayoutBox(rootSceneNodeId, rootKind, rootStyle, 0, 0, rootLayoutWidth, rootLayoutHeight, null, null, null, null, SceneControlKind.None, isChecked: false, viewportScale);
+            Label: null
+        );
+        layout[rootSceneNodeId] = CreateLayoutBox(
+            rootSceneNodeId,
+            rootKind,
+            rootStyle,
+            0,
+            0,
+            rootLayoutWidth,
+            rootLayoutHeight,
+            null,
+            null,
+            null,
+            null,
+            SceneControlKind.None,
+            isChecked: false,
+            viewportScale
+        );
 
         for (var index = 0; index < placedNodes.Count; index++)
         {
@@ -59,7 +77,8 @@ internal sealed class HtmlSceneEmitter(
                 node.NodeKind,
                 placed.ParentId is null ? null : ToSceneNodeId(placed.ParentId.Value),
                 childMap.TryGetValue(sceneNodeId, out var childIds) ? childIds : [],
-                node.Label);
+                node.Label
+            );
             layout[sceneNodeId] = CreateLayoutBox(
                 sceneNodeId,
                 node.NodeKind,
@@ -74,10 +93,16 @@ internal sealed class HtmlSceneEmitter(
                 node.LinkHref,
                 node.ControlKind,
                 node.IsChecked,
-                viewportScale);
+                viewportScale
+            );
         }
 
-        return SceneLayoutCommitFactory.Create(rootSceneNodeId, new SceneViewport(width, height), nodes, layout);
+        return SceneLayoutCommitFactory.Create(
+            rootSceneNodeId,
+            new SceneViewport(width, height),
+            nodes,
+            layout
+        );
     }
 
     private SceneNodeId[] GetOrCreateChildArray(SceneNodeId parentId, int length)
@@ -105,14 +130,35 @@ internal sealed class HtmlSceneEmitter(
         string? linkHref,
         SceneControlKind controlKind,
         bool isChecked,
-        float viewportScale)
+        float viewportScale
+    )
     {
-        if (TryReuseLayoutBox(id, nodeKind, style, absLeft, absTop, width, height, textContent, imageSource, placeholderText, linkHref, controlKind, isChecked, viewportScale, out var reused))
+        if (
+            TryReuseLayoutBox(
+                id,
+                nodeKind,
+                style,
+                absLeft,
+                absTop,
+                width,
+                height,
+                textContent,
+                imageSource,
+                placeholderText,
+                linkHref,
+                controlKind,
+                isChecked,
+                viewportScale,
+                out var reused
+            )
+        )
             return reused;
 
-        var textStyle = nodeKind is SceneNodeKind.Text or SceneNodeKind.TextInput || controlKind == SceneControlKind.Radio
-            ? textStyleCache.GetTextStyle(style)
-            : null;
+        var textStyle =
+            nodeKind is SceneNodeKind.Text or SceneNodeKind.TextInput
+            || controlKind == SceneControlKind.Radio
+                ? textStyleCache.GetTextStyle(style)
+                : null;
 
         return new SceneLayoutBox(
             nodeKind,
@@ -151,7 +197,8 @@ internal sealed class HtmlSceneEmitter(
             BackgroundShadows: style.BackgroundShadows,
             IsPositioned: style.Position != PositionMode.Static,
             ControlKind: controlKind,
-            IsChecked: isChecked);
+            IsChecked: isChecked
+        );
     }
 
     private bool TryReuseLayoutBox(
@@ -169,46 +216,49 @@ internal sealed class HtmlSceneEmitter(
         SceneControlKind controlKind,
         bool isChecked,
         float viewportScale,
-        out SceneLayoutBox box)
+        out SceneLayoutBox box
+    )
     {
         box = null!;
-        if (previousCommit is null ||
-            !previousCommit.Layout.TryGetValue(id, out var previous) ||
-            previous.NodeKind != nodeKind ||
-            nodeKind == SceneNodeKind.ScrollView ||
-            !Same(previous.AbsLeft, absLeft) ||
-            !Same(previous.AbsTop, absTop) ||
-            !Same(previous.Width, width) ||
-            !Same(previous.Height, height) ||
-            previous.BackgroundColor != style.BackgroundColor ||
-            previous.BorderColor != style.BorderColor ||
-            !Same(previous.BorderWidth, style.BorderWidth) ||
-            !Same(previous.BorderRadius, style.BorderRadius) ||
-            previous.BoxSizing != style.BoxSizing ||
-            previous.TextContent != textContent ||
-            previous.PlaceholderText != placeholderText ||
-            previous.PlaceholderColor != (style.PlaceholderColor ?? style.Color) ||
-            !Same(previous.PaddingLeft, style.PaddingLeft) ||
-            !Same(previous.PaddingTop, style.PaddingTop) ||
-            !Same(previous.PaddingRight, style.PaddingRight) ||
-            !Same(previous.PaddingBottom, style.PaddingBottom) ||
-            previous.Multiline != (nodeKind == SceneNodeKind.TextInput && style.Multiline) ||
-            !Same(previous.LineHeight, style.LineHeight) ||
-            previous.ImageSource != imageSource ||
-            previous.ImageFit != style.ImageFit ||
-            previous.IsScrollContainer != style.IsScrollContainer ||
-            previous.ClipContent != style.ClipContent ||
-            previous.HorizontalScrollEnabled != style.IsScrollContainer ||
-            previous.BorderStyle != style.BorderStyle ||
-            previous.ControlKind != controlKind ||
-            previous.IsChecked != isChecked ||
-            previous.LinkHref != linkHref ||
-            previous.BackgroundImageSource != style.BackgroundImageSource ||
-            previous.BackgroundImageFit != style.BackgroundImageFit ||
-            !Same(previous.ScrollBarWidth, ResolveLayoutScrollBarWidth(style, viewportScale)) ||
-            previous.ScrollBarTrackColor != style.ScrollbarTrackColor ||
-            previous.ScrollBarThumbColor != style.ScrollbarThumbColor ||
-            previous.IsPositioned != (style.Position != PositionMode.Static))
+        if (
+            previousCommit is null
+            || !previousCommit.Layout.TryGetValue(id, out var previous)
+            || previous.NodeKind != nodeKind
+            || nodeKind == SceneNodeKind.ScrollView
+            || !Same(previous.AbsLeft, absLeft)
+            || !Same(previous.AbsTop, absTop)
+            || !Same(previous.Width, width)
+            || !Same(previous.Height, height)
+            || previous.BackgroundColor != style.BackgroundColor
+            || previous.BorderColor != style.BorderColor
+            || !Same(previous.BorderWidth, style.BorderWidth)
+            || !Same(previous.BorderRadius, style.BorderRadius)
+            || previous.BoxSizing != style.BoxSizing
+            || previous.TextContent != textContent
+            || previous.PlaceholderText != placeholderText
+            || previous.PlaceholderColor != (style.PlaceholderColor ?? style.Color)
+            || !Same(previous.PaddingLeft, style.PaddingLeft)
+            || !Same(previous.PaddingTop, style.PaddingTop)
+            || !Same(previous.PaddingRight, style.PaddingRight)
+            || !Same(previous.PaddingBottom, style.PaddingBottom)
+            || previous.Multiline != (nodeKind == SceneNodeKind.TextInput && style.Multiline)
+            || !Same(previous.LineHeight, style.LineHeight)
+            || previous.ImageSource != imageSource
+            || previous.ImageFit != style.ImageFit
+            || previous.IsScrollContainer != style.IsScrollContainer
+            || previous.ClipContent != style.ClipContent
+            || previous.HorizontalScrollEnabled != style.IsScrollContainer
+            || previous.BorderStyle != style.BorderStyle
+            || previous.ControlKind != controlKind
+            || previous.IsChecked != isChecked
+            || previous.LinkHref != linkHref
+            || previous.BackgroundImageSource != style.BackgroundImageSource
+            || previous.BackgroundImageFit != style.BackgroundImageFit
+            || !Same(previous.ScrollBarWidth, ResolveLayoutScrollBarWidth(style, viewportScale))
+            || previous.ScrollBarTrackColor != style.ScrollbarTrackColor
+            || previous.ScrollBarThumbColor != style.ScrollbarThumbColor
+            || previous.IsPositioned != (style.Position != PositionMode.Static)
+        )
         {
             return false;
         }
@@ -233,28 +283,26 @@ internal sealed class HtmlSceneEmitter(
         return true;
     }
 
-    private static bool Same(float left, float right)
-        => Math.Abs(left - right) <= 0.001f;
+    private static bool Same(float left, float right) => Math.Abs(left - right) <= 0.001f;
 
-    private SceneNodeId ToSceneNodeId(HtmlSceneNodeId id)
-        => sceneNodeIds.GetOrCreate(id);
+    private SceneNodeId ToSceneNodeId(HtmlSceneNodeId id) => sceneNodeIds.GetOrCreate(id);
 
     private static bool SameTextStyle(SceneTextStyle? previous, HtmlComputedStyle style)
     {
         if (previous is null)
             return false;
 
-        return Same(previous.FontSize, style.FontSize) &&
-               previous.Color == style.Color &&
-               previous.TextAlign == style.TextAlign &&
-               previous.WrapText == style.WrapText &&
-               previous.Underline == style.Underline &&
-               previous.TextOverflowEllipsis == style.TextOverflowEllipsis &&
-               SameShadows(previous.TextShadows, style.TextShadows) &&
-               Same(previous.Font.Size, style.FontSize) &&
-               previous.Font.Family == style.FontFamily &&
-               previous.Font.Weight == style.FontWeight &&
-               previous.Font.Italic == style.Italic;
+        return Same(previous.FontSize, style.FontSize)
+            && previous.Color == style.Color
+            && previous.TextAlign == style.TextAlign
+            && previous.WrapText == style.WrapText
+            && previous.Underline == style.Underline
+            && previous.TextOverflowEllipsis == style.TextOverflowEllipsis
+            && SameShadows(previous.TextShadows, style.TextShadows)
+            && Same(previous.Font.Size, style.FontSize)
+            && previous.Font.Family == style.FontFamily
+            && previous.Font.Weight == style.FontWeight
+            && previous.Font.Italic == style.Italic;
     }
 
     private static bool SameBorder(SceneBoxBorder? previous, HtmlComputedStyle style)
@@ -265,37 +313,41 @@ internal sealed class HtmlSceneEmitter(
         if (previous is null)
             return false;
 
-        if (!(style.BorderLeftWidth > 0 && style.BorderLeftStyle != SceneBorderStyle.None ||
-              style.BorderTopWidth > 0 && style.BorderTopStyle != SceneBorderStyle.None ||
-              style.BorderRightWidth > 0 && style.BorderRightStyle != SceneBorderStyle.None ||
-              style.BorderBottomWidth > 0 && style.BorderBottomStyle != SceneBorderStyle.None))
+        if (
+            !(
+                style.BorderLeftWidth > 0 && style.BorderLeftStyle != SceneBorderStyle.None
+                || style.BorderTopWidth > 0 && style.BorderTopStyle != SceneBorderStyle.None
+                || style.BorderRightWidth > 0 && style.BorderRightStyle != SceneBorderStyle.None
+                || style.BorderBottomWidth > 0 && style.BorderBottomStyle != SceneBorderStyle.None
+            )
+        )
         {
-            return Same(previous.LeftWidth, style.BorderWidth) &&
-                   Same(previous.TopWidth, style.BorderWidth) &&
-                   Same(previous.RightWidth, style.BorderWidth) &&
-                   Same(previous.BottomWidth, style.BorderWidth) &&
-                   previous.LeftStyle == style.BorderStyle &&
-                   previous.TopStyle == style.BorderStyle &&
-                   previous.RightStyle == style.BorderStyle &&
-                   previous.BottomStyle == style.BorderStyle &&
-                   previous.LeftColor == style.BorderColor &&
-                   previous.TopColor == style.BorderColor &&
-                   previous.RightColor == style.BorderColor &&
-                   previous.BottomColor == style.BorderColor;
+            return Same(previous.LeftWidth, style.BorderWidth)
+                && Same(previous.TopWidth, style.BorderWidth)
+                && Same(previous.RightWidth, style.BorderWidth)
+                && Same(previous.BottomWidth, style.BorderWidth)
+                && previous.LeftStyle == style.BorderStyle
+                && previous.TopStyle == style.BorderStyle
+                && previous.RightStyle == style.BorderStyle
+                && previous.BottomStyle == style.BorderStyle
+                && previous.LeftColor == style.BorderColor
+                && previous.TopColor == style.BorderColor
+                && previous.RightColor == style.BorderColor
+                && previous.BottomColor == style.BorderColor;
         }
 
-        return Same(previous.LeftWidth, style.BorderLeftWidth) &&
-               Same(previous.TopWidth, style.BorderTopWidth) &&
-               Same(previous.RightWidth, style.BorderRightWidth) &&
-               Same(previous.BottomWidth, style.BorderBottomWidth) &&
-               previous.LeftStyle == style.BorderLeftStyle &&
-               previous.TopStyle == style.BorderTopStyle &&
-               previous.RightStyle == style.BorderRightStyle &&
-               previous.BottomStyle == style.BorderBottomStyle &&
-               previous.LeftColor == style.BorderLeftColor &&
-               previous.TopColor == style.BorderTopColor &&
-               previous.RightColor == style.BorderRightColor &&
-               previous.BottomColor == style.BorderBottomColor;
+        return Same(previous.LeftWidth, style.BorderLeftWidth)
+            && Same(previous.TopWidth, style.BorderTopWidth)
+            && Same(previous.RightWidth, style.BorderRightWidth)
+            && Same(previous.BottomWidth, style.BorderBottomWidth)
+            && previous.LeftStyle == style.BorderLeftStyle
+            && previous.TopStyle == style.BorderTopStyle
+            && previous.RightStyle == style.BorderRightStyle
+            && previous.BottomStyle == style.BorderBottomStyle
+            && previous.LeftColor == style.BorderLeftColor
+            && previous.TopColor == style.BorderTopColor
+            && previous.RightColor == style.BorderRightColor
+            && previous.BottomColor == style.BorderBottomColor;
     }
 
     private static bool SameShadows(SceneBoxShadow[]? left, SceneBoxShadow[]? right)
@@ -313,8 +365,10 @@ internal sealed class HtmlSceneEmitter(
         return true;
     }
 
-    private static float ResolveLayoutScrollBarWidth(HtmlComputedStyle style, float viewportScale)
-        => Math.Max(0, style.ScrollbarWidth) / Math.Max(0.001f, viewportScale);
+    private static float ResolveLayoutScrollBarWidth(
+        HtmlComputedStyle style,
+        float viewportScale
+    ) => Math.Max(0, style.ScrollbarWidth) / Math.Max(0.001f, viewportScale);
 
     private static SceneBoxBorder? CreateBorder(HtmlComputedStyle style)
     {
@@ -322,10 +376,10 @@ internal sealed class HtmlSceneEmitter(
             return null;
 
         var hasSideBorder =
-            style.BorderLeftWidth > 0 && style.BorderLeftStyle != SceneBorderStyle.None ||
-            style.BorderTopWidth > 0 && style.BorderTopStyle != SceneBorderStyle.None ||
-            style.BorderRightWidth > 0 && style.BorderRightStyle != SceneBorderStyle.None ||
-            style.BorderBottomWidth > 0 && style.BorderBottomStyle != SceneBorderStyle.None;
+            style.BorderLeftWidth > 0 && style.BorderLeftStyle != SceneBorderStyle.None
+            || style.BorderTopWidth > 0 && style.BorderTopStyle != SceneBorderStyle.None
+            || style.BorderRightWidth > 0 && style.BorderRightStyle != SceneBorderStyle.None
+            || style.BorderBottomWidth > 0 && style.BorderBottomStyle != SceneBorderStyle.None;
         if (!hasSideBorder)
         {
             return new SceneBoxBorder(
@@ -340,7 +394,8 @@ internal sealed class HtmlSceneEmitter(
                 style.BorderColor,
                 style.BorderColor,
                 style.BorderColor,
-                style.BorderColor);
+                style.BorderColor
+            );
         }
 
         return new SceneBoxBorder(
@@ -355,6 +410,7 @@ internal sealed class HtmlSceneEmitter(
             style.BorderLeftColor,
             style.BorderTopColor,
             style.BorderRightColor,
-            style.BorderBottomColor);
+            style.BorderBottomColor
+        );
     }
 }

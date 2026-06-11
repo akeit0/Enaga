@@ -8,10 +8,15 @@ public readonly record struct HtmlPipelineMetricsSnapshot(
     long FragmentsRebuilt,
     long DisplayListCommandsRebuilt,
     int DirtyRectCount,
-    long DirtyRectArea)
+    long DirtyRectArea
+)
 {
-    public HtmlPipelineMetricsSnapshot WithDirtyRects(int count, long area)
-        => this with { DirtyRectCount = count, DirtyRectArea = area };
+    public HtmlPipelineMetricsSnapshot WithDirtyRects(int count, long area) =>
+        this with
+        {
+            DirtyRectCount = count,
+            DirtyRectArea = area,
+        };
 }
 
 internal sealed class HtmlPipelineMetrics
@@ -60,8 +65,8 @@ internal sealed class HtmlPipelineMetrics
 
     public void AddDisplayListCommandsRebuilt(int count) => displayListCommandsRebuilt += count;
 
-    public HtmlPipelineMetricsSnapshot Snapshot()
-        => new(
+    public HtmlPipelineMetricsSnapshot Snapshot() =>
+        new(
             styleMatches,
             styleCascades,
             layoutCacheHits,
@@ -69,5 +74,6 @@ internal sealed class HtmlPipelineMetrics
             fragmentsRebuilt,
             displayListCommandsRebuilt,
             dirtyRectCount,
-            dirtyRectArea);
+            dirtyRectArea
+        );
 }

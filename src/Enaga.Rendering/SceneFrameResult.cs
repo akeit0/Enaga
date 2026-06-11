@@ -18,7 +18,7 @@ public enum SceneDamageReason
     RuntimeReload = 1 << 9,
     LowLevelDraw = 1 << 10,
     FullFrameFallback = 1 << 11,
-    FragmentDamage = 1 << 12
+    FragmentDamage = 1 << 12,
 }
 
 public readonly record struct SceneDamageRect(int X, int Y, int Width, int Height)
@@ -29,7 +29,8 @@ public readonly record struct SceneDamageRect(int X, int Y, int Width, int Heigh
 public sealed record SceneFrameResult(
     SceneLayoutCommit Commit,
     SceneDamageRect[] DirtyRects,
-    SceneDamageReason DamageReasons)
+    SceneDamageReason DamageReasons
+)
 {
     public long DirtyPixelCount
     {
@@ -47,7 +48,12 @@ public sealed record SceneFrameResult(
         return new SceneFrameResult(commit, [], SceneDamageReason.None);
     }
 
-    public static SceneFrameResult FullFrame(SceneLayoutCommit commit, int width, int height, SceneDamageReason damageReasons)
+    public static SceneFrameResult FullFrame(
+        SceneLayoutCommit commit,
+        int width,
+        int height,
+        SceneDamageReason damageReasons
+    )
     {
         if (width <= 0 || height <= 0)
             return new SceneFrameResult(commit, [], damageReasons);
@@ -55,6 +61,7 @@ public sealed record SceneFrameResult(
         return new SceneFrameResult(
             commit,
             [new SceneDamageRect(0, 0, width, height)],
-            damageReasons);
+            damageReasons
+        );
     }
 }

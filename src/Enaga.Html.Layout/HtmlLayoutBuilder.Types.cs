@@ -8,7 +8,13 @@ namespace Enaga.Html;
 
 internal sealed partial class HtmlLayoutBuilder
 {
-    private sealed class TableGridLayout(List<TableCellPlacement> Cells, float[] ColumnWidths, float[] RowHeights, float ColumnGap, float RowGap)
+    private sealed class TableGridLayout(
+        List<TableCellPlacement> Cells,
+        float[] ColumnWidths,
+        float[] RowHeights,
+        float ColumnGap,
+        float RowGap
+    )
     {
         public List<TableCellPlacement> Cells { get; } = Cells;
         public ReadOnlySpan<TableCellPlacement> CellSpan => CollectionsMarshal.AsSpan(Cells);
@@ -16,8 +22,11 @@ internal sealed partial class HtmlLayoutBuilder
         public float[] RowHeights { get; } = RowHeights;
         public float ColumnGap { get; } = ColumnGap;
         public float RowGap { get; } = RowGap;
-        public float Width { get; } = Sum(ColumnWidths, 0, ColumnWidths.Length) + Math.Max(0, ColumnWidths.Length - 1) * ColumnGap;
-        public float Height { get; } = Sum(RowHeights, 0, RowHeights.Length) + Math.Max(0, RowHeights.Length - 1) * RowGap;
+        public float Width { get; } =
+            Sum(ColumnWidths, 0, ColumnWidths.Length)
+            + Math.Max(0, ColumnWidths.Length - 1) * ColumnGap;
+        public float Height { get; } =
+            Sum(RowHeights, 0, RowHeights.Length) + Math.Max(0, RowHeights.Length - 1) * RowGap;
     }
 
     private readonly record struct TableCellPlacement(
@@ -28,7 +37,8 @@ internal sealed partial class HtmlLayoutBuilder
         int RowSpan,
         int ColSpan,
         float MinimumWidth,
-        float PreferredWidth);
+        float PreferredWidth
+    );
 
     private sealed class LayoutScratchArena
     {
@@ -45,7 +55,15 @@ internal sealed partial class HtmlLayoutBuilder
         private int inlineItemOffset;
         private int rowChildOffset;
 
-        public ScratchMark Mark() => new(requestOffset, frameOffset, floatOffset, floatPlacementOffset, inlineItemOffset, rowChildOffset);
+        public ScratchMark Mark() =>
+            new(
+                requestOffset,
+                frameOffset,
+                floatOffset,
+                floatPlacementOffset,
+                inlineItemOffset,
+                rowChildOffset
+            );
 
         public Span<LayoutChildRequest> AllocateRequests(int length)
         {
@@ -147,7 +165,10 @@ internal sealed partial class HtmlLayoutBuilder
             if (requestBuffer.Length >= requiredLength)
                 return;
 
-            Array.Resize(ref requestBuffer, Math.Max(requiredLength, Math.Max(16, requestBuffer.Length * 2)));
+            Array.Resize(
+                ref requestBuffer,
+                Math.Max(requiredLength, Math.Max(16, requestBuffer.Length * 2))
+            );
         }
 
         private void EnsureFrameCapacity(int requiredLength)
@@ -155,7 +176,10 @@ internal sealed partial class HtmlLayoutBuilder
             if (frameBuffer.Length >= requiredLength)
                 return;
 
-            Array.Resize(ref frameBuffer, Math.Max(requiredLength, Math.Max(16, frameBuffer.Length * 2)));
+            Array.Resize(
+                ref frameBuffer,
+                Math.Max(requiredLength, Math.Max(16, frameBuffer.Length * 2))
+            );
         }
 
         private void EnsureFloatCapacity(int requiredLength)
@@ -163,7 +187,10 @@ internal sealed partial class HtmlLayoutBuilder
             if (floatBuffer.Length >= requiredLength)
                 return;
 
-            Array.Resize(ref floatBuffer, Math.Max(requiredLength, Math.Max(16, floatBuffer.Length * 2)));
+            Array.Resize(
+                ref floatBuffer,
+                Math.Max(requiredLength, Math.Max(16, floatBuffer.Length * 2))
+            );
         }
 
         private void EnsureFloatPlacementCapacity(int requiredLength)
@@ -171,7 +198,10 @@ internal sealed partial class HtmlLayoutBuilder
             if (floatPlacementBuffer.Length >= requiredLength)
                 return;
 
-            Array.Resize(ref floatPlacementBuffer, Math.Max(requiredLength, Math.Max(16, floatPlacementBuffer.Length * 2)));
+            Array.Resize(
+                ref floatPlacementBuffer,
+                Math.Max(requiredLength, Math.Max(16, floatPlacementBuffer.Length * 2))
+            );
         }
 
         private void EnsureRowChildCapacity(int requiredLength)
@@ -179,7 +209,10 @@ internal sealed partial class HtmlLayoutBuilder
             if (rowChildBuffer.Length >= requiredLength)
                 return;
 
-            Array.Resize(ref rowChildBuffer, Math.Max(requiredLength, Math.Max(16, rowChildBuffer.Length * 2)));
+            Array.Resize(
+                ref rowChildBuffer,
+                Math.Max(requiredLength, Math.Max(16, rowChildBuffer.Length * 2))
+            );
         }
 
         private void EnsureInlineItemCapacity(int requiredLength)
@@ -187,7 +220,10 @@ internal sealed partial class HtmlLayoutBuilder
             if (inlineItemBuffer.Length >= requiredLength)
                 return;
 
-            Array.Resize(ref inlineItemBuffer, Math.Max(requiredLength, Math.Max(16, inlineItemBuffer.Length * 2)));
+            Array.Resize(
+                ref inlineItemBuffer,
+                Math.Max(requiredLength, Math.Max(16, inlineItemBuffer.Length * 2))
+            );
         }
 
         public readonly record struct ScratchMark(
@@ -196,8 +232,7 @@ internal sealed partial class HtmlLayoutBuilder
             int FloatOffset,
             int FloatPlacementOffset,
             int InlineItemOffset,
-            int RowChildOffset);
+            int RowChildOffset
+        );
     }
-
 }
-

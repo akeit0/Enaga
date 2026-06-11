@@ -6,7 +6,8 @@ public readonly record struct RenderRuntimeStateSnapshot(
     bool AnimationEnabled,
     bool ShaderAnimationEnabled,
     bool RenderInvalidated,
-    int ViewCallCount);
+    int ViewCallCount
+);
 
 public interface IRenderRuntimeStateSource
 {
@@ -26,7 +27,8 @@ public readonly record struct RenderRootDiagnosticsSnapshot(
     SceneDamageReason DamageReasons,
     int Width,
     int Height,
-    RenderRuntimeStateSnapshot RuntimeState);
+    RenderRuntimeStateSnapshot RuntimeState
+);
 
 public interface IRenderDiagnosticsProvider
 {
@@ -45,4 +47,5 @@ public readonly record struct PresentDiagnosticsSnapshot(
     int UploadRectCount,
     bool TextureStorageResized,
     int Width,
-    int Height);
+    int Height
+);

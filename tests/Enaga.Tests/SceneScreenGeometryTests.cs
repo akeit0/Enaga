@@ -20,15 +20,27 @@ public sealed class SceneScreenGeometryTests
             {
                 [root] = new(SceneNodeKind.View, null, [scroll]),
                 [scroll] = new(SceneNodeKind.ScrollView, root, [child]),
-                [child] = new(SceneNodeKind.View, scroll, [])
+                [child] = new(SceneNodeKind.View, scroll, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
                 [root] = new(SceneNodeKind.View, 0, 0, 320, 200),
-                [scroll] = new(SceneNodeKind.ScrollView, 10, 20, 100, 80, ScrollX: 4, ScrollY: 12, IsScrollContainer: true, ContentWidth: 200, ContentHeight: 200),
-                [child] = new(SceneNodeKind.View, 30, 50, 40, 20)
+                [scroll] = new(
+                    SceneNodeKind.ScrollView,
+                    10,
+                    20,
+                    100,
+                    80,
+                    ScrollX: 4,
+                    ScrollY: 12,
+                    IsScrollContainer: true,
+                    ContentWidth: 200,
+                    ContentHeight: 200
+                ),
+                [child] = new(SceneNodeKind.View, 30, 50, 40, 20),
             },
-            []);
+            []
+        );
 
         var found = SceneScreenGeometry.TryGetNodeScreenBounds(commit, child, out var bounds);
 

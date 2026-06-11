@@ -1,13 +1,13 @@
-using Okojo.Objects;
 using Enaga.Layout;
-using Enaga.Rendering;
 using Enaga.React.OkojoRuntime;
+using Enaga.Rendering;
+using Okojo.Objects;
 using Okojo.Runtime;
 using Xunit;
-using LayoutAxis = Enaga.Layout.LayoutAxis;
 using CrossAlignment = Enaga.Layout.CrossAlignment;
 using FlexDirection = Enaga.Layout.FlexDirection;
 using FlexWrap = Enaga.Layout.FlexWrap;
+using LayoutAxis = Enaga.Layout.LayoutAxis;
 using LayoutDirection = Enaga.Layout.LayoutDirection;
 using MainAxisJustification = Enaga.Layout.MainAxisJustification;
 
@@ -15,7 +15,8 @@ namespace Enaga.Tests;
 
 public sealed class NativeStackLayoutCalculatorTests
 {
-    private static readonly RuntimeBackendServices BackendServices = DummyRuntimeBackendServices.Create();
+    private static readonly RuntimeBackendServices BackendServices =
+        DummyRuntimeBackendServices.Create();
 
     [Fact]
     public void Calculate_ColumnWithWrappedTextPushesFollowingItemDown()
@@ -39,17 +40,19 @@ public sealed class NativeStackLayoutCalculatorTests
                     Width: 220,
                     Text: "This is a wrapped note that should consume more than one line in the native stack calculator.",
                     FontSize: 14,
-                    Wrap: true),
-                new LayoutChildRequest(
-                    Kind: LayoutChildKind.Element,
-                    Width: 220,
-                    Height: 24)
-            ]);
+                    Wrap: true
+                ),
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 220, Height: 24),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
         Assert.True(results[0]!.Value.Height > 18);
-        Assert.True(Math.Abs((results[0]!.Value.Top + results[0]!.Value.Height + 8) - results[1]!.Value.Top) < 0.001f);
+        Assert.True(
+            Math.Abs((results[0]!.Value.Top + results[0]!.Value.Height + 8) - results[1]!.Value.Top)
+                < 0.001f
+        );
     }
 
     [Fact]
@@ -71,8 +74,9 @@ public sealed class NativeStackLayoutCalculatorTests
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 50, Height: 20),
                 new LayoutChildRequest(Kind: LayoutChildKind.Spacer, Size: 0, FlexGrow: 1),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 50, Height: 20)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 50, Height: 20),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.Null(results[1]);
@@ -99,8 +103,9 @@ public sealed class NativeStackLayoutCalculatorTests
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 220, Height: 32),
                 new LayoutChildRequest(Kind: LayoutChildKind.Spacer, Size: 12, FlexGrow: 0),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 220, Height: 24)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 220, Height: 24),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.Null(results[1]);
@@ -127,8 +132,9 @@ public sealed class NativeStackLayoutCalculatorTests
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1),
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -161,8 +167,10 @@ public sealed class NativeStackLayoutCalculatorTests
                     Text: "Wrapped text should use the allocated flex width instead of measuring at zero width.",
                     FontSize: 14,
                     Wrap: true,
-                    FlexGrow: 1)
-            ]);
+                    FlexGrow: 1
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(260 - results[0]!.Value.Width) < 0.001f);
@@ -191,13 +199,16 @@ public sealed class NativeStackLayoutCalculatorTests
                     Height: 20,
                     FlexBasis: 50,
                     FlexGrow: 1,
-                    Units: LayoutValueUnitFlags.FlexBasisPercent),
+                    Units: LayoutValueUnitFlags.FlexBasisPercent
+                ),
                 new LayoutChildRequest(
                     Kind: LayoutChildKind.Element,
                     Height: 20,
                     FlexBasis: 20,
-                    FlexGrow: 1)
-            ]);
+                    FlexGrow: 1
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -223,9 +234,20 @@ public sealed class NativeStackLayoutCalculatorTests
             textServices: BackendServices.Text,
             children:
             [
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 80, Height: 20, FlexShrink: 1),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 80, Height: 20, FlexShrink: 1)
-            ]);
+                new LayoutChildRequest(
+                    Kind: LayoutChildKind.Element,
+                    Width: 80,
+                    Height: 20,
+                    FlexShrink: 1
+                ),
+                new LayoutChildRequest(
+                    Kind: LayoutChildKind.Element,
+                    Width: 80,
+                    Height: 20,
+                    FlexShrink: 1
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -257,8 +279,9 @@ public sealed class NativeStackLayoutCalculatorTests
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 50, Height: 50),
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 50, Height: 50),
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 50, Height: 50),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 50, Height: 50)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 50, Height: 50),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -295,8 +318,14 @@ public sealed class NativeStackLayoutCalculatorTests
             children:
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20, AlignSelf: CrossAlignment.End)
-            ]);
+                new LayoutChildRequest(
+                    Kind: LayoutChildKind.Element,
+                    Width: 40,
+                    Height: 20,
+                    AlignSelf: CrossAlignment.End
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -322,8 +351,9 @@ public sealed class NativeStackLayoutCalculatorTests
             children:
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 24),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 32)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 32),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -346,13 +376,16 @@ public sealed class NativeStackLayoutCalculatorTests
             AlignItems: CrossAlignment.Stretch,
             Padding: LayoutBoxEdges.ReplaceSidesWithReservedGutter(
                 new LayoutBoxEdges(32, 0, 32, 0),
-                new LayoutBoxEdges(0, 0, 12, 0)));
+                new LayoutBoxEdges(0, 0, 12, 0)
+            )
+        );
 
         new LayoutCalculator(BackendServices.Text).ComputeFlexLayout(
             LayoutInput.Definite(200, 100),
             style,
             [new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 40)],
-            frames);
+            frames
+        );
 
         Assert.NotNull(frames[0]);
         Assert.Equal(32, frames[0]!.Value.Left, precision: 1);
@@ -371,13 +404,16 @@ public sealed class NativeStackLayoutCalculatorTests
             AlignItems: CrossAlignment.Stretch,
             Padding: LayoutBoxEdges.ReplaceSidesWithReservedGutter(
                 new LayoutBoxEdges(0, 24, 0, 24),
-                new LayoutBoxEdges(0, 0, 0, 12)));
+                new LayoutBoxEdges(0, 0, 0, 12)
+            )
+        );
 
         new LayoutCalculator(BackendServices.Text).ComputeFlexLayout(
             LayoutInput.Definite(200, 100),
             style,
             [new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40)],
-            frames);
+            frames
+        );
 
         Assert.NotNull(frames[0]);
         Assert.Equal(24, frames[0]!.Value.Top, precision: 1);
@@ -400,10 +436,8 @@ public sealed class NativeStackLayoutCalculatorTests
             paddingRight: 18,
             paddingBottom: 18,
             textServices: BackendServices.Text,
-            children:
-            [
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 24)
-            ]);
+            children: [new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 24)]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(18 - results[0]!.Value.Left) < 0.001f);
@@ -432,12 +466,11 @@ public sealed class NativeStackLayoutCalculatorTests
                     Width: 40,
                     Height: 20,
                     MarginTop: 6,
-                    MarginBottom: 14),
-                new LayoutChildRequest(
-                    Kind: LayoutChildKind.Element,
-                    Width: 40,
-                    Height: 20)
-            ]);
+                    MarginBottom: 14
+                ),
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -466,8 +499,10 @@ public sealed class NativeStackLayoutCalculatorTests
                     Kind: LayoutChildKind.Element,
                     Width: 40,
                     MarginTop: 8,
-                    MarginBottom: 12)
-            ]);
+                    MarginBottom: 12
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(8 - results[0]!.Value.Top) < 0.001f);
@@ -493,8 +528,9 @@ public sealed class NativeStackLayoutCalculatorTests
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20),
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -519,10 +555,8 @@ public sealed class NativeStackLayoutCalculatorTests
             paddingRight: 0,
             paddingBottom: 0,
             textServices: BackendServices.Text,
-            children:
-            [
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 60, Height: 20)
-            ]);
+            children: [new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 60, Height: 20)]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(80 - results[0]!.Value.Left) < 0.001f);
@@ -545,9 +579,20 @@ public sealed class NativeStackLayoutCalculatorTests
             textServices: BackendServices.Text,
             children:
             [
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1, MinWidth: 160),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1, MaxWidth: 80)
-            ]);
+                new LayoutChildRequest(
+                    Kind: LayoutChildKind.Element,
+                    Height: 82,
+                    FlexGrow: 1,
+                    MinWidth: 160
+                ),
+                new LayoutChildRequest(
+                    Kind: LayoutChildKind.Element,
+                    Height: 82,
+                    FlexGrow: 1,
+                    MaxWidth: 80
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -575,8 +620,9 @@ public sealed class NativeStackLayoutCalculatorTests
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1),
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 82, FlexGrow: 1),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -605,8 +651,9 @@ public sealed class NativeStackLayoutCalculatorTests
             children:
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 20),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 24)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Height: 24),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -634,8 +681,14 @@ public sealed class NativeStackLayoutCalculatorTests
             textServices: BackendServices.Text,
             children:
             [
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Left: 10, Right: 18, Height: 20)
-            ]);
+                new LayoutChildRequest(
+                    Kind: LayoutChildKind.Element,
+                    Left: 10,
+                    Right: 18,
+                    Height: 20
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(26 - results[0]!.Value.Left) < 0.001f);
@@ -659,8 +712,14 @@ public sealed class NativeStackLayoutCalculatorTests
             textServices: BackendServices.Text,
             children:
             [
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Top: 6, Bottom: 12)
-            ]);
+                new LayoutChildRequest(
+                    Kind: LayoutChildKind.Element,
+                    Width: 40,
+                    Top: 6,
+                    Bottom: 12
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(16 - results[0]!.Value.Top) < 0.001f);
@@ -689,8 +748,10 @@ public sealed class NativeStackLayoutCalculatorTests
                     Text: "Relative paths resolve from the React entry directory.",
                     FontSize: 14,
                     Wrap: true,
-                    FlexGrow: 1)
-            ]);
+                    FlexGrow: 1
+                ),
+            ]
+        );
 
         Assert.True(Math.Abs(108 - measured.CrossSize) < 0.001f);
         Assert.True(measured.MainSize > 180);
@@ -717,8 +778,10 @@ public sealed class NativeStackLayoutCalculatorTests
                     Kind: LayoutChildKind.Button,
                     Text: "Guess",
                     FontSize: 18,
-                    FontWeight: 700)
-            ]);
+                    FontWeight: 700
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(results[0]!.Value.Width > 36);
@@ -746,8 +809,10 @@ public sealed class NativeStackLayoutCalculatorTests
                     Kind: LayoutChildKind.Element,
                     Width: 50,
                     Height: 20,
-                    Units: LayoutValueUnitFlags.WidthPercent)
-            ]);
+                    Units: LayoutValueUnitFlags.WidthPercent
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(90 - results[0]!.Value.Width) < 0.001f);
@@ -774,8 +839,9 @@ public sealed class NativeStackLayoutCalculatorTests
             children:
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 60, Height: 20)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 60, Height: 20),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -803,8 +869,9 @@ public sealed class NativeStackLayoutCalculatorTests
             children:
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 60, Height: 20)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 60, Height: 20),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -832,8 +899,9 @@ public sealed class NativeStackLayoutCalculatorTests
             children:
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 40),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 60)
-            ]);
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 60),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.NotNull(results[1]);
@@ -858,10 +926,8 @@ public sealed class NativeStackLayoutCalculatorTests
             paddingRight: 0,
             paddingBottom: 0,
             textServices: BackendServices.Text,
-            children:
-            [
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20)
-            ]);
+            children: [new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 40, Height: 20)]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(160 - results[0]!.Value.Left) < 0.001f);
@@ -898,8 +964,10 @@ public sealed class NativeStackLayoutCalculatorTests
                     BorderLeft: 7,
                     BorderTop: 1,
                     BorderRight: 3,
-                    BorderBottom: 5)
-            ]);
+                    BorderBottom: 5
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(34 - results[0]!.Value.Width) < 0.001f);
@@ -936,8 +1004,10 @@ public sealed class NativeStackLayoutCalculatorTests
                     BorderLeft: 7,
                     BorderTop: 1,
                     BorderRight: 3,
-                    BorderBottom: 5)
-            ]);
+                    BorderBottom: 5
+                ),
+            ]
+        );
 
         Assert.NotNull(results[0]);
         Assert.True(Math.Abs(22 - results[0]!.Value.Width) < 0.001f);
@@ -952,8 +1022,12 @@ public sealed class NativeStackLayoutCalculatorTests
             new LayoutInput(
                 new LayoutKnownSize(null, null),
                 new LayoutKnownSize(1_000, 0),
-                new LayoutAvailableSize(LayoutAvailableSpace.MaxContent, LayoutAvailableSpace.Definite(0)),
-                LayoutRunMode.ComputeSize),
+                new LayoutAvailableSize(
+                    LayoutAvailableSpace.MaxContent,
+                    LayoutAvailableSpace.Definite(0)
+                ),
+                LayoutRunMode.ComputeSize
+            ),
             new LayoutContainerStyle(
                 FlexDirection.Row,
                 LayoutDirection.Ltr,
@@ -962,12 +1036,14 @@ public sealed class NativeStackLayoutCalculatorTests
                 ColumnGap: 8,
                 AlignItems: CrossAlignment.Start,
                 JustifyContent: MainAxisJustification.Start,
-                Padding: new LayoutBoxEdges(4, 6, 10, 12)),
+                Padding: new LayoutBoxEdges(4, 6, 10, 12)
+            ),
             [
                 new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 20, Height: 10),
-                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 30, Height: 14)
+                new LayoutChildRequest(Kind: LayoutChildKind.Element, Width: 30, Height: 14),
             ],
-            []);
+            []
+        );
 
         Assert.True(Math.Abs(72 - output.Size.Width) < 0.001f);
         Assert.True(Math.Abs(32 - output.Size.Height) < 0.001f);
@@ -981,11 +1057,29 @@ public sealed class NativeStackLayoutCalculatorTests
         var cache = new LayoutOutputCache();
         var nodeId = new LayoutNodeId(42);
         var style = new LayoutContainerStyle();
-        var firstKey = new LayoutCacheKey(nodeId, StyleVersion: 1, LayoutVersion: 1, LayoutInput.Definite(100, 40), style);
-        var secondKey = new LayoutCacheKey(nodeId, StyleVersion: 1, LayoutVersion: 1, LayoutInput.Definite(120, 40), style);
+        var firstKey = new LayoutCacheKey(
+            nodeId,
+            StyleVersion: 1,
+            LayoutVersion: 1,
+            LayoutInput.Definite(100, 40),
+            style
+        );
+        var secondKey = new LayoutCacheKey(
+            nodeId,
+            StyleVersion: 1,
+            LayoutVersion: 1,
+            LayoutInput.Definite(120, 40),
+            style
+        );
 
-        cache.Store(firstKey, new LayoutOutput(new LayoutSize(100, 40), new LayoutSize(90, 30), LayoutRect.Empty));
-        cache.Store(secondKey, new LayoutOutput(new LayoutSize(120, 40), new LayoutSize(110, 30), LayoutRect.Empty));
+        cache.Store(
+            firstKey,
+            new LayoutOutput(new LayoutSize(100, 40), new LayoutSize(90, 30), LayoutRect.Empty)
+        );
+        cache.Store(
+            secondKey,
+            new LayoutOutput(new LayoutSize(120, 40), new LayoutSize(110, 30), LayoutRect.Empty)
+        );
 
         Assert.True(cache.TryGet(firstKey, out var first));
         Assert.True(cache.TryGet(secondKey, out var second));
@@ -1005,11 +1099,29 @@ public sealed class NativeStackLayoutCalculatorTests
         var dirtyNodeId = new LayoutNodeId(42);
         var cleanNodeId = new LayoutNodeId(84);
         var style = new LayoutContainerStyle();
-        var dirtyKey = new LayoutCacheKey(dirtyNodeId, StyleVersion: 1, LayoutVersion: 1, LayoutInput.Definite(100, 40), style);
-        var cleanKey = new LayoutCacheKey(cleanNodeId, StyleVersion: 1, LayoutVersion: 1, LayoutInput.Definite(100, 40), style);
+        var dirtyKey = new LayoutCacheKey(
+            dirtyNodeId,
+            StyleVersion: 1,
+            LayoutVersion: 1,
+            LayoutInput.Definite(100, 40),
+            style
+        );
+        var cleanKey = new LayoutCacheKey(
+            cleanNodeId,
+            StyleVersion: 1,
+            LayoutVersion: 1,
+            LayoutInput.Definite(100, 40),
+            style
+        );
 
-        cache.Store(dirtyKey, new LayoutOutput(new LayoutSize(100, 40), new LayoutSize(90, 30), LayoutRect.Empty));
-        cache.Store(cleanKey, new LayoutOutput(new LayoutSize(80, 30), new LayoutSize(70, 20), LayoutRect.Empty));
+        cache.Store(
+            dirtyKey,
+            new LayoutOutput(new LayoutSize(100, 40), new LayoutSize(90, 30), LayoutRect.Empty)
+        );
+        cache.Store(
+            cleanKey,
+            new LayoutOutput(new LayoutSize(80, 30), new LayoutSize(70, 20), LayoutRect.Empty)
+        );
 
         cache.InvalidateNodes(new HashSet<LayoutNodeId> { dirtyNodeId });
 
@@ -1024,7 +1136,13 @@ public sealed class NativeStackLayoutCalculatorTests
         var cache = new LayoutOutputCache();
         var nodeId = new LayoutNodeId(42);
         var style = new LayoutContainerStyle();
-        var firstKey = new LayoutCacheKey(nodeId, StyleVersion: 1, LayoutVersion: 1, LayoutInput.Definite(100, 40), style);
+        var firstKey = new LayoutCacheKey(
+            nodeId,
+            StyleVersion: 1,
+            LayoutVersion: 1,
+            LayoutInput.Definite(100, 40),
+            style
+        );
 
         for (var index = 0; index < 32; index++)
         {
@@ -1033,11 +1151,25 @@ public sealed class NativeStackLayoutCalculatorTests
                 StyleVersion: 1,
                 LayoutVersion: 1,
                 LayoutInput.Definite(100 + index, 40),
-                style);
-            cache.Store(key, new LayoutOutput(new LayoutSize(100 + index, 40), new LayoutSize(90, 30), LayoutRect.Empty));
+                style
+            );
+            cache.Store(
+                key,
+                new LayoutOutput(
+                    new LayoutSize(100 + index, 40),
+                    new LayoutSize(90, 30),
+                    LayoutRect.Empty
+                )
+            );
         }
 
-        var lastKey = new LayoutCacheKey(nodeId, StyleVersion: 1, LayoutVersion: 1, LayoutInput.Definite(131, 40), style);
+        var lastKey = new LayoutCacheKey(
+            nodeId,
+            StyleVersion: 1,
+            LayoutVersion: 1,
+            LayoutInput.Definite(131, 40),
+            style
+        );
         Assert.False(cache.TryGet(firstKey, out _));
         Assert.True(cache.TryGet(lastKey, out var last));
         Assert.Equal(131, last.Size.Width);
@@ -1055,7 +1187,8 @@ public sealed class NativeStackLayoutCalculatorTests
         float paddingRight,
         float paddingBottom,
         ReadOnlySpan<LayoutChildRequest> children,
-        IRuntimeTextServices textServices)
+        IRuntimeTextServices textServices
+    )
     {
         return Calculate(
             axis == LayoutAxis.Row ? FlexDirection.Row : FlexDirection.Column,
@@ -1071,7 +1204,8 @@ public sealed class NativeStackLayoutCalculatorTests
             paddingRight,
             paddingBottom,
             children,
-            textServices);
+            textServices
+        );
     }
 
     private static LayoutFrameData?[] Calculate(
@@ -1088,7 +1222,8 @@ public sealed class NativeStackLayoutCalculatorTests
         float paddingRight,
         float paddingBottom,
         ReadOnlySpan<LayoutChildRequest> children,
-        IRuntimeTextServices textServices)
+        IRuntimeTextServices textServices
+    )
     {
         var frames = new LayoutFrameData?[children.Length];
         new LayoutCalculator(textServices).ComputeFlexLayout(
@@ -1101,9 +1236,11 @@ public sealed class NativeStackLayoutCalculatorTests
                 ColumnGap: gap,
                 alignItems,
                 justifyContent,
-                new LayoutBoxEdges(paddingLeft, paddingTop, paddingRight, paddingBottom)),
+                new LayoutBoxEdges(paddingLeft, paddingTop, paddingRight, paddingBottom)
+            ),
             children,
-            frames);
+            frames
+        );
         return frames;
     }
 
@@ -1118,7 +1255,8 @@ public sealed class NativeStackLayoutCalculatorTests
         float paddingRight,
         float paddingBottom,
         ReadOnlySpan<LayoutChildRequest> children,
-        IRuntimeTextServices textServices)
+        IRuntimeTextServices textServices
+    )
     {
         var flexDirection = axis == LayoutAxis.Row ? FlexDirection.Row : FlexDirection.Column;
         var output = new LayoutCalculator(textServices).ComputeFlexLayout(
@@ -1131,9 +1269,11 @@ public sealed class NativeStackLayoutCalculatorTests
                 ColumnGap: gap,
                 alignItems,
                 MainAxisJustification.Start,
-                new LayoutBoxEdges(paddingLeft, paddingTop, paddingRight, paddingBottom)),
+                new LayoutBoxEdges(paddingLeft, paddingTop, paddingRight, paddingBottom)
+            ),
             children,
-            []);
+            []
+        );
         return axis == LayoutAxis.Row
             ? new LayoutMeasurement(output.ContentSize.Width, output.ContentSize.Height)
             : new LayoutMeasurement(output.ContentSize.Height, output.ContentSize.Width);
@@ -1147,7 +1287,11 @@ public sealed class NativeStackLayoutCalculatorTests
         return element;
     }
 
-    private static JsPlainObject CreateProps(JsRealm realm, JsValue? type = null, JsValue? style = null)
+    private static JsPlainObject CreateProps(
+        JsRealm realm,
+        JsValue? type = null,
+        JsValue? style = null
+    )
     {
         var props = new JsPlainObject(realm);
         if (type is { } typeValue)
@@ -1157,7 +1301,10 @@ public sealed class NativeStackLayoutCalculatorTests
         return props;
     }
 
-    private static JsPlainObject CreateStyle(JsRealm realm, params (string Name, double Value)[] numericProperties)
+    private static JsPlainObject CreateStyle(
+        JsRealm realm,
+        params (string Name, double Value)[] numericProperties
+    )
     {
         var style = new JsPlainObject(realm);
         foreach (var (name, value) in numericProperties)

@@ -12,13 +12,23 @@ public sealed class HtmlDocumentParser
         var parsedDocument = htmlParser.ParseDocument(source);
         var body = parsedDocument.Body ?? parsedDocument.DocumentElement;
         var rootElement = body is null
-            ? new HtmlDomElement(new HtmlNodeId(1), "body", null, null, new Dictionary<string, string>(), [], string.Empty, string.Empty)
+            ? new HtmlDomElement(
+                new HtmlNodeId(1),
+                "body",
+                null,
+                null,
+                new Dictionary<string, string>(),
+                [],
+                string.Empty,
+                string.Empty
+            )
             : ConvertElement(body, new HtmlDomNodeIdGenerator());
         return new HtmlParsedDomDocument(
             rootElement,
             LoadAuthorStyleTexts(parsedDocument, basePath),
             LoadAuthorScripts(parsedDocument),
-            basePath);
+            basePath
+        );
     }
 
     public IReadOnlyList<HtmlDomNode> ParseFragment(string? html)
@@ -34,7 +44,10 @@ public sealed class HtmlDocumentParser
         return ConvertChildNodes(body.ChildNodes, new HtmlDomNodeIdGenerator());
     }
 
-    private static IReadOnlyList<string> LoadAuthorStyleTexts(AngleSharp.Html.Dom.IHtmlDocument document, string? basePath)
+    private static IReadOnlyList<string> LoadAuthorStyleTexts(
+        AngleSharp.Html.Dom.IHtmlDocument document,
+        string? basePath
+    )
     {
         var styles = new List<string>();
         foreach (var element in document.QuerySelectorAll("link, style"))
@@ -45,9 +58,15 @@ public sealed class HtmlDocumentParser
                 continue;
             }
 
-            if (!IsStyleSheetLink(element) ||
-                !TryResolveLocalStyleSheetPath(element.GetAttribute("href"), basePath, out var stylePath) ||
-                !File.Exists(stylePath))
+            if (
+                !IsStyleSheetLink(element)
+                || !TryResolveLocalStyleSheetPath(
+                    element.GetAttribute("href"),
+                    basePath,
+                    out var stylePath
+                )
+                || !File.Exists(stylePath)
+            )
             {
                 continue;
             }
@@ -58,15 +77,20 @@ public sealed class HtmlDocumentParser
         return styles;
     }
 
-    private static IReadOnlyList<HtmlDomScript> LoadAuthorScripts(AngleSharp.Html.Dom.IHtmlDocument document)
+    private static IReadOnlyList<HtmlDomScript> LoadAuthorScripts(
+        AngleSharp.Html.Dom.IHtmlDocument document
+    )
     {
         var scripts = new List<HtmlDomScript>();
         foreach (var element in document.QuerySelectorAll("script"))
         {
-            scripts.Add(new HtmlDomScript(
-                GetDirectTextContent(element),
-                element.GetAttribute("src"),
-                element.GetAttribute("type")));
+            scripts.Add(
+                new HtmlDomScript(
+                    GetDirectTextContent(element),
+                    element.GetAttribute("src"),
+                    element.GetAttribute("type")
+                )
+            );
         }
 
         return scripts;
@@ -89,14 +113,22 @@ public sealed class HtmlDocumentParser
             while (index < span.Length && !char.IsWhiteSpace(span[index]))
                 index++;
 
-            if (start < index && span[start..index].Equals("stylesheet".AsSpan(), StringComparison.OrdinalIgnoreCase))
+            if (
+                start < index
+                && span[start..index]
+                    .Equals("stylesheet".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            )
                 return true;
         }
 
         return false;
     }
 
-    private static bool TryResolveLocalStyleSheetPath(string? href, string? basePath, out string path)
+    private static bool TryResolveLocalStyleSheetPath(
+        string? href,
+        string? basePath,
+        out string path
+    )
     {
         path = string.Empty;
         if (string.IsNullOrWhiteSpace(href))
@@ -120,7 +152,9 @@ public sealed class HtmlDocumentParser
             if (!baseUri.IsFile)
                 return false;
 
-            path = Path.GetFullPath(Path.Combine(baseUri.LocalPath, Uri.UnescapeDataString(trimmed)));
+            path = Path.GetFullPath(
+                Path.Combine(baseUri.LocalPath, Uri.UnescapeDataString(trimmed))
+            );
             return true;
         }
 
@@ -134,12 +168,18 @@ public sealed class HtmlDocumentParser
         return suffixIndex >= 0 ? value[..suffixIndex] : value;
     }
 
-    private static HtmlDomElement ConvertElement(IElement element, HtmlDomNodeIdGenerator idGenerator)
+    private static HtmlDomElement ConvertElement(
+        IElement element,
+        HtmlDomNodeIdGenerator idGenerator
+    )
     {
         var nodeId = idGenerator.Next();
         var children = ConvertChildNodes(element.ChildNodes, idGenerator);
 
-        var attributes = new Dictionary<string, string>(element.Attributes.Length, StringComparer.OrdinalIgnoreCase);
+        var attributes = new Dictionary<string, string>(
+            element.Attributes.Length,
+            StringComparer.OrdinalIgnoreCase
+        );
         for (var index = 0; index < element.Attributes.Length; index++)
         {
             var attribute = element.Attributes[index];
@@ -155,10 +195,14 @@ public sealed class HtmlDocumentParser
             string.IsNullOrWhiteSpace(element.Id) ? null : element.Id,
             element.GetAttribute("class"),
             attributes,
-            children);
+            children
+        );
     }
 
-    private static IReadOnlyList<HtmlDomNode> ConvertChildNodes(INodeList childNodes, HtmlDomNodeIdGenerator idGenerator)
+    private static IReadOnlyList<HtmlDomNode> ConvertChildNodes(
+        INodeList childNodes,
+        HtmlDomNodeIdGenerator idGenerator
+    )
     {
         var children = new List<HtmlDomNode>(childNodes.Length);
         for (var index = 0; index < childNodes.Length; index++)
@@ -178,9 +222,9 @@ public sealed class HtmlDocumentParser
         return children;
     }
 
-    private static bool IsNonRenderedTextElement(string localName)
-        => string.Equals(localName, "script", StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(localName, "style", StringComparison.OrdinalIgnoreCase);
+    private static bool IsNonRenderedTextElement(string localName) =>
+        string.Equals(localName, "script", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(localName, "style", StringComparison.OrdinalIgnoreCase);
 
     private static string GetDirectTextContent(IElement element)
     {
@@ -200,7 +244,11 @@ public sealed class HtmlDocumentParser
         return builder?.ToString() ?? textContent ?? string.Empty;
     }
 
-    private static void AppendText(string text, ref string? textContent, ref System.Text.StringBuilder? builder)
+    private static void AppendText(
+        string text,
+        ref string? textContent,
+        ref System.Text.StringBuilder? builder
+    )
     {
         if (text.Length == 0)
             return;
@@ -227,7 +275,6 @@ public sealed class HtmlDocumentParser
     {
         private int nextId;
 
-        public HtmlNodeId Next()
-            => new(++nextId);
+        public HtmlNodeId Next() => new(++nextId);
     }
 }

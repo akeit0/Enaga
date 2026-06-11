@@ -118,21 +118,26 @@ internal sealed partial class HtmlComputedStyle
     public bool HasExplicitWidth => IsLengthExplicit(HtmlLengthProperty.Width);
     public bool HasExplicitHeight => IsLengthExplicit(HtmlLengthProperty.Height);
     public bool HasImplicitBlockWidthPercent =>
-        !HasExplicitWidth &&
-        IsWidthPercent &&
-        MathF.Abs(Width - Defaults.BlockWidthPercent) < 0.001f;
+        !HasExplicitWidth
+        && IsWidthPercent
+        && MathF.Abs(Width - Defaults.BlockWidthPercent) < 0.001f;
     public bool StopsLayoutDirtyPropagation =>
-        (Containment & HtmlContainment.Size) != 0 ||
-        (LayoutValue.IsSet(Width) &&
-         LayoutValue.IsSet(Height) &&
-         !IsWidthPercent &&
-         !IsHeightPercent &&
-         (IsScrollContainer || ClipContent));
-    public bool ShouldUseFullWidthByDefault => Display is HtmlDisplay.Block or HtmlDisplay.Flex && !LayoutValue.IsSet(Width);
+        (Containment & HtmlContainment.Size) != 0
+        || (
+            LayoutValue.IsSet(Width)
+            && LayoutValue.IsSet(Height)
+            && !IsWidthPercent
+            && !IsHeightPercent
+            && (IsScrollContainer || ClipContent)
+        );
+    public bool ShouldUseFullWidthByDefault =>
+        Display is HtmlDisplay.Block or HtmlDisplay.Flex && !LayoutValue.IsSet(Width);
+
     public bool ShouldUseFullWidthByDefaultInParent(
         bool parentIsFlexContainer,
         FlexDirection parentFlexDirection = FlexDirection.Column,
-        CrossAlignment parentAlignItems = CrossAlignment.Stretch)
+        CrossAlignment parentAlignItems = CrossAlignment.Stretch
+    )
     {
         if (LayoutValue.IsSet(Width))
             return false;
@@ -146,15 +151,16 @@ internal sealed partial class HtmlComputedStyle
         if (FlexLayout.ResolveAxis(parentFlexDirection) != LayoutAxis.Column)
             return false;
 
-        var resolvedCrossAlignment = AlignSelf == CrossAlignment.Auto
-            ? parentAlignItems
-            : AlignSelf;
+        var resolvedCrossAlignment =
+            AlignSelf == CrossAlignment.Auto ? parentAlignItems : AlignSelf;
         return resolvedCrossAlignment == CrossAlignment.Stretch;
     }
+
     public bool ShouldTreatImplicitBlockWidthAsAutoInParent(
         bool parentIsFlexContainer,
         FlexDirection parentFlexDirection = FlexDirection.Column,
-        CrossAlignment parentAlignItems = CrossAlignment.Stretch)
+        CrossAlignment parentAlignItems = CrossAlignment.Stretch
+    )
     {
         if (!HasImplicitBlockWidthPercent || !parentIsFlexContainer)
             return false;
@@ -162,48 +168,51 @@ internal sealed partial class HtmlComputedStyle
         if (FlexLayout.ResolveAxis(parentFlexDirection) != LayoutAxis.Column)
             return false;
 
-        var resolvedCrossAlignment = AlignSelf == CrossAlignment.Auto
-            ? parentAlignItems
-            : AlignSelf;
+        var resolvedCrossAlignment =
+            AlignSelf == CrossAlignment.Auto ? parentAlignItems : AlignSelf;
         return resolvedCrossAlignment != CrossAlignment.Stretch;
     }
+
     public bool CanCollapseTextOnlyContent =>
-        string.IsNullOrWhiteSpace(BackgroundColor) &&
-        string.IsNullOrWhiteSpace(BackgroundImageSource) &&
-        !HasAnyVisibleBorder &&
-        BorderRadius <= 0 &&
-        PaddingLeft <= 0 &&
-        PaddingTop <= 0 &&
-        PaddingRight <= 0 &&
-        PaddingBottom <= 0 &&
-        MarginLeft <= 0 &&
-        MarginTop <= 0 &&
-        MarginRight <= 0 &&
-        MarginBottom <= 0 &&
-        !LayoutValue.IsSet(Width) &&
-        !LayoutValue.IsSet(Height) &&
-        Float == HtmlFloat.None &&
-        !IsScrollContainer &&
-        !ClipContent;
+        string.IsNullOrWhiteSpace(BackgroundColor)
+        && string.IsNullOrWhiteSpace(BackgroundImageSource)
+        && !HasAnyVisibleBorder
+        && BorderRadius <= 0
+        && PaddingLeft <= 0
+        && PaddingTop <= 0
+        && PaddingRight <= 0
+        && PaddingBottom <= 0
+        && MarginLeft <= 0
+        && MarginTop <= 0
+        && MarginRight <= 0
+        && MarginBottom <= 0
+        && !LayoutValue.IsSet(Width)
+        && !LayoutValue.IsSet(Height)
+        && Float == HtmlFloat.None
+        && !IsScrollContainer
+        && !ClipContent;
     public bool HasInlineBoxMetrics =>
-        PaddingLeft > 0 ||
-        PaddingTop > 0 ||
-        PaddingRight > 0 ||
-        PaddingBottom > 0 ||
-        MarginLeft > 0 ||
-        MarginTop > 0 ||
-        MarginRight > 0 ||
-        MarginBottom > 0 ||
-        HasAnyVisibleBorder;
+        PaddingLeft > 0
+        || PaddingTop > 0
+        || PaddingRight > 0
+        || PaddingBottom > 0
+        || MarginLeft > 0
+        || MarginTop > 0
+        || MarginRight > 0
+        || MarginBottom > 0
+        || HasAnyVisibleBorder;
 
     public bool HasAnyVisibleBorder =>
-        BorderWidth > 0 && BorderStyle != Defaults.BorderStyle ||
-        BorderLeftWidth > 0 && BorderLeftStyle != Defaults.BorderStyle ||
-        BorderTopWidth > 0 && BorderTopStyle != Defaults.BorderStyle ||
-        BorderRightWidth > 0 && BorderRightStyle != Defaults.BorderStyle ||
-        BorderBottomWidth > 0 && BorderBottomStyle != Defaults.BorderStyle;
+        BorderWidth > 0 && BorderStyle != Defaults.BorderStyle
+        || BorderLeftWidth > 0 && BorderLeftStyle != Defaults.BorderStyle
+        || BorderTopWidth > 0 && BorderTopStyle != Defaults.BorderStyle
+        || BorderRightWidth > 0 && BorderRightStyle != Defaults.BorderStyle
+        || BorderBottomWidth > 0 && BorderBottomStyle != Defaults.BorderStyle;
 
-    public static HtmlComputedStyle CreateDefault(HtmlOptions options, LayoutEngineConfig layoutConfig)
+    public static HtmlComputedStyle CreateDefault(
+        HtmlOptions options,
+        LayoutEngineConfig layoutConfig
+    )
     {
         return new HtmlComputedStyle
         {
@@ -212,111 +221,134 @@ internal sealed partial class HtmlComputedStyle
             FontFamily = options.DefaultFontFamily,
             FontWeight = options.DefaultFontWeight,
             Color = options.DefaultTextColor,
-            Position = layoutConfig.DefaultPositionMode
+            Position = layoutConfig.DefaultPositionMode,
         };
     }
 
-    public static bool HasSameLayoutIdentity(HtmlComputedStyle left, HtmlComputedStyle right)
-        => left.Display == right.Display &&
-           left.FlexDirection == right.FlexDirection &&
-           left.FlexWrap == right.FlexWrap &&
-           left.Direction == right.Direction &&
-           left.JustifyContent == right.JustifyContent &&
-           left.AlignItems == right.AlignItems &&
-           left.AlignSelf == right.AlignSelf &&
-           left.Order == right.Order &&
-           left.Position == right.Position &&
-           left.BoxSizing == right.BoxSizing &&
-           Same(left.Left, right.Left) &&
-           Same(left.Top, right.Top) &&
-           Same(left.Right, right.Right) &&
-           Same(left.Bottom, right.Bottom) &&
-           Same(left.Width, right.Width) &&
-           Same(left.Height, right.Height) &&
-           Same(left.MinWidth, right.MinWidth) &&
-           Same(left.MaxWidth, right.MaxWidth) &&
-           Same(left.MinHeight, right.MinHeight) &&
-           Same(left.MaxHeight, right.MaxHeight) &&
-            Same(left.MarginLeft, right.MarginLeft) &&
-            Same(left.MarginTop, right.MarginTop) &&
-            Same(left.MarginRight, right.MarginRight) &&
-            Same(left.MarginBottom, right.MarginBottom) &&
-            left.autoMarginFlags == right.autoMarginFlags &&
-            Same(left.PaddingLeft, right.PaddingLeft) &&
-           Same(left.PaddingTop, right.PaddingTop) &&
-           Same(left.PaddingRight, right.PaddingRight) &&
-           Same(left.PaddingBottom, right.PaddingBottom) &&
-           Same(left.Gap, right.Gap) &&
-           Same(left.TableBorderSpacing, right.TableBorderSpacing) &&
-           left.TableBorderCollapse == right.TableBorderCollapse &&
-           Same(left.BorderWidth, right.BorderWidth) &&
-           Same(left.BorderLeftWidth, right.BorderLeftWidth) &&
-           Same(left.BorderTopWidth, right.BorderTopWidth) &&
-           Same(left.BorderRightWidth, right.BorderRightWidth) &&
-           Same(left.BorderBottomWidth, right.BorderBottomWidth) &&
-           left.BorderStyle == right.BorderStyle &&
-           left.BorderLeftStyle == right.BorderLeftStyle &&
-           left.BorderTopStyle == right.BorderTopStyle &&
-           left.BorderRightStyle == right.BorderRightStyle &&
-           left.BorderBottomStyle == right.BorderBottomStyle &&
-           Same(left.BorderRadius, right.BorderRadius) &&
-           Same(left.FontSize, right.FontSize) &&
-           left.FontWeight == right.FontWeight &&
-           string.Equals(left.FontFamily, right.FontFamily, StringComparison.Ordinal) &&
-           Same(left.FlexGrow, right.FlexGrow) &&
-           Same(left.FlexShrink, right.FlexShrink) &&
-           Same(left.FlexBasis, right.FlexBasis) &&
-           left.Float == right.Float &&
-           left.Clear == right.Clear &&
-           Same(left.LineHeight, right.LineHeight) &&
-           string.Equals(left.ImageFit, right.ImageFit, StringComparison.Ordinal) &&
-           Same(left.IntrinsicImageWidth, right.IntrinsicImageWidth) &&
-           Same(left.IntrinsicImageHeight, right.IntrinsicImageHeight) &&
-           Same(left.ImageAspectRatio, right.ImageAspectRatio) &&
-           left.TextAlign == right.TextAlign &&
-           left.HasExplicitTextAlign == right.HasExplicitTextAlign &&
-           left.WhiteSpace == right.WhiteSpace &&
-           left.TextTransform == right.TextTransform &&
-           left.WrapText == right.WrapText &&
-           left.TextOverflowEllipsis == right.TextOverflowEllipsis &&
-           left.Underline == right.Underline &&
-           left.Italic == right.Italic &&
-           left.SuppressListMarker == right.SuppressListMarker &&
-           string.Equals(left.UnorderedListMarkerText, right.UnorderedListMarkerText, StringComparison.Ordinal) &&
-           left.ClipContent == right.ClipContent &&
-           left.IsScrollContainer == right.IsScrollContainer &&
-           left.Containment == right.Containment &&
-           left.Multiline == right.Multiline &&
-           left.PreferIntrinsicWidth == right.PreferIntrinsicWidth &&
-           Same(left.ScrollbarWidth, right.ScrollbarWidth) &&
-           string.Equals(left.ScrollbarTrackColor, right.ScrollbarTrackColor, StringComparison.Ordinal) &&
-           string.Equals(left.ScrollbarThumbColor, right.ScrollbarThumbColor, StringComparison.Ordinal) &&
-           left.UnitFlags == right.UnitFlags;
+    public static bool HasSameLayoutIdentity(HtmlComputedStyle left, HtmlComputedStyle right) =>
+        left.Display == right.Display
+        && left.FlexDirection == right.FlexDirection
+        && left.FlexWrap == right.FlexWrap
+        && left.Direction == right.Direction
+        && left.JustifyContent == right.JustifyContent
+        && left.AlignItems == right.AlignItems
+        && left.AlignSelf == right.AlignSelf
+        && left.Order == right.Order
+        && left.Position == right.Position
+        && left.BoxSizing == right.BoxSizing
+        && Same(left.Left, right.Left)
+        && Same(left.Top, right.Top)
+        && Same(left.Right, right.Right)
+        && Same(left.Bottom, right.Bottom)
+        && Same(left.Width, right.Width)
+        && Same(left.Height, right.Height)
+        && Same(left.MinWidth, right.MinWidth)
+        && Same(left.MaxWidth, right.MaxWidth)
+        && Same(left.MinHeight, right.MinHeight)
+        && Same(left.MaxHeight, right.MaxHeight)
+        && Same(left.MarginLeft, right.MarginLeft)
+        && Same(left.MarginTop, right.MarginTop)
+        && Same(left.MarginRight, right.MarginRight)
+        && Same(left.MarginBottom, right.MarginBottom)
+        && left.autoMarginFlags == right.autoMarginFlags
+        && Same(left.PaddingLeft, right.PaddingLeft)
+        && Same(left.PaddingTop, right.PaddingTop)
+        && Same(left.PaddingRight, right.PaddingRight)
+        && Same(left.PaddingBottom, right.PaddingBottom)
+        && Same(left.Gap, right.Gap)
+        && Same(left.TableBorderSpacing, right.TableBorderSpacing)
+        && left.TableBorderCollapse == right.TableBorderCollapse
+        && Same(left.BorderWidth, right.BorderWidth)
+        && Same(left.BorderLeftWidth, right.BorderLeftWidth)
+        && Same(left.BorderTopWidth, right.BorderTopWidth)
+        && Same(left.BorderRightWidth, right.BorderRightWidth)
+        && Same(left.BorderBottomWidth, right.BorderBottomWidth)
+        && left.BorderStyle == right.BorderStyle
+        && left.BorderLeftStyle == right.BorderLeftStyle
+        && left.BorderTopStyle == right.BorderTopStyle
+        && left.BorderRightStyle == right.BorderRightStyle
+        && left.BorderBottomStyle == right.BorderBottomStyle
+        && Same(left.BorderRadius, right.BorderRadius)
+        && Same(left.FontSize, right.FontSize)
+        && left.FontWeight == right.FontWeight
+        && string.Equals(left.FontFamily, right.FontFamily, StringComparison.Ordinal)
+        && Same(left.FlexGrow, right.FlexGrow)
+        && Same(left.FlexShrink, right.FlexShrink)
+        && Same(left.FlexBasis, right.FlexBasis)
+        && left.Float == right.Float
+        && left.Clear == right.Clear
+        && Same(left.LineHeight, right.LineHeight)
+        && string.Equals(left.ImageFit, right.ImageFit, StringComparison.Ordinal)
+        && Same(left.IntrinsicImageWidth, right.IntrinsicImageWidth)
+        && Same(left.IntrinsicImageHeight, right.IntrinsicImageHeight)
+        && Same(left.ImageAspectRatio, right.ImageAspectRatio)
+        && left.TextAlign == right.TextAlign
+        && left.HasExplicitTextAlign == right.HasExplicitTextAlign
+        && left.WhiteSpace == right.WhiteSpace
+        && left.TextTransform == right.TextTransform
+        && left.WrapText == right.WrapText
+        && left.TextOverflowEllipsis == right.TextOverflowEllipsis
+        && left.Underline == right.Underline
+        && left.Italic == right.Italic
+        && left.SuppressListMarker == right.SuppressListMarker
+        && string.Equals(
+            left.UnorderedListMarkerText,
+            right.UnorderedListMarkerText,
+            StringComparison.Ordinal
+        )
+        && left.ClipContent == right.ClipContent
+        && left.IsScrollContainer == right.IsScrollContainer
+        && left.Containment == right.Containment
+        && left.Multiline == right.Multiline
+        && left.PreferIntrinsicWidth == right.PreferIntrinsicWidth
+        && Same(left.ScrollbarWidth, right.ScrollbarWidth)
+        && string.Equals(
+            left.ScrollbarTrackColor,
+            right.ScrollbarTrackColor,
+            StringComparison.Ordinal
+        )
+        && string.Equals(
+            left.ScrollbarThumbColor,
+            right.ScrollbarThumbColor,
+            StringComparison.Ordinal
+        )
+        && left.UnitFlags == right.UnitFlags;
 
-    public static bool HasSameStyleSharingIdentity(HtmlComputedStyle left, HtmlComputedStyle right)
-        => HasSameLayoutIdentity(left, right) &&
-           left.HasExplicitDisplay == right.HasExplicitDisplay &&
-           left.HasExplicitColor == right.HasExplicitColor &&
-           left.HasExplicitTextDecoration == right.HasExplicitTextDecoration &&
-           left.HasAnyVisibleBorder == right.HasAnyVisibleBorder &&
-           left.viewportLengthFlags == right.viewportLengthFlags &&
-           left.containerPercentLengthFlags == right.containerPercentLengthFlags &&
-           left.explicitLengthFlags == right.explicitLengthFlags &&
-           Same(left.fontSizeReference, right.fontSizeReference) &&
-           Same(left.rootFontSize, right.rootFontSize) &&
-           string.Equals(left.inheritedColor, right.inheritedColor, StringComparison.Ordinal) &&
-           string.Equals(left.BackgroundColor, right.BackgroundColor, StringComparison.Ordinal) &&
-           string.Equals(left.BackgroundImageSource, right.BackgroundImageSource, StringComparison.Ordinal) &&
-           string.Equals(left.BackgroundImageFit, right.BackgroundImageFit, StringComparison.Ordinal) &&
-           SameShadows(left.BackgroundShadows, right.BackgroundShadows) &&
-           string.Equals(left.BorderColor, right.BorderColor, StringComparison.Ordinal) &&
-           string.Equals(left.BorderLeftColor, right.BorderLeftColor, StringComparison.Ordinal) &&
-           string.Equals(left.BorderTopColor, right.BorderTopColor, StringComparison.Ordinal) &&
-           string.Equals(left.BorderRightColor, right.BorderRightColor, StringComparison.Ordinal) &&
-           string.Equals(left.BorderBottomColor, right.BorderBottomColor, StringComparison.Ordinal) &&
-           string.Equals(left.Color, right.Color, StringComparison.Ordinal) &&
-           string.Equals(left.PlaceholderColor, right.PlaceholderColor, StringComparison.Ordinal) &&
-           SameShadows(left.TextShadows, right.TextShadows);
+    public static bool HasSameStyleSharingIdentity(
+        HtmlComputedStyle left,
+        HtmlComputedStyle right
+    ) =>
+        HasSameLayoutIdentity(left, right)
+        && left.HasExplicitDisplay == right.HasExplicitDisplay
+        && left.HasExplicitColor == right.HasExplicitColor
+        && left.HasExplicitTextDecoration == right.HasExplicitTextDecoration
+        && left.HasAnyVisibleBorder == right.HasAnyVisibleBorder
+        && left.viewportLengthFlags == right.viewportLengthFlags
+        && left.containerPercentLengthFlags == right.containerPercentLengthFlags
+        && left.explicitLengthFlags == right.explicitLengthFlags
+        && Same(left.fontSizeReference, right.fontSizeReference)
+        && Same(left.rootFontSize, right.rootFontSize)
+        && string.Equals(left.inheritedColor, right.inheritedColor, StringComparison.Ordinal)
+        && string.Equals(left.BackgroundColor, right.BackgroundColor, StringComparison.Ordinal)
+        && string.Equals(
+            left.BackgroundImageSource,
+            right.BackgroundImageSource,
+            StringComparison.Ordinal
+        )
+        && string.Equals(
+            left.BackgroundImageFit,
+            right.BackgroundImageFit,
+            StringComparison.Ordinal
+        )
+        && SameShadows(left.BackgroundShadows, right.BackgroundShadows)
+        && string.Equals(left.BorderColor, right.BorderColor, StringComparison.Ordinal)
+        && string.Equals(left.BorderLeftColor, right.BorderLeftColor, StringComparison.Ordinal)
+        && string.Equals(left.BorderTopColor, right.BorderTopColor, StringComparison.Ordinal)
+        && string.Equals(left.BorderRightColor, right.BorderRightColor, StringComparison.Ordinal)
+        && string.Equals(left.BorderBottomColor, right.BorderBottomColor, StringComparison.Ordinal)
+        && string.Equals(left.Color, right.Color, StringComparison.Ordinal)
+        && string.Equals(left.PlaceholderColor, right.PlaceholderColor, StringComparison.Ordinal)
+        && SameShadows(left.TextShadows, right.TextShadows);
 
     public int GetStyleSharingHash()
     {
@@ -420,51 +452,54 @@ internal sealed partial class HtmlComputedStyle
         return hash.ToHashCode();
     }
 
-    public static bool HasSameOuterLayoutDependency(HtmlComputedStyle left, HtmlComputedStyle right)
-        => left.Display == right.Display &&
-           left.FlexDirection == right.FlexDirection &&
-           left.FlexWrap == right.FlexWrap &&
-           left.Direction == right.Direction &&
-           left.AlignSelf == right.AlignSelf &&
-           left.Order == right.Order &&
-           left.Position == right.Position &&
-           left.BoxSizing == right.BoxSizing &&
-           Same(left.Left, right.Left) &&
-           Same(left.Top, right.Top) &&
-           Same(left.Right, right.Right) &&
-           Same(left.Bottom, right.Bottom) &&
-           Same(left.Width, right.Width) &&
-           Same(left.Height, right.Height) &&
-           Same(left.MinWidth, right.MinWidth) &&
-           Same(left.MaxWidth, right.MaxWidth) &&
-           Same(left.MinHeight, right.MinHeight) &&
-           Same(left.MaxHeight, right.MaxHeight) &&
-            Same(left.MarginLeft, right.MarginLeft) &&
-            Same(left.MarginTop, right.MarginTop) &&
-            Same(left.MarginRight, right.MarginRight) &&
-            Same(left.MarginBottom, right.MarginBottom) &&
-            left.autoMarginFlags == right.autoMarginFlags &&
-            Same(left.PaddingLeft, right.PaddingLeft) &&
-           Same(left.PaddingTop, right.PaddingTop) &&
-           Same(left.PaddingRight, right.PaddingRight) &&
-           Same(left.PaddingBottom, right.PaddingBottom) &&
-           Same(left.BorderWidth, right.BorderWidth) &&
-           Same(left.BorderLeftWidth, right.BorderLeftWidth) &&
-           Same(left.BorderTopWidth, right.BorderTopWidth) &&
-           Same(left.BorderRightWidth, right.BorderRightWidth) &&
-           Same(left.BorderBottomWidth, right.BorderBottomWidth) &&
-           Same(left.FlexGrow, right.FlexGrow) &&
-           Same(left.FlexShrink, right.FlexShrink) &&
-           Same(left.FlexBasis, right.FlexBasis) &&
-           left.Float == right.Float &&
-           left.Clear == right.Clear &&
-           left.IsScrollContainer == right.IsScrollContainer &&
-           left.ClipContent == right.ClipContent &&
-           left.Containment == right.Containment &&
-           left.UnitFlags == right.UnitFlags;
+    public static bool HasSameOuterLayoutDependency(
+        HtmlComputedStyle left,
+        HtmlComputedStyle right
+    ) =>
+        left.Display == right.Display
+        && left.FlexDirection == right.FlexDirection
+        && left.FlexWrap == right.FlexWrap
+        && left.Direction == right.Direction
+        && left.AlignSelf == right.AlignSelf
+        && left.Order == right.Order
+        && left.Position == right.Position
+        && left.BoxSizing == right.BoxSizing
+        && Same(left.Left, right.Left)
+        && Same(left.Top, right.Top)
+        && Same(left.Right, right.Right)
+        && Same(left.Bottom, right.Bottom)
+        && Same(left.Width, right.Width)
+        && Same(left.Height, right.Height)
+        && Same(left.MinWidth, right.MinWidth)
+        && Same(left.MaxWidth, right.MaxWidth)
+        && Same(left.MinHeight, right.MinHeight)
+        && Same(left.MaxHeight, right.MaxHeight)
+        && Same(left.MarginLeft, right.MarginLeft)
+        && Same(left.MarginTop, right.MarginTop)
+        && Same(left.MarginRight, right.MarginRight)
+        && Same(left.MarginBottom, right.MarginBottom)
+        && left.autoMarginFlags == right.autoMarginFlags
+        && Same(left.PaddingLeft, right.PaddingLeft)
+        && Same(left.PaddingTop, right.PaddingTop)
+        && Same(left.PaddingRight, right.PaddingRight)
+        && Same(left.PaddingBottom, right.PaddingBottom)
+        && Same(left.BorderWidth, right.BorderWidth)
+        && Same(left.BorderLeftWidth, right.BorderLeftWidth)
+        && Same(left.BorderTopWidth, right.BorderTopWidth)
+        && Same(left.BorderRightWidth, right.BorderRightWidth)
+        && Same(left.BorderBottomWidth, right.BorderBottomWidth)
+        && Same(left.FlexGrow, right.FlexGrow)
+        && Same(left.FlexShrink, right.FlexShrink)
+        && Same(left.FlexBasis, right.FlexBasis)
+        && left.Float == right.Float
+        && left.Clear == right.Clear
+        && left.IsScrollContainer == right.IsScrollContainer
+        && left.ClipContent == right.ClipContent
+        && left.Containment == right.Containment
+        && left.UnitFlags == right.UnitFlags;
 
-    private static bool Same(float left, float right)
-        => left.Equals(right) || float.IsNaN(left) && float.IsNaN(right);
+    private static bool Same(float left, float right) =>
+        left.Equals(right) || float.IsNaN(left) && float.IsNaN(right);
 
     private static bool SameShadows(SceneBoxShadow[]? left, SceneBoxShadow[]? right)
     {
@@ -495,7 +530,10 @@ internal sealed partial class HtmlComputedStyle
             hash.Add(shadows[index]);
     }
 
-    public HtmlComputedStyle CloneWithResolvedViewportUnits(float viewportWidth, float viewportHeight)
+    public HtmlComputedStyle CloneWithResolvedViewportUnits(
+        float viewportWidth,
+        float viewportHeight
+    )
     {
         if (viewportLengthFlags == 0)
             return this;
@@ -505,7 +543,10 @@ internal sealed partial class HtmlComputedStyle
         return clone;
     }
 
-    public HtmlComputedStyle CloneWithResolvedContainerPercentUnits(float containerWidth, bool resolveInlineSize = true)
+    public HtmlComputedStyle CloneWithResolvedContainerPercentUnits(
+        float containerWidth,
+        bool resolveInlineSize = true
+    )
     {
         if (containerPercentLengthFlags == 0)
             return this;
@@ -531,7 +572,7 @@ internal sealed partial class HtmlComputedStyle
         {
             SceneTextAlign.Center => MainAxisJustification.Center,
             SceneTextAlign.Right => MainAxisJustification.End,
-            _ => MainAxisJustification.Start
+            _ => MainAxisJustification.Start,
         };
         style.Gap = style.Gap > 0 ? style.Gap : MathF.Max(2, style.FontSize * 0.25f);
         style.Width = Defaults.UnsetLength;
@@ -670,10 +711,11 @@ internal sealed partial class HtmlComputedStyle
         MinWidth = Defaults.UnsetLength;
         MaxWidth = Defaults.UnsetLength;
         UnitFlags &= ~(
-            LayoutValueUnitFlags.WidthPercent |
-            LayoutValueUnitFlags.HeightPercent |
-            LayoutValueUnitFlags.MinWidthPercent |
-            LayoutValueUnitFlags.MaxWidthPercent);
+            LayoutValueUnitFlags.WidthPercent
+            | LayoutValueUnitFlags.HeightPercent
+            | LayoutValueUnitFlags.MinWidthPercent
+            | LayoutValueUnitFlags.MaxWidthPercent
+        );
     }
 
     internal void ApplyInlineBlockDefaults()
@@ -759,8 +801,8 @@ internal sealed partial class HtmlComputedStyle
         TextAlign = SceneTextAlign.Left;
     }
 
-    private static float GetListMarkerMinWidth(string markerText)
-        => markerText.Length > 1 ? Defaults.UlListMarkerPadding : Defaults.PaddingSmall;
+    private static float GetListMarkerMinWidth(string markerText) =>
+        markerText.Length > 1 ? Defaults.UlListMarkerPadding : Defaults.PaddingSmall;
 
     internal void ApplyListContentDefaults()
     {
@@ -876,7 +918,15 @@ internal sealed partial class HtmlComputedStyle
                 break;
             case "br":
                 Display = HtmlDisplay.Block;
-                Height = LayoutValue.IsSet(Height) ? Height : MathF.Max(Defaults.HRuleHeight, LineHeight > 0 ? LineHeight : (FontSize > 0 ? FontSize : Defaults.DefaultFontSizeFallback) * Defaults.BrDefaultHeightMultiplier);
+                Height = LayoutValue.IsSet(Height)
+                    ? Height
+                    : MathF.Max(
+                        Defaults.HRuleHeight,
+                        LineHeight > 0
+                            ? LineHeight
+                            : (FontSize > 0 ? FontSize : Defaults.DefaultFontSizeFallback)
+                                * Defaults.BrDefaultHeightMultiplier
+                    );
                 MinHeight = Math.Max(MinHeight, Defaults.HRuleHeight);
                 PreferIntrinsicWidth = false;
                 break;
@@ -896,7 +946,10 @@ internal sealed partial class HtmlComputedStyle
                     PaddingTop = Math.Max(PaddingTop, Defaults.InputPaddingY);
                     PaddingBottom = Math.Max(PaddingBottom, Defaults.InputPaddingY);
                     BorderWidth = Math.Max(BorderWidth, Defaults.DefaultBorderWidth);
-                    BorderStyle = BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
+                    BorderStyle =
+                        BorderStyle == Defaults.BorderStyle
+                            ? Defaults.BorderStyleSolid
+                            : BorderStyle;
                     BorderColor ??= Defaults.ColorInputBorder;
                     BorderRadius = Math.Max(BorderRadius, Defaults.DefaultRadius);
                     BackgroundColor ??= Defaults.ColorWhite;
@@ -912,7 +965,10 @@ internal sealed partial class HtmlComputedStyle
                     if (MarginTop <= 0 && localName != "li")
                         MarginTop = FontSize > 0 ? FontSize : Defaults.DefaultFontSizeFallback;
                     if (MarginBottom <= 0)
-                        MarginBottom = localName == "li" ? 0 : FontSize > 0 ? FontSize : Defaults.DefaultFontSizeFallback;
+                        MarginBottom =
+                            localName == "li" ? 0
+                            : FontSize > 0 ? FontSize
+                            : Defaults.DefaultFontSizeFallback;
                 }
                 break;
             case "ul":
@@ -929,9 +985,15 @@ internal sealed partial class HtmlComputedStyle
                 if (layoutConfig.ApplySemanticTextSpacing)
                 {
                     if (MarginTop <= 0)
-                        MarginTop = MathF.Ceiling((FontSize > 0 ? FontSize : Defaults.H1FontSize) * Defaults.H1SpacingScale);
+                        MarginTop = MathF.Ceiling(
+                            (FontSize > 0 ? FontSize : Defaults.H1FontSize)
+                                * Defaults.H1SpacingScale
+                        );
                     if (MarginBottom <= 0)
-                        MarginBottom = MathF.Ceiling((FontSize > 0 ? FontSize : Defaults.H1FontSize) * Defaults.H1SpacingScale);
+                        MarginBottom = MathF.Ceiling(
+                            (FontSize > 0 ? FontSize : Defaults.H1FontSize)
+                                * Defaults.H1SpacingScale
+                        );
                 }
                 FontSize = Math.Max(FontSize, Defaults.H1FontSize);
                 FontWeight = Math.Max(FontWeight, 700);
@@ -940,9 +1002,15 @@ internal sealed partial class HtmlComputedStyle
                 if (layoutConfig.ApplySemanticTextSpacing)
                 {
                     if (MarginTop <= 0)
-                        MarginTop = MathF.Ceiling((FontSize > 0 ? FontSize : Defaults.H2FontSize) * Defaults.H2SpacingScale);
+                        MarginTop = MathF.Ceiling(
+                            (FontSize > 0 ? FontSize : Defaults.H2FontSize)
+                                * Defaults.H2SpacingScale
+                        );
                     if (MarginBottom <= 0)
-                        MarginBottom = MathF.Ceiling((FontSize > 0 ? FontSize : Defaults.H2FontSize) * Defaults.H2SpacingScale);
+                        MarginBottom = MathF.Ceiling(
+                            (FontSize > 0 ? FontSize : Defaults.H2FontSize)
+                                * Defaults.H2SpacingScale
+                        );
                 }
                 FontSize = Math.Max(FontSize, Defaults.H2FontSize);
                 FontWeight = Math.Max(FontWeight, 700);
@@ -970,7 +1038,10 @@ internal sealed partial class HtmlComputedStyle
                     PaddingTop = Math.Max(PaddingTop, Defaults.InputPaddingY);
                     PaddingBottom = Math.Max(PaddingBottom, Defaults.InputPaddingY);
                     BorderWidth = Math.Max(BorderWidth, Defaults.DefaultBorderWidth);
-                    BorderStyle = BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
+                    BorderStyle =
+                        BorderStyle == Defaults.BorderStyle
+                            ? Defaults.BorderStyleSolid
+                            : BorderStyle;
                     BorderColor ??= Defaults.ColorInputBorder;
                     BorderRadius = Math.Max(BorderRadius, Defaults.DefaultRadius);
                     BackgroundColor ??= Defaults.ColorWhite;
@@ -995,7 +1066,10 @@ internal sealed partial class HtmlComputedStyle
                     PaddingTop = Math.Max(PaddingTop, Defaults.ButtonPaddingY);
                     PaddingBottom = Math.Max(PaddingBottom, Defaults.ButtonPaddingY);
                     BorderWidth = Math.Max(BorderWidth, Defaults.DefaultBorderWidth);
-                    BorderStyle = BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
+                    BorderStyle =
+                        BorderStyle == Defaults.BorderStyle
+                            ? Defaults.BorderStyleSolid
+                            : BorderStyle;
                     BorderColor ??= Defaults.ColorSelectBorder;
                     BorderRadius = Math.Max(BorderRadius, Defaults.DefaultRadius);
                     BackgroundColor ??= Defaults.ColorWhite;
@@ -1018,7 +1092,10 @@ internal sealed partial class HtmlComputedStyle
                     PaddingTop = Math.Max(PaddingTop, Defaults.ButtonPaddingY);
                     PaddingBottom = Math.Max(PaddingBottom, Defaults.ButtonPaddingY);
                     BorderWidth = Math.Max(BorderWidth, Defaults.DefaultBorderWidth);
-                    BorderStyle = BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
+                    BorderStyle =
+                        BorderStyle == Defaults.BorderStyle
+                            ? Defaults.BorderStyleSolid
+                            : BorderStyle;
                     BorderColor ??= Defaults.ColorButtonBorder;
                     BorderRadius = Math.Max(BorderRadius, Defaults.DefaultRadius);
                     BackgroundColor ??= Defaults.ColorButtonBackground;
@@ -1029,11 +1106,24 @@ internal sealed partial class HtmlComputedStyle
                 break;
         }
 
-        if (layoutConfig.ApplyBlockWidthAsPercent &&
-            Display == HtmlDisplay.Block &&
-            Float == HtmlFloat.None &&
-            !LayoutValue.IsSet(Width) &&
-            localName is not "button" and not "select" and not "img" and not "table" and not "tbody" and not "thead" and not "tfoot" and not "tr" and not "td" and not "th" and not "hr")
+        if (
+            layoutConfig.ApplyBlockWidthAsPercent
+            && Display == HtmlDisplay.Block
+            && Float == HtmlFloat.None
+            && !LayoutValue.IsSet(Width)
+            && localName
+                is not "button"
+                    and not "select"
+                    and not "img"
+                    and not "table"
+                    and not "tbody"
+                    and not "thead"
+                    and not "tfoot"
+                    and not "tr"
+                    and not "td"
+                    and not "th"
+                    and not "hr"
+        )
         {
             Width = Defaults.BlockWidthPercent;
             SetUnit(LayoutValueUnitFlags.WidthPercent, true);
@@ -1066,8 +1156,10 @@ internal sealed partial class HtmlComputedStyle
         if (string.Equals(element.LocalName, "font", StringComparison.OrdinalIgnoreCase))
             ApplyLegacyFontAttributes(element);
 
-        if (string.Equals(element.LocalName, "table", StringComparison.OrdinalIgnoreCase) &&
-            TryParseLegacySpacing(element.GetAttribute("cellspacing"), out var cellSpacing))
+        if (
+            string.Equals(element.LocalName, "table", StringComparison.OrdinalIgnoreCase)
+            && TryParseLegacySpacing(element.GetAttribute("cellspacing"), out var cellSpacing)
+        )
         {
             Gap = cellSpacing;
             TableBorderSpacing = cellSpacing;
@@ -1076,15 +1168,26 @@ internal sealed partial class HtmlComputedStyle
         if (string.Equals(element.LocalName, "img", StringComparison.OrdinalIgnoreCase))
         {
             if (!LayoutValue.IsSet(Width))
-                ApplyAttributeLength(element.GetAttribute("width"), static (style, next) => style.Width = next.Value, static (style, isPercent) => style.SetUnit(LayoutValueUnitFlags.WidthPercent, isPercent));
+                ApplyAttributeLength(
+                    element.GetAttribute("width"),
+                    static (style, next) => style.Width = next.Value,
+                    static (style, isPercent) =>
+                        style.SetUnit(LayoutValueUnitFlags.WidthPercent, isPercent)
+                );
             if (!LayoutValue.IsSet(Height))
-                ApplyAttributeLength(element.GetAttribute("height"), static (style, next) => style.Height = next.Value, static (style, isPercent) => style.SetUnit(LayoutValueUnitFlags.HeightPercent, isPercent));
+                ApplyAttributeLength(
+                    element.GetAttribute("height"),
+                    static (style, next) => style.Height = next.Value,
+                    static (style, isPercent) =>
+                        style.SetUnit(LayoutValueUnitFlags.HeightPercent, isPercent)
+                );
             ImageFit ??= Defaults.BgFitFill;
             if (TryParseLegacySpacing(element.GetAttribute("border"), out var borderWidth))
                 BorderWidth = borderWidth;
             if (BorderWidth > 0)
             {
-                BorderStyle = BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
+                BorderStyle =
+                    BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
                 BorderColor ??= Defaults.ColorInputBorder;
             }
         }
@@ -1111,9 +1214,11 @@ internal sealed partial class HtmlComputedStyle
                 SetUnit(LayoutValueUnitFlags.WidthPercent, IsWidthPercent);
                 SetUnit(LayoutValueUnitFlags.HeightPercent, IsHeightPercent);
             }
-            else if (string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase))
+            else if (
+                string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(type, "button", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase)
+            )
             {
                 Display = HtmlDisplay.InlineBlock;
                 PreferIntrinsicWidth = true;
@@ -1128,11 +1233,18 @@ internal sealed partial class HtmlComputedStyle
                 PaddingTop = Math.Max(PaddingTop, Defaults.ButtonPaddingY);
                 PaddingBottom = Math.Max(PaddingBottom, Defaults.ButtonPaddingY);
                 BorderWidth = Math.Max(BorderWidth, Defaults.DefaultBorderWidth);
-                BorderStyle = BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
+                BorderStyle =
+                    BorderStyle == Defaults.BorderStyle ? Defaults.BorderStyleSolid : BorderStyle;
                 BorderColor ??= Defaults.ColorButtonBorder;
                 BorderRadius = Math.Max(BorderRadius, Defaults.DefaultRadius);
-                if (string.IsNullOrWhiteSpace(BackgroundColor) ||
-                    string.Equals(BackgroundColor, Defaults.ColorWhite, StringComparison.OrdinalIgnoreCase))
+                if (
+                    string.IsNullOrWhiteSpace(BackgroundColor)
+                    || string.Equals(
+                        BackgroundColor,
+                        Defaults.ColorWhite,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
                 {
                     BackgroundColor = Defaults.ColorButtonBackground;
                 }
@@ -1145,19 +1257,33 @@ internal sealed partial class HtmlComputedStyle
 
         if (string.Equals(element.LocalName, "hr", StringComparison.OrdinalIgnoreCase))
         {
-            ApplyAttributeLength(element.GetAttribute("size"), static (style, next) => style.Height = next.Value, static (_, _) => { });
+            ApplyAttributeLength(
+                element.GetAttribute("size"),
+                static (style, next) => style.Height = next.Value,
+                static (_, _) => { }
+            );
             BackgroundColor ??= BorderColor ?? Defaults.ColorHr;
         }
     }
 
     internal void NormalizeAfterCascade(string localName, LayoutEngineConfig layoutConfig)
     {
-        if (layoutConfig.ApplyBlockWidthAsPercent &&
-            Float != HtmlFloat.None &&
-            !HasExplicitWidth &&
-            IsWidthPercent &&
-            MathF.Abs(Width - Defaults.BlockWidthPercent) < 0.001f &&
-            localName is not "img" and not "table" and not "tbody" and not "thead" and not "tfoot" and not "tr" and not "td" and not "th")
+        if (
+            layoutConfig.ApplyBlockWidthAsPercent
+            && Float != HtmlFloat.None
+            && !HasExplicitWidth
+            && IsWidthPercent
+            && MathF.Abs(Width - Defaults.BlockWidthPercent) < 0.001f
+            && localName
+                is not "img"
+                    and not "table"
+                    and not "tbody"
+                    and not "thead"
+                    and not "tfoot"
+                    and not "tr"
+                    and not "td"
+                    and not "th"
+        )
         {
             Width = Defaults.UnsetLength;
             UnitFlags &= ~LayoutValueUnitFlags.WidthPercent;
@@ -1199,13 +1325,27 @@ internal sealed partial class HtmlComputedStyle
     private void ApplyLegacyCommonAttributes(HtmlDomElement element)
     {
         if (!LayoutValue.IsSet(Width))
-            ApplyAttributeLength(element.GetAttribute("width"), static (style, next) => style.Width = next.Value, static (style, isPercent) => style.SetUnit(LayoutValueUnitFlags.WidthPercent, isPercent));
+            ApplyAttributeLength(
+                element.GetAttribute("width"),
+                static (style, next) => style.Width = next.Value,
+                static (style, isPercent) =>
+                    style.SetUnit(LayoutValueUnitFlags.WidthPercent, isPercent)
+            );
         if (!LayoutValue.IsSet(Height))
-            ApplyAttributeLength(element.GetAttribute("height"), static (style, next) => style.Height = next.Value, static (style, isPercent) => style.SetUnit(LayoutValueUnitFlags.HeightPercent, isPercent));
+            ApplyAttributeLength(
+                element.GetAttribute("height"),
+                static (style, next) => style.Height = next.Value,
+                static (style, isPercent) =>
+                    style.SetUnit(LayoutValueUnitFlags.HeightPercent, isPercent)
+            );
 
         if (element.GetAttribute("align") is { } align)
         {
-            var alignsElementBox = string.Equals(element.LocalName, "table", StringComparison.OrdinalIgnoreCase);
+            var alignsElementBox = string.Equals(
+                element.LocalName,
+                "table",
+                StringComparison.OrdinalIgnoreCase
+            );
             switch (align.AsSpan().Trim().ToString().ToLowerInvariant())
             {
                 case "center":
@@ -1235,7 +1375,7 @@ internal sealed partial class HtmlComputedStyle
             {
                 "middle" or "center" => CrossAlignment.Center,
                 "bottom" => CrossAlignment.End,
-                _ => CrossAlignment.Start
+                _ => CrossAlignment.Start,
             };
         }
     }
@@ -1249,8 +1389,15 @@ internal sealed partial class HtmlComputedStyle
             Color = color;
             HasExplicitColor = true;
         }
-        if (element.GetAttribute("size") is { Length: > 0 } sizeText &&
-            int.TryParse(sizeText.AsSpan().Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var size))
+        if (
+            element.GetAttribute("size") is { Length: > 0 } sizeText
+            && int.TryParse(
+                sizeText.AsSpan().Trim(),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var size
+            )
+        )
         {
             FontSize = size switch
             {
@@ -1260,7 +1407,7 @@ internal sealed partial class HtmlComputedStyle
                 4 => Defaults.FontSizeFromLevel4,
                 5 => Defaults.H4FontSize,
                 6 => Defaults.H5FontSize,
-                _ => Defaults.H6FontSize
+                _ => Defaults.H6FontSize,
             };
         }
     }
@@ -1294,10 +1441,11 @@ internal sealed partial class HtmlComputedStyle
             MinWidth = Defaults.UnsetLength;
             MaxWidth = Defaults.UnsetLength;
             UnitFlags &= ~(
-                LayoutValueUnitFlags.WidthPercent |
-                LayoutValueUnitFlags.HeightPercent |
-                LayoutValueUnitFlags.MinWidthPercent |
-                LayoutValueUnitFlags.MaxWidthPercent);
+                LayoutValueUnitFlags.WidthPercent
+                | LayoutValueUnitFlags.HeightPercent
+                | LayoutValueUnitFlags.MinWidthPercent
+                | LayoutValueUnitFlags.MaxWidthPercent
+            );
         }
         else
         {
@@ -1335,8 +1483,16 @@ internal sealed partial class HtmlComputedStyle
         if (!IsButtonLikeElement(element))
             return;
 
-        var hasDefaultBackground = string.Equals(BackgroundColor, Defaults.ColorButtonBackground, StringComparison.OrdinalIgnoreCase);
-        var hasDefaultBorder = string.Equals(BorderColor, Defaults.ColorButtonBorder, StringComparison.OrdinalIgnoreCase);
+        var hasDefaultBackground = string.Equals(
+            BackgroundColor,
+            Defaults.ColorButtonBackground,
+            StringComparison.OrdinalIgnoreCase
+        );
+        var hasDefaultBorder = string.Equals(
+            BorderColor,
+            Defaults.ColorButtonBorder,
+            StringComparison.OrdinalIgnoreCase
+        );
         if (!hasDefaultBackground && !hasDefaultBorder)
             return;
 
@@ -1365,9 +1521,9 @@ internal sealed partial class HtmlComputedStyle
             return false;
 
         var type = element.GetAttribute("type");
-        return string.Equals(type, "button", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(type, "button", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "reset", StringComparison.OrdinalIgnoreCase);
     }
 
     public void Apply(HtmlCssDeclarationBlock declarations)
@@ -1412,15 +1568,17 @@ internal sealed partial class HtmlComputedStyle
                     "inline-block" => HtmlDisplay.InlineBlock,
                     "inline" => HtmlDisplay.Inline,
                     "block" or "flow-root" or "list-item" => HtmlDisplay.Block,
-                    _ => null
+                    _ => null,
                 };
                 if (parsedDisplay is not { } display)
                     break;
 
                 HasExplicitDisplay = true;
                 Display = display;
-                if (Display is HtmlDisplay.Inline or HtmlDisplay.InlineBlock ||
-                    CssEquals(normalized, "inline-flex"))
+                if (
+                    Display is HtmlDisplay.Inline or HtmlDisplay.InlineBlock
+                    || CssEquals(normalized, "inline-flex")
+                )
                 {
                     PreferIntrinsicWidth = true;
                     FlexGrow = 0;
@@ -1433,14 +1591,16 @@ internal sealed partial class HtmlComputedStyle
                     "row" => FlexDirection.Row,
                     "row-reverse" => FlexDirection.RowReverse,
                     "column-reverse" => FlexDirection.ColumnReverse,
-                    _ => FlexDirection.Column
+                    _ => FlexDirection.Column,
                 };
                 break;
             case CssPropertyId.FlexWrap:
                 FlexWrap = CssEquals(normalized, "wrap") ? FlexWrap.Wrap : FlexWrap.NoWrap;
                 break;
             case CssPropertyId.Direction:
-                Direction = CssEquals(normalized, "rtl") ? LayoutDirection.Rtl : LayoutDirection.Ltr;
+                Direction = CssEquals(normalized, "rtl")
+                    ? LayoutDirection.Rtl
+                    : LayoutDirection.Ltr;
                 break;
             case CssPropertyId.JustifyContent:
                 JustifyContent = ParseJustifyContent(normalized);
@@ -1452,7 +1612,14 @@ internal sealed partial class HtmlComputedStyle
                 AlignSelf = ParseAlignment(normalized);
                 break;
             case CssPropertyId.Order:
-                if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var order))
+                if (
+                    int.TryParse(
+                        normalized,
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out var order
+                    )
+                )
                     Order = order;
                 break;
             case CssPropertyId.Position:
@@ -1460,11 +1627,13 @@ internal sealed partial class HtmlComputedStyle
                 {
                     "absolute" => PositionMode.Absolute,
                     "static" => PositionMode.Static,
-                    _ => PositionMode.Relative
+                    _ => PositionMode.Relative,
                 };
                 break;
             case CssPropertyId.BoxSizing:
-                BoxSizing = CssEquals(normalized, "content-box") ? SceneBoxSizing.ContentBox : SceneBoxSizing.BorderBox;
+                BoxSizing = CssEquals(normalized, "content-box")
+                    ? SceneBoxSizing.ContentBox
+                    : SceneBoxSizing.BorderBox;
                 break;
             case CssPropertyId.Width:
                 SetLength(normalized, HtmlLengthProperty.Width);
@@ -1517,7 +1686,7 @@ internal sealed partial class HtmlComputedStyle
                 {
                     "left" => HtmlFloat.Left,
                     "right" => HtmlFloat.Right,
-                    _ => HtmlFloat.None
+                    _ => HtmlFloat.None,
                 };
                 if (Float != HtmlFloat.None)
                 {
@@ -1538,14 +1707,24 @@ internal sealed partial class HtmlComputedStyle
                     "left" => HtmlClear.Left,
                     "right" => HtmlClear.Right,
                     "both" => HtmlClear.Both,
-                    _ => HtmlClear.None
+                    _ => HtmlClear.None,
                 };
                 break;
             case CssPropertyId.Margin:
-                ApplyBoxSpacing(normalized, HtmlLengthProperty.MarginTop, HtmlLengthProperty.MarginRight, HtmlLengthProperty.MarginBottom, HtmlLengthProperty.MarginLeft);
+                ApplyBoxSpacing(
+                    normalized,
+                    HtmlLengthProperty.MarginTop,
+                    HtmlLengthProperty.MarginRight,
+                    HtmlLengthProperty.MarginBottom,
+                    HtmlLengthProperty.MarginLeft
+                );
                 break;
             case CssPropertyId.MarginInline:
-                ApplyTwoValueSpacing(normalized, ResolveInlineStartMargin(), ResolveInlineEndMargin());
+                ApplyTwoValueSpacing(
+                    normalized,
+                    ResolveInlineStartMargin(),
+                    ResolveInlineEndMargin()
+                );
                 break;
             case CssPropertyId.MarginInlineStart:
                 SetLength(normalized, ResolveInlineStartMargin());
@@ -1554,7 +1733,11 @@ internal sealed partial class HtmlComputedStyle
                 SetLength(normalized, ResolveInlineEndMargin());
                 break;
             case CssPropertyId.MarginBlock:
-                ApplyTwoValueSpacing(normalized, HtmlLengthProperty.MarginTop, HtmlLengthProperty.MarginBottom);
+                ApplyTwoValueSpacing(
+                    normalized,
+                    HtmlLengthProperty.MarginTop,
+                    HtmlLengthProperty.MarginBottom
+                );
                 break;
             case CssPropertyId.MarginBlockStart:
                 SetLength(normalized, HtmlLengthProperty.MarginTop);
@@ -1575,7 +1758,13 @@ internal sealed partial class HtmlComputedStyle
                 SetLength(normalized, HtmlLengthProperty.MarginLeft);
                 break;
             case CssPropertyId.Padding:
-                ApplyBoxSpacing(normalized, HtmlLengthProperty.PaddingTop, HtmlLengthProperty.PaddingRight, HtmlLengthProperty.PaddingBottom, HtmlLengthProperty.PaddingLeft);
+                ApplyBoxSpacing(
+                    normalized,
+                    HtmlLengthProperty.PaddingTop,
+                    HtmlLengthProperty.PaddingRight,
+                    HtmlLengthProperty.PaddingBottom,
+                    HtmlLengthProperty.PaddingLeft
+                );
                 break;
             case CssPropertyId.PaddingTop:
                 SetLength(normalized, HtmlLengthProperty.PaddingTop);
@@ -1597,20 +1786,44 @@ internal sealed partial class HtmlComputedStyle
                     SetBorderWidth(HtmlBorderSide.All, borderWidth.ValueOrDefault(BorderWidth));
                 break;
             case CssPropertyId.BorderTopWidth:
-                if (ParseLengthValue(normalized, HtmlLengthProperty.BorderWidth) is { } borderTopWidth)
-                    SetBorderWidth(HtmlBorderSide.Top, borderTopWidth.ValueOrDefault(BorderTopWidth));
+                if (
+                    ParseLengthValue(normalized, HtmlLengthProperty.BorderWidth) is
+                    { } borderTopWidth
+                )
+                    SetBorderWidth(
+                        HtmlBorderSide.Top,
+                        borderTopWidth.ValueOrDefault(BorderTopWidth)
+                    );
                 break;
             case CssPropertyId.BorderRightWidth:
-                if (ParseLengthValue(normalized, HtmlLengthProperty.BorderWidth) is { } borderRightWidth)
-                    SetBorderWidth(HtmlBorderSide.Right, borderRightWidth.ValueOrDefault(BorderRightWidth));
+                if (
+                    ParseLengthValue(normalized, HtmlLengthProperty.BorderWidth) is
+                    { } borderRightWidth
+                )
+                    SetBorderWidth(
+                        HtmlBorderSide.Right,
+                        borderRightWidth.ValueOrDefault(BorderRightWidth)
+                    );
                 break;
             case CssPropertyId.BorderBottomWidth:
-                if (ParseLengthValue(normalized, HtmlLengthProperty.BorderWidth) is { } borderBottomWidth)
-                    SetBorderWidth(HtmlBorderSide.Bottom, borderBottomWidth.ValueOrDefault(BorderBottomWidth));
+                if (
+                    ParseLengthValue(normalized, HtmlLengthProperty.BorderWidth) is
+                    { } borderBottomWidth
+                )
+                    SetBorderWidth(
+                        HtmlBorderSide.Bottom,
+                        borderBottomWidth.ValueOrDefault(BorderBottomWidth)
+                    );
                 break;
             case CssPropertyId.BorderLeftWidth:
-                if (ParseLengthValue(normalized, HtmlLengthProperty.BorderWidth) is { } borderLeftWidth)
-                    SetBorderWidth(HtmlBorderSide.Left, borderLeftWidth.ValueOrDefault(BorderLeftWidth));
+                if (
+                    ParseLengthValue(normalized, HtmlLengthProperty.BorderWidth) is
+                    { } borderLeftWidth
+                )
+                    SetBorderWidth(
+                        HtmlBorderSide.Left,
+                        borderLeftWidth.ValueOrDefault(BorderLeftWidth)
+                    );
                 break;
             case CssPropertyId.BorderStyle:
                 SetBorderStyle(HtmlBorderSide.All, ParseBorderStyle(normalized, BorderStyle));
@@ -1619,10 +1832,16 @@ internal sealed partial class HtmlComputedStyle
                 SetBorderStyle(HtmlBorderSide.Top, ParseBorderStyle(normalized, BorderTopStyle));
                 break;
             case CssPropertyId.BorderRightStyle:
-                SetBorderStyle(HtmlBorderSide.Right, ParseBorderStyle(normalized, BorderRightStyle));
+                SetBorderStyle(
+                    HtmlBorderSide.Right,
+                    ParseBorderStyle(normalized, BorderRightStyle)
+                );
                 break;
             case CssPropertyId.BorderBottomStyle:
-                SetBorderStyle(HtmlBorderSide.Bottom, ParseBorderStyle(normalized, BorderBottomStyle));
+                SetBorderStyle(
+                    HtmlBorderSide.Bottom,
+                    ParseBorderStyle(normalized, BorderBottomStyle)
+                );
                 break;
             case CssPropertyId.BorderLeftStyle:
                 SetBorderStyle(HtmlBorderSide.Left, ParseBorderStyle(normalized, BorderLeftStyle));
@@ -1695,7 +1914,12 @@ internal sealed partial class HtmlComputedStyle
                     BackgroundImageSource = null;
                     BackgroundImageFit = null;
                 }
-                else if (TryExtractBackgroundImageSource(normalized, out var explicitBackgroundImageSource))
+                else if (
+                    TryExtractBackgroundImageSource(
+                        normalized,
+                        out var explicitBackgroundImageSource
+                    )
+                )
                 {
                     BackgroundImageSource = explicitBackgroundImageSource;
                     BackgroundImageFit ??= Defaults.BgFitCover;
@@ -1706,7 +1930,7 @@ internal sealed partial class HtmlComputedStyle
                 {
                     "contain" => Defaults.BgFitContain,
                     "cover" => Defaults.BgFitCover,
-                    _ => Defaults.BgFitFill
+                    _ => Defaults.BgFitFill,
                 };
                 break;
             case CssPropertyId.Color:
@@ -1717,7 +1941,9 @@ internal sealed partial class HtmlComputedStyle
                 }
                 else
                 {
-                    Color = CssEquals(normalized, "initial") ? Defaults.ColorBlack : normalized.ToString();
+                    Color = CssEquals(normalized, "initial")
+                        ? Defaults.ColorBlack
+                        : normalized.ToString();
                     HasExplicitColor = true;
                 }
                 break;
@@ -1740,9 +1966,13 @@ internal sealed partial class HtmlComputedStyle
                     "center" => SceneTextAlign.Center,
                     "right" => SceneTextAlign.Right,
                     "left" => SceneTextAlign.Left,
-                    "end" => Direction == LayoutDirection.Rtl ? SceneTextAlign.Left : SceneTextAlign.Right,
-                    "start" => Direction == LayoutDirection.Rtl ? SceneTextAlign.Right : SceneTextAlign.Left,
-                    _ => SceneTextAlign.Left
+                    "end" => Direction == LayoutDirection.Rtl
+                        ? SceneTextAlign.Left
+                        : SceneTextAlign.Right,
+                    "start" => Direction == LayoutDirection.Rtl
+                        ? SceneTextAlign.Right
+                        : SceneTextAlign.Left,
+                    _ => SceneTextAlign.Left,
                 };
                 break;
             case CssPropertyId.TextTransform:
@@ -1750,12 +1980,14 @@ internal sealed partial class HtmlComputedStyle
                 {
                     "uppercase" => HtmlTextTransform.Uppercase,
                     "lowercase" => HtmlTextTransform.Lowercase,
-                    _ => HtmlTextTransform.None
+                    _ => HtmlTextTransform.None,
                 };
                 break;
             case CssPropertyId.TextDecoration:
                 HasExplicitTextDecoration = true;
-                Underline = normalized.IndexOf("underline".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0;
+                Underline =
+                    normalized.IndexOf("underline".AsSpan(), StringComparison.OrdinalIgnoreCase)
+                    >= 0;
                 break;
             case CssPropertyId.ListStyle:
                 SuppressListMarker = IsListStyleNone(normalized);
@@ -1827,7 +2059,15 @@ internal sealed partial class HtmlComputedStyle
     {
         Span<Range> parts = stackalloc Range[4];
         var partCount = SplitWhitespace(normalized, parts);
-        if (partCount == 1 && float.TryParse(normalized[parts[0]], NumberStyles.Float, CultureInfo.InvariantCulture, out var grow))
+        if (
+            partCount == 1
+            && float.TryParse(
+                normalized[parts[0]],
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var grow
+            )
+        )
         {
             FlexGrow = grow;
             FlexShrink = 1;
@@ -1840,44 +2080,57 @@ internal sealed partial class HtmlComputedStyle
         if (partCount > 1)
             FlexShrink = ParseFloat(normalized[parts[1]], FlexShrink);
         if (partCount > 2)
-            ApplyLength(HtmlLengthProperty.FlexBasis, ParseLengthValue(normalized[parts[2]], HtmlLengthProperty.FlexBasis), FlexBasis);
+            ApplyLength(
+                HtmlLengthProperty.FlexBasis,
+                ParseLengthValue(normalized[parts[2]], HtmlLengthProperty.FlexBasis),
+                FlexBasis
+            );
     }
 
     private void ApplyWhiteSpace(ReadOnlySpan<char> normalized)
     {
-        WhiteSpace = CssEquals(normalized, "nowrap")
-            ? HtmlWhiteSpace.NoWrap
-            : CssEquals(normalized, "pre")
-                ? HtmlWhiteSpace.Pre
-                : CssEquals(normalized, "pre-wrap")
-                    ? HtmlWhiteSpace.PreWrap
-                    : CssEquals(normalized, "pre-line")
-                        ? HtmlWhiteSpace.PreLine
-                        : HtmlWhiteSpace.Normal;
-        WrapText = WhiteSpace is HtmlWhiteSpace.Normal or HtmlWhiteSpace.PreWrap or HtmlWhiteSpace.PreLine;
+        WhiteSpace =
+            CssEquals(normalized, "nowrap") ? HtmlWhiteSpace.NoWrap
+            : CssEquals(normalized, "pre") ? HtmlWhiteSpace.Pre
+            : CssEquals(normalized, "pre-wrap") ? HtmlWhiteSpace.PreWrap
+            : CssEquals(normalized, "pre-line") ? HtmlWhiteSpace.PreLine
+            : HtmlWhiteSpace.Normal;
+        WrapText =
+            WhiteSpace is HtmlWhiteSpace.Normal or HtmlWhiteSpace.PreWrap or HtmlWhiteSpace.PreLine;
     }
 
     private void ApplyOverflow(ReadOnlySpan<char> normalized)
     {
-        ClipContent = CssEquals(normalized, "hidden") || CssEquals(normalized, "clip") || CssEquals(normalized, "auto") || CssEquals(normalized, "scroll");
+        ClipContent =
+            CssEquals(normalized, "hidden")
+            || CssEquals(normalized, "clip")
+            || CssEquals(normalized, "auto")
+            || CssEquals(normalized, "scroll");
         IsScrollContainer = CssEquals(normalized, "auto") || CssEquals(normalized, "scroll");
     }
 
     private static HtmlContainment ParseContainment(ReadOnlySpan<char> normalized)
     {
         var containment = HtmlContainment.None;
-        foreach (var token in normalized.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (
+            var token in normalized
+                .ToString()
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        )
         {
             containment |= token switch
             {
                 "none" => HtmlContainment.None,
-                "strict" => HtmlContainment.Layout | HtmlContainment.Paint | HtmlContainment.Size | HtmlContainment.Style,
+                "strict" => HtmlContainment.Layout
+                    | HtmlContainment.Paint
+                    | HtmlContainment.Size
+                    | HtmlContainment.Style,
                 "content" => HtmlContainment.Layout | HtmlContainment.Paint | HtmlContainment.Style,
                 "layout" => HtmlContainment.Layout,
                 "paint" => HtmlContainment.Paint,
                 "size" => HtmlContainment.Size,
                 "style" => HtmlContainment.Style,
-                _ => HtmlContainment.None
+                _ => HtmlContainment.None,
             };
         }
 
@@ -1929,7 +2182,10 @@ internal sealed partial class HtmlComputedStyle
             BorderRightWidth = width;
         if ((side & HtmlBorderSide.Bottom) != 0)
             BorderBottomWidth = width;
-        BorderWidth = Math.Max(Math.Max(BorderLeftWidth, BorderRightWidth), Math.Max(BorderTopWidth, BorderBottomWidth));
+        BorderWidth = Math.Max(
+            Math.Max(BorderLeftWidth, BorderRightWidth),
+            Math.Max(BorderTopWidth, BorderBottomWidth)
+        );
     }
 
     private void SetBorderStyle(HtmlBorderSide side, SceneBorderStyle style)
@@ -1955,15 +2211,20 @@ internal sealed partial class HtmlComputedStyle
             BorderRightColor = color;
         if ((side & HtmlBorderSide.Bottom) != 0)
             BorderBottomColor = color;
-        BorderColor = BorderTopColor ?? BorderRightColor ?? BorderBottomColor ?? BorderLeftColor ?? BorderColor;
+        BorderColor =
+            BorderTopColor
+            ?? BorderRightColor
+            ?? BorderBottomColor
+            ?? BorderLeftColor
+            ?? BorderColor;
     }
 
-    private SceneBorderStyle ResolveAggregateBorderStyle()
-        => BorderLeftStyle != Defaults.BorderStyle ? BorderLeftStyle :
-           BorderTopStyle != Defaults.BorderStyle ? BorderTopStyle :
-           BorderRightStyle != Defaults.BorderStyle ? BorderRightStyle :
-           BorderBottomStyle != Defaults.BorderStyle ? BorderBottomStyle :
-           Defaults.BorderStyle;
+    private SceneBorderStyle ResolveAggregateBorderStyle() =>
+        BorderLeftStyle != Defaults.BorderStyle ? BorderLeftStyle
+        : BorderTopStyle != Defaults.BorderStyle ? BorderTopStyle
+        : BorderRightStyle != Defaults.BorderStyle ? BorderRightStyle
+        : BorderBottomStyle != Defaults.BorderStyle ? BorderBottomStyle
+        : Defaults.BorderStyle;
 
     private void ClearBorderSides()
     {
@@ -1981,11 +2242,11 @@ internal sealed partial class HtmlComputedStyle
         BorderBottomColor = null;
     }
 
-    private SceneBoxShadow[]? ParseBoxShadows(ReadOnlySpan<char> normalized)
-        => ParseShadows(normalized, allowSpread: true);
+    private SceneBoxShadow[]? ParseBoxShadows(ReadOnlySpan<char> normalized) =>
+        ParseShadows(normalized, allowSpread: true);
 
-    private SceneBoxShadow[]? ParseTextShadows(ReadOnlySpan<char> normalized)
-        => ParseShadows(normalized, allowSpread: false);
+    private SceneBoxShadow[]? ParseTextShadows(ReadOnlySpan<char> normalized) =>
+        ParseShadows(normalized, allowSpread: false);
 
     private SceneBoxShadow[]? ParseShadows(ReadOnlySpan<char> normalized, bool allowSpread)
     {
@@ -2013,7 +2274,11 @@ internal sealed partial class HtmlComputedStyle
         return shadows is { Count: > 0 } ? [.. shadows] : null;
     }
 
-    private bool TryParseShadow(ReadOnlySpan<char> value, bool allowSpread, out SceneBoxShadow shadow)
+    private bool TryParseShadow(
+        ReadOnlySpan<char> value,
+        bool allowSpread,
+        out SceneBoxShadow shadow
+    )
     {
         shadow = new SceneBoxShadow();
         if (value.IsWhiteSpace())
@@ -2052,7 +2317,8 @@ internal sealed partial class HtmlComputedStyle
             lengths[0],
             lengths[1],
             lengthCount > 2 ? Math.Max(0, lengths[2]) : 0,
-            allowSpread && lengthCount > 3 ? lengths[3] : 0);
+            allowSpread && lengthCount > 3 ? lengths[3] : 0
+        );
         return true;
     }
 
@@ -2116,13 +2382,19 @@ internal sealed partial class HtmlComputedStyle
         return false;
     }
 
-    private static bool TryExtractBackgroundImageSource(ReadOnlySpan<char> normalized, out string source)
+    private static bool TryExtractBackgroundImageSource(
+        ReadOnlySpan<char> normalized,
+        out string source
+    )
     {
         source = string.Empty;
         var cursor = 0;
         while (TryReadCssToken(normalized, ref cursor, out var token))
         {
-            if (!token.StartsWith("url(".AsSpan(), StringComparison.OrdinalIgnoreCase) || !token.EndsWith(')'))
+            if (
+                !token.StartsWith("url(".AsSpan(), StringComparison.OrdinalIgnoreCase)
+                || !token.EndsWith(')')
+            )
                 continue;
 
             var inner = token[4..^1].Trim();
@@ -2144,7 +2416,11 @@ internal sealed partial class HtmlComputedStyle
         BackgroundImageSource = resolve(BackgroundImageSource);
     }
 
-    private static bool TryReadCssToken(ReadOnlySpan<char> value, ref int cursor, out ReadOnlySpan<char> token)
+    private static bool TryReadCssToken(
+        ReadOnlySpan<char> value,
+        ref int cursor,
+        out ReadOnlySpan<char> token
+    )
     {
         token = default;
         while (cursor < value.Length && char.IsWhiteSpace(value[cursor]))
@@ -2198,30 +2474,62 @@ internal sealed partial class HtmlComputedStyle
         return token.Length > 0;
     }
 
-    private static bool IsColorFunction(ReadOnlySpan<char> token)
-        => token.StartsWith("rgb(".AsSpan(), StringComparison.OrdinalIgnoreCase) ||
-           token.StartsWith("rgba(".AsSpan(), StringComparison.OrdinalIgnoreCase) ||
-           token.StartsWith("hsl(".AsSpan(), StringComparison.OrdinalIgnoreCase) ||
-           token.StartsWith("hsla(".AsSpan(), StringComparison.OrdinalIgnoreCase);
+    private static bool IsColorFunction(ReadOnlySpan<char> token) =>
+        token.StartsWith("rgb(".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || token.StartsWith("rgba(".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || token.StartsWith("hsl(".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || token.StartsWith("hsla(".AsSpan(), StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsLikelyNamedColor(ReadOnlySpan<char> token)
-        => token is "transparent" or "currentcolor" or "black" or "white" or "red" or "green" or "blue" or "yellow" or "orange" or "purple" or "gray" or "grey";
+    private static bool IsLikelyNamedColor(ReadOnlySpan<char> token) =>
+        token
+            is "transparent"
+                or "currentcolor"
+                or "black"
+                or "white"
+                or "red"
+                or "green"
+                or "blue"
+                or "yellow"
+                or "orange"
+                or "purple"
+                or "gray"
+                or "grey";
 
-    private static bool IsBackgroundKeyword(ReadOnlySpan<char> token)
-        => token is "none" or "repeat" or "repeat-x" or "repeat-y" or "no-repeat" or "space" or "round" or
-           "scroll" or "fixed" or "local" or "left" or "right" or "top" or "bottom" or "center" or
-           "cover" or "contain" or "border-box" or "padding-box" or "content-box" or "text" ||
-           token == "/" ||
-           token.StartsWith("url(".AsSpan(), StringComparison.OrdinalIgnoreCase) ||
-           token.StartsWith("linear-gradient(".AsSpan(), StringComparison.OrdinalIgnoreCase) ||
-           token.StartsWith("radial-gradient(".AsSpan(), StringComparison.OrdinalIgnoreCase);
+    private static bool IsBackgroundKeyword(ReadOnlySpan<char> token) =>
+        token
+            is "none"
+                or "repeat"
+                or "repeat-x"
+                or "repeat-y"
+                or "no-repeat"
+                or "space"
+                or "round"
+                or "scroll"
+                or "fixed"
+                or "local"
+                or "left"
+                or "right"
+                or "top"
+                or "bottom"
+                or "center"
+                or "cover"
+                or "contain"
+                or "border-box"
+                or "padding-box"
+                or "content-box"
+                or "text"
+        || token == "/"
+        || token.StartsWith("url(".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || token.StartsWith("linear-gradient(".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || token.StartsWith("radial-gradient(".AsSpan(), StringComparison.OrdinalIgnoreCase);
 
     private void ApplyBoxSpacing(
         ReadOnlySpan<char> normalized,
         HtmlLengthProperty top,
         HtmlLengthProperty right,
         HtmlLengthProperty bottom,
-        HtmlLengthProperty left)
+        HtmlLengthProperty left
+    )
     {
         Span<Range> parts = stackalloc Range[4];
         var partCount = SplitWhitespace(normalized, parts);
@@ -2238,7 +2546,11 @@ internal sealed partial class HtmlComputedStyle
         SetLength(fourth, left);
     }
 
-    private void ApplyTwoValueSpacing(ReadOnlySpan<char> normalized, HtmlLengthProperty start, HtmlLengthProperty end)
+    private void ApplyTwoValueSpacing(
+        ReadOnlySpan<char> normalized,
+        HtmlLengthProperty start,
+        HtmlLengthProperty end
+    )
     {
         Span<Range> parts = stackalloc Range[2];
         var partCount = SplitWhitespace(normalized, parts);
@@ -2251,20 +2563,28 @@ internal sealed partial class HtmlComputedStyle
         SetLength(second, end);
     }
 
-    private HtmlLengthProperty ResolveInlineStartMargin()
-        => Direction == LayoutDirection.Rtl ? HtmlLengthProperty.MarginRight : HtmlLengthProperty.MarginLeft;
+    private HtmlLengthProperty ResolveInlineStartMargin() =>
+        Direction == LayoutDirection.Rtl
+            ? HtmlLengthProperty.MarginRight
+            : HtmlLengthProperty.MarginLeft;
 
-    private HtmlLengthProperty ResolveInlineEndMargin()
-        => Direction == LayoutDirection.Rtl ? HtmlLengthProperty.MarginLeft : HtmlLengthProperty.MarginRight;
+    private HtmlLengthProperty ResolveInlineEndMargin() =>
+        Direction == LayoutDirection.Rtl
+            ? HtmlLengthProperty.MarginLeft
+            : HtmlLengthProperty.MarginRight;
 
-    private static SceneBorderStyle ParseBorderStyle(ReadOnlySpan<char> normalized, SceneBorderStyle fallback)
+    private static SceneBorderStyle ParseBorderStyle(
+        ReadOnlySpan<char> normalized,
+        SceneBorderStyle fallback
+    )
     {
         return normalized switch
         {
             "none" or "hidden" => SceneBorderStyle.None,
             "dotted" => SceneBorderStyle.Dotted,
-            "solid" or "double" or "groove" or "ridge" or "inset" or "outset" or "dashed" => SceneBorderStyle.Solid,
-            _ => fallback
+            "solid" or "double" or "groove" or "ridge" or "inset" or "outset" or "dashed" =>
+                SceneBorderStyle.Solid,
+            _ => fallback,
         };
     }
 
@@ -2321,7 +2641,11 @@ internal sealed partial class HtmlComputedStyle
         return flag != 0 && (explicitLengthFlags & flag) != 0;
     }
 
-    private void ApplyAttributeLength(string? value, Action<HtmlComputedStyle, CssLength> assign, Action<HtmlComputedStyle, bool> setUnit)
+    private void ApplyAttributeLength(
+        string? value,
+        Action<HtmlComputedStyle, CssLength> assign,
+        Action<HtmlComputedStyle, bool> setUnit
+    )
     {
         if (string.IsNullOrWhiteSpace(value))
             return;
@@ -2336,9 +2660,7 @@ internal sealed partial class HtmlComputedStyle
 
     private void SetUnit(LayoutValueUnitFlags flag, bool enabled)
     {
-        UnitFlags = enabled
-            ? UnitFlags | flag
-            : UnitFlags & ~flag;
+        UnitFlags = enabled ? UnitFlags | flag : UnitFlags & ~flag;
     }
 
     private static CrossAlignment ParseAlignment(ReadOnlySpan<char> value)
@@ -2348,7 +2670,7 @@ internal sealed partial class HtmlComputedStyle
             "center" => CrossAlignment.Center,
             "flex-end" or "end" or "self-end" => CrossAlignment.End,
             "stretch" => CrossAlignment.Stretch,
-            _ => CrossAlignment.Start
+            _ => CrossAlignment.Start,
         };
     }
 
@@ -2361,7 +2683,7 @@ internal sealed partial class HtmlComputedStyle
             "space-between" => MainAxisJustification.SpaceBetween,
             "space-around" => MainAxisJustification.SpaceAround,
             "space-evenly" => MainAxisJustification.SpaceEvenly,
-            _ => MainAxisJustification.Start
+            _ => MainAxisJustification.Start,
         };
     }
 
@@ -2376,7 +2698,9 @@ internal sealed partial class HtmlComputedStyle
     {
         Span<Range> parts = stackalloc Range[2];
         var partCount = SplitWhitespace(value, parts);
-        return partCount > 1 ? value[parts[1]] : partCount == 1 ? value[parts[0]] : value;
+        return partCount > 1 ? value[parts[1]]
+            : partCount == 1 ? value[parts[0]]
+            : value;
     }
 
     private static bool TryParseAspectRatio(ReadOnlySpan<char> value, out float aspectRatio)
@@ -2389,15 +2713,30 @@ internal sealed partial class HtmlComputedStyle
         var slash = normalized.IndexOf('/');
         if (slash >= 0)
         {
-            return float.TryParse(normalized[..slash].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var numerator) &&
-                   float.TryParse(normalized[(slash + 1)..].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var denominator) &&
-                   numerator > 0 &&
-                   denominator > 0 &&
-                   (aspectRatio = numerator / denominator) > 0;
+            return float.TryParse(
+                    normalized[..slash].Trim(),
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out var numerator
+                )
+                && float.TryParse(
+                    normalized[(slash + 1)..].Trim(),
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out var denominator
+                )
+                && numerator > 0
+                && denominator > 0
+                && (aspectRatio = numerator / denominator) > 0;
         }
 
-        return float.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out aspectRatio) &&
-               aspectRatio > 0;
+        return float.TryParse(
+                normalized,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out aspectRatio
+            )
+            && aspectRatio > 0;
     }
 
     private CssLength? ParseLengthValue(ReadOnlySpan<char> value, HtmlLengthProperty property)
@@ -2410,11 +2749,21 @@ internal sealed partial class HtmlComputedStyle
         if (normalized is "auto" or "none")
             return null;
 
-        if (normalized.EndsWith('%') &&
-            float.TryParse(normalized[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+        if (
+            normalized.EndsWith('%')
+            && float.TryParse(
+                normalized[..^1],
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var percent
+            )
+        )
         {
             if (property is HtmlLengthProperty.FontSize or HtmlLengthProperty.LineHeight)
-                return new CssLength(ResolveFontRelativeBase(property) * (percent * 0.01f), CssLengthUnit.Px);
+                return new CssLength(
+                    ResolveFontRelativeBase(property) * (percent * 0.01f),
+                    CssLengthUnit.Px
+                );
 
             return new CssLength(percent, CssLengthUnit.Percent);
         }
@@ -2437,10 +2786,20 @@ internal sealed partial class HtmlComputedStyle
         if (normalized.EndsWith("px", StringComparison.OrdinalIgnoreCase))
             normalized = normalized[..^2];
 
-        if (!float.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var pixels))
+        if (
+            !float.TryParse(
+                normalized,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var pixels
+            )
+        )
             return null;
 
-        if (property == HtmlLengthProperty.LineHeight && !normalizedText.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+        if (
+            property == HtmlLengthProperty.LineHeight
+            && !normalizedText.EndsWith("px", StringComparison.OrdinalIgnoreCase)
+        )
             return new CssLength(Math.Max(0, pixels) * ResolveCurrentFontSize(), CssLengthUnit.Px);
 
         return new CssLength(pixels, CssLengthUnit.Px);
@@ -2452,11 +2811,15 @@ internal sealed partial class HtmlComputedStyle
         if (!value.EndsWith(unit.AsSpan(), StringComparison.OrdinalIgnoreCase))
             return false;
 
-        return float.TryParse(value[..^unit.Length], NumberStyles.Float, CultureInfo.InvariantCulture, out numeric);
+        return float.TryParse(
+            value[..^unit.Length],
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out numeric
+        );
     }
 
-    private float ResolveCurrentFontSize()
-        => FontSize > 0 ? FontSize : ResolveRootFontSize();
+    private float ResolveCurrentFontSize() => FontSize > 0 ? FontSize : ResolveRootFontSize();
 
     private float ResolveFontRelativeBase(HtmlLengthProperty property)
     {
@@ -2466,12 +2829,17 @@ internal sealed partial class HtmlComputedStyle
         return ResolveCurrentFontSize();
     }
 
-    private float ResolveRootFontSize()
-        => rootFontSize > 0 ? rootFontSize : Defaults.DefaultFontSizeFallback;
+    private float ResolveRootFontSize() =>
+        rootFontSize > 0 ? rootFontSize : Defaults.DefaultFontSizeFallback;
 
     private static float ParseFloat(ReadOnlySpan<char> value, float fallback)
     {
-        return float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+        return float.TryParse(
+            value,
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out var parsed
+        )
             ? parsed
             : fallback;
     }
@@ -2520,14 +2888,16 @@ internal sealed partial class HtmlComputedStyle
 
     private static int ParseFontWeight(ReadOnlySpan<char> value)
     {
-        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numeric))
+        if (
+            int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numeric)
+        )
             return numeric;
 
         return value switch
         {
             "bold" => 700,
             "medium" => 500,
-            _ => 400
+            _ => 400,
         };
     }
 
@@ -2553,13 +2923,11 @@ internal sealed partial class HtmlComputedStyle
         if (flag == LayoutAutoMarginFlags.None)
             return;
 
-        autoMarginFlags = enabled
-            ? autoMarginFlags | flag
-            : autoMarginFlags & ~flag;
+        autoMarginFlags = enabled ? autoMarginFlags | flag : autoMarginFlags & ~flag;
     }
 
-    private float GetLengthPropertyValue(HtmlLengthProperty property)
-        => property switch
+    private float GetLengthPropertyValue(HtmlLengthProperty property) =>
+        property switch
         {
             HtmlLengthProperty.Left => Left,
             HtmlLengthProperty.Top => Top,
@@ -2586,7 +2954,7 @@ internal sealed partial class HtmlComputedStyle
             HtmlLengthProperty.FontSize => FontSize,
             HtmlLengthProperty.LineHeight => LineHeight,
             HtmlLengthProperty.FlexBasis => FlexBasis,
-            _ => Defaults.UnsetLength
+            _ => Defaults.UnsetLength,
         };
 
     private void SetLengthPropertyValue(HtmlLengthProperty property, float value)
@@ -2675,7 +3043,10 @@ internal sealed partial class HtmlComputedStyle
     {
         SetUnit(ResolvePercentFlag(property), unit == CssLengthUnit.Percent);
         SetViewportUnit(ResolveViewportFlag(property), unit);
-        SetContainerPercentUnit(ResolveContainerPercentFlag(property), unit == CssLengthUnit.Percent);
+        SetContainerPercentUnit(
+            ResolveContainerPercentFlag(property),
+            unit == CssLengthUnit.Percent
+        );
     }
 
     private void ResolveViewportUnits(float viewportWidth, float viewportHeight)
@@ -2716,8 +3087,13 @@ internal sealed partial class HtmlComputedStyle
             var flag = ResolveContainerPercentFlag(property);
             if (flag == 0 || (containerPercentLengthFlags & flag) == 0)
                 continue;
-            if (!resolveInlineSize &&
-                property is HtmlLengthProperty.Width or HtmlLengthProperty.MinWidth or HtmlLengthProperty.MaxWidth)
+            if (
+                !resolveInlineSize
+                && property
+                    is HtmlLengthProperty.Width
+                        or HtmlLengthProperty.MinWidth
+                        or HtmlLengthProperty.MaxWidth
+            )
             {
                 continue;
             }
@@ -2733,8 +3109,8 @@ internal sealed partial class HtmlComputedStyle
         containerPercentLengthFlags = 0;
     }
 
-    private static LayoutValueUnitFlags ResolvePercentFlag(HtmlLengthProperty property)
-        => property switch
+    private static LayoutValueUnitFlags ResolvePercentFlag(HtmlLengthProperty property) =>
+        property switch
         {
             HtmlLengthProperty.Left => LayoutValueUnitFlags.LeftPercent,
             HtmlLengthProperty.Top => LayoutValueUnitFlags.TopPercent,
@@ -2747,21 +3123,21 @@ internal sealed partial class HtmlComputedStyle
             HtmlLengthProperty.MinHeight => LayoutValueUnitFlags.MinHeightPercent,
             HtmlLengthProperty.MaxHeight => LayoutValueUnitFlags.MaxHeightPercent,
             HtmlLengthProperty.FlexBasis => LayoutValueUnitFlags.FlexBasisPercent,
-            _ => LayoutValueUnitFlags.None
+            _ => LayoutValueUnitFlags.None,
         };
 
-    private static LayoutAutoMarginFlags ResolveAutoMarginFlag(HtmlLengthProperty property)
-        => property switch
+    private static LayoutAutoMarginFlags ResolveAutoMarginFlag(HtmlLengthProperty property) =>
+        property switch
         {
             HtmlLengthProperty.MarginLeft => LayoutAutoMarginFlags.Left,
             HtmlLengthProperty.MarginTop => LayoutAutoMarginFlags.Top,
             HtmlLengthProperty.MarginRight => LayoutAutoMarginFlags.Right,
             HtmlLengthProperty.MarginBottom => LayoutAutoMarginFlags.Bottom,
-            _ => LayoutAutoMarginFlags.None
+            _ => LayoutAutoMarginFlags.None,
         };
 
-    private static HtmlViewportLengthFlags ResolveViewportFlag(HtmlLengthProperty property)
-        => property switch
+    private static HtmlViewportLengthFlags ResolveViewportFlag(HtmlLengthProperty property) =>
+        property switch
         {
             HtmlLengthProperty.Left => HtmlViewportLengthFlags.LeftVw,
             HtmlLengthProperty.Top => HtmlViewportLengthFlags.TopVw,
@@ -2787,11 +3163,13 @@ internal sealed partial class HtmlComputedStyle
             HtmlLengthProperty.FontSize => HtmlViewportLengthFlags.FontSizeVw,
             HtmlLengthProperty.LineHeight => HtmlViewportLengthFlags.LineHeightVw,
             HtmlLengthProperty.FlexBasis => HtmlViewportLengthFlags.FlexBasisVw,
-            _ => 0
+            _ => 0,
         };
 
-    private static HtmlContainerPercentLengthFlags ResolveContainerPercentFlag(HtmlLengthProperty property)
-        => property switch
+    private static HtmlContainerPercentLengthFlags ResolveContainerPercentFlag(
+        HtmlLengthProperty property
+    ) =>
+        property switch
         {
             HtmlLengthProperty.Width => HtmlContainerPercentLengthFlags.Width,
             HtmlLengthProperty.MinWidth => HtmlContainerPercentLengthFlags.MinWidth,
@@ -2805,11 +3183,11 @@ internal sealed partial class HtmlComputedStyle
             HtmlLengthProperty.PaddingRight => HtmlContainerPercentLengthFlags.PaddingRight,
             HtmlLengthProperty.PaddingBottom => HtmlContainerPercentLengthFlags.PaddingBottom,
             HtmlLengthProperty.Gap => HtmlContainerPercentLengthFlags.Gap,
-            _ => 0
+            _ => 0,
         };
 
-    private static HtmlExplicitLengthFlags ResolveExplicitLengthFlag(HtmlLengthProperty property)
-        => property switch
+    private static HtmlExplicitLengthFlags ResolveExplicitLengthFlag(HtmlLengthProperty property) =>
+        property switch
         {
             HtmlLengthProperty.Left => HtmlExplicitLengthFlags.Left,
             HtmlLengthProperty.Top => HtmlExplicitLengthFlags.Top,
@@ -2830,11 +3208,11 @@ internal sealed partial class HtmlComputedStyle
             HtmlLengthProperty.PaddingRight => HtmlExplicitLengthFlags.PaddingRight,
             HtmlLengthProperty.PaddingBottom => HtmlExplicitLengthFlags.PaddingBottom,
             HtmlLengthProperty.FlexBasis => HtmlExplicitLengthFlags.FlexBasis,
-            _ => 0
+            _ => 0,
         };
 
-    private static HtmlViewportLengthFlags ToVhFlag(HtmlViewportLengthFlags vwFlag)
-        => (HtmlViewportLengthFlags)((ulong)vwFlag << 32);
+    private static HtmlViewportLengthFlags ToVhFlag(HtmlViewportLengthFlags vwFlag) =>
+        (HtmlViewportLengthFlags)((ulong)vwFlag << 32);
 
     private void SetViewportUnit(HtmlViewportLengthFlags vwFlag, CssLengthUnit unit)
     {
@@ -2871,7 +3249,7 @@ internal enum CssLengthUnit : byte
     Px,
     Percent,
     Vw,
-    Vh
+    Vh,
 }
 
 internal enum HtmlLengthProperty : byte
@@ -2900,7 +3278,7 @@ internal enum HtmlLengthProperty : byte
     BorderRadius,
     FontSize,
     LineHeight,
-    FlexBasis
+    FlexBasis,
 }
 
 [Flags]
@@ -2925,7 +3303,7 @@ internal enum HtmlExplicitLengthFlags : uint
     PaddingTop = 1u << 15,
     PaddingRight = 1u << 16,
     PaddingBottom = 1u << 17,
-    FlexBasis = 1u << 18
+    FlexBasis = 1u << 18,
 }
 
 [Flags]
@@ -2943,7 +3321,7 @@ internal enum HtmlContainerPercentLengthFlags : ushort
     PaddingTop = 1 << 8,
     PaddingRight = 1 << 9,
     PaddingBottom = 1 << 10,
-    Gap = 1 << 11
+    Gap = 1 << 11,
 }
 
 [Flags]
@@ -2973,7 +3351,7 @@ internal enum HtmlViewportLengthFlags : ulong
     BorderRadiusVw = 1UL << 20,
     FontSizeVw = 1UL << 21,
     LineHeightVw = 1UL << 22,
-    FlexBasisVw = 1UL << 23
+    FlexBasisVw = 1UL << 23,
 }
 
 internal enum HtmlDisplay : byte
@@ -2983,14 +3361,14 @@ internal enum HtmlDisplay : byte
     Inline,
     InlineBlock,
     Block,
-    Flex
+    Flex,
 }
 
 internal enum HtmlFloat : byte
 {
     None,
     Left,
-    Right
+    Right,
 }
 
 internal enum HtmlClear : byte
@@ -2998,7 +3376,7 @@ internal enum HtmlClear : byte
     None,
     Left,
     Right,
-    Both
+    Both,
 }
 
 [Flags]
@@ -3008,7 +3386,7 @@ internal enum HtmlContainment : byte
     Layout = 1 << 0,
     Paint = 1 << 1,
     Size = 1 << 2,
-    Style = 1 << 3
+    Style = 1 << 3,
 }
 
 internal enum HtmlWhiteSpace : byte
@@ -3017,14 +3395,14 @@ internal enum HtmlWhiteSpace : byte
     NoWrap,
     Pre,
     PreWrap,
-    PreLine
+    PreLine,
 }
 
 internal enum HtmlTextTransform : byte
 {
     None,
     Uppercase,
-    Lowercase
+    Lowercase,
 }
 
 [Flags]
@@ -3034,5 +3412,5 @@ internal enum HtmlBorderSide : byte
     Top = 2,
     Right = 4,
     Bottom = 8,
-    All = Left | Top | Right | Bottom
+    All = Left | Top | Right | Bottom,
 }

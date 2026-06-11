@@ -18,12 +18,18 @@ internal enum HtmlWebkitScrollbarKind : byte
     None,
     Scrollbar,
     Track,
-    Thumb
+    Thumb,
 }
 
 internal sealed class HtmlMediaCondition
 {
-    private static readonly HtmlMediaQuery NeverQuery = new(false, float.NaN, float.NaN, float.NaN, float.NaN);
+    private static readonly HtmlMediaQuery NeverQuery = new(
+        false,
+        float.NaN,
+        float.NaN,
+        float.NaN,
+        float.NaN
+    );
     private readonly HtmlMediaQuery[] queries;
 
     private HtmlMediaCondition(HtmlMediaQuery[] queries)
@@ -60,7 +66,9 @@ internal sealed class HtmlMediaCondition
         for (var parentIndex = 0; parentIndex < parent.queries.Length; parentIndex++)
         {
             for (var childIndex = 0; childIndex < child.queries.Length; childIndex++)
-                combined.Add(HtmlMediaQuery.Intersect(parent.queries[parentIndex], child.queries[childIndex]));
+                combined.Add(
+                    HtmlMediaQuery.Intersect(parent.queries[parentIndex], child.queries[childIndex])
+                );
         }
 
         return new HtmlMediaCondition([.. combined]);
@@ -178,9 +186,9 @@ internal sealed class HtmlMediaCondition
         if (!text.StartsWith(token.AsSpan(), StringComparison.OrdinalIgnoreCase))
             return false;
 
-        return text.Length == token.Length ||
-               char.IsWhiteSpace(text[token.Length]) ||
-               text[token.Length] == '(';
+        return text.Length == token.Length
+            || char.IsWhiteSpace(text[token.Length])
+            || text[token.Length] == '(';
     }
 
     private static bool TryParseMediaLength(ReadOnlySpan<char> value, out float pixels)
@@ -190,30 +198,55 @@ internal sealed class HtmlMediaCondition
         if (normalized.EndsWith("px".AsSpan(), StringComparison.OrdinalIgnoreCase))
             normalized = normalized[..^2].Trim();
         else if (normalized.EndsWith("rem".AsSpan(), StringComparison.OrdinalIgnoreCase))
-            return float.TryParse(normalized[..^3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out pixels) && (pixels *= 16) >= 0;
+            return float.TryParse(
+                    normalized[..^3],
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out pixels
+                )
+                && (pixels *= 16) >= 0;
         else if (normalized.EndsWith("em".AsSpan(), StringComparison.OrdinalIgnoreCase))
-            return float.TryParse(normalized[..^2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out pixels) && (pixels *= 16) >= 0;
+            return float.TryParse(
+                    normalized[..^2],
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out pixels
+                )
+                && (pixels *= 16) >= 0;
 
-        return float.TryParse(normalized, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out pixels);
+        return float.TryParse(
+            normalized,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out pixels
+        );
     }
 
-    private static float CombineMin(float current, float next)
-        => float.IsNaN(current) ? next : Math.Max(current, next);
+    private static float CombineMin(float current, float next) =>
+        float.IsNaN(current) ? next : Math.Max(current, next);
 
-    private static float CombineMax(float current, float next)
-        => float.IsNaN(current) ? next : Math.Min(current, next);
+    private static float CombineMax(float current, float next) =>
+        float.IsNaN(current) ? next : Math.Min(current, next);
 
-    private readonly record struct HtmlMediaQuery(bool Supported, float MinWidth, float MaxWidth, float MinHeight, float MaxHeight)
+    private readonly record struct HtmlMediaQuery(
+        bool Supported,
+        float MinWidth,
+        float MaxWidth,
+        float MinHeight,
+        float MaxHeight
+    )
     {
-        public static HtmlMediaQuery Always => new(true, float.NaN, float.NaN, float.NaN, float.NaN);
+        public static HtmlMediaQuery Always =>
+            new(true, float.NaN, float.NaN, float.NaN, float.NaN);
 
-        public static HtmlMediaQuery Intersect(HtmlMediaQuery left, HtmlMediaQuery right)
-            => new(
+        public static HtmlMediaQuery Intersect(HtmlMediaQuery left, HtmlMediaQuery right) =>
+            new(
                 left.Supported && right.Supported,
                 CombineMin(left.MinWidth, right.MinWidth),
                 CombineMax(left.MaxWidth, right.MaxWidth),
                 CombineMin(left.MinHeight, right.MinHeight),
-                CombineMax(left.MaxHeight, right.MaxHeight));
+                CombineMax(left.MaxHeight, right.MaxHeight)
+            );
 
         public bool Matches(int viewportWidth, int viewportHeight)
         {
@@ -255,7 +288,12 @@ internal static class HtmlCssParser
         ParseRules(cssText.AsSpan(), rules, ref order, mediaCondition: null);
     }
 
-    private static void ParseRules(ReadOnlySpan<char> cssText, List<HtmlCssRule> rules, ref int order, HtmlMediaCondition? mediaCondition)
+    private static void ParseRules(
+        ReadOnlySpan<char> cssText,
+        List<HtmlCssRule> rules,
+        ref int order,
+        HtmlMediaCondition? mediaCondition
+    )
     {
         if (cssText.IsWhiteSpace())
             return;
@@ -284,14 +322,21 @@ internal static class HtmlCssParser
                     span[(open + 1)..close],
                     rules,
                     ref order,
-                    HtmlMediaCondition.Combine(mediaCondition, childMediaCondition));
+                    HtmlMediaCondition.Combine(mediaCondition, childMediaCondition)
+                );
             }
             else if (!selectorGroup.StartsWith("@".AsSpan(), StringComparison.Ordinal))
             {
                 var declarations = new List<HtmlCssDeclaration>();
                 ParseDeclarationBlock(span[(open + 1)..close], declarations);
                 if (declarations.Count > 0)
-                    AddRules(selectorGroup, new HtmlCssDeclarationBlock([.. declarations]), rules, ref order, mediaCondition);
+                    AddRules(
+                        selectorGroup,
+                        new HtmlCssDeclarationBlock([.. declarations]),
+                        rules,
+                        ref order,
+                        mediaCondition
+                    );
             }
 
             cursor = close + 1;
@@ -303,7 +348,8 @@ internal static class HtmlCssParser
         HtmlCssDeclarationBlock declarations,
         List<HtmlCssRule> rules,
         ref int order,
-        HtmlMediaCondition? mediaCondition)
+        HtmlMediaCondition? mediaCondition
+    )
     {
         var start = 0;
         while (start < selectorGroup.Length)
@@ -312,12 +358,21 @@ internal static class HtmlCssParser
             var end = comma < 0 ? selectorGroup.Length : start + comma;
             var selectorText = selectorGroup[start..end].Trim();
             var scrollbarKind = ResolveWebkitScrollbarKind(ref selectorText);
-            var effectiveDeclarations = scrollbarKind == HtmlWebkitScrollbarKind.None
-                ? declarations
-                : RewriteWebkitScrollbarDeclarations(declarations, scrollbarKind);
+            var effectiveDeclarations =
+                scrollbarKind == HtmlWebkitScrollbarKind.None
+                    ? declarations
+                    : RewriteWebkitScrollbarDeclarations(declarations, scrollbarKind);
             if (selectorText.Length > 0 && HtmlSelector.TryParse(selectorText, out var selector))
             {
-                rules.Add(new HtmlCssRule(selector, effectiveDeclarations, selector.Specificity, order, mediaCondition));
+                rules.Add(
+                    new HtmlCssRule(
+                        selector,
+                        effectiveDeclarations,
+                        selector.Specificity,
+                        order,
+                        mediaCondition
+                    )
+                );
                 order++;
             }
 
@@ -327,43 +382,72 @@ internal static class HtmlCssParser
         }
     }
 
-    private static HtmlWebkitScrollbarKind ResolveWebkitScrollbarKind(ref ReadOnlySpan<char> selectorText)
+    private static HtmlWebkitScrollbarKind ResolveWebkitScrollbarKind(
+        ref ReadOnlySpan<char> selectorText
+    )
     {
         var selector = selectorText;
-        var marker = selector.IndexOf("::-webkit-scrollbar".AsSpan(), StringComparison.OrdinalIgnoreCase);
+        var marker = selector.IndexOf(
+            "::-webkit-scrollbar".AsSpan(),
+            StringComparison.OrdinalIgnoreCase
+        );
         if (marker < 0)
             return HtmlWebkitScrollbarKind.None;
 
         var after = selector[(marker + "::-webkit-scrollbar".Length)..];
-        var kind = after.StartsWith("-thumb".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            ? HtmlWebkitScrollbarKind.Thumb
+        var kind =
+            after.StartsWith("-thumb".AsSpan(), StringComparison.OrdinalIgnoreCase)
+                ? HtmlWebkitScrollbarKind.Thumb
             : after.StartsWith("-track".AsSpan(), StringComparison.OrdinalIgnoreCase)
                 ? HtmlWebkitScrollbarKind.Track
-                : HtmlWebkitScrollbarKind.Scrollbar;
+            : HtmlWebkitScrollbarKind.Scrollbar;
         selectorText = selector[..marker].Trim();
         if (selectorText.Length == 0)
             selectorText = "*".AsSpan();
         return kind;
     }
 
-    private static HtmlCssDeclarationBlock RewriteWebkitScrollbarDeclarations(HtmlCssDeclarationBlock declarations, HtmlWebkitScrollbarKind kind)
+    private static HtmlCssDeclarationBlock RewriteWebkitScrollbarDeclarations(
+        HtmlCssDeclarationBlock declarations,
+        HtmlWebkitScrollbarKind kind
+    )
     {
         var rewritten = new List<HtmlCssDeclaration>(declarations.Count);
         for (var index = 0; index < declarations.Count; index++)
         {
             var declaration = declarations[index];
-            if (kind == HtmlWebkitScrollbarKind.Scrollbar && declaration.Property is CssPropertyId.Width or CssPropertyId.Height)
-                rewritten.Add(new HtmlCssDeclaration(CssPropertyId.ScrollbarWidth, declaration.Value));
-            else if (kind == HtmlWebkitScrollbarKind.Track && declaration.Property == CssPropertyId.Background)
-                rewritten.Add(new HtmlCssDeclaration(CssPropertyId.ScrollbarTrackColor, declaration.Value));
-            else if (kind == HtmlWebkitScrollbarKind.Thumb && declaration.Property == CssPropertyId.Background)
-                rewritten.Add(new HtmlCssDeclaration(CssPropertyId.ScrollbarThumbColor, declaration.Value));
+            if (
+                kind == HtmlWebkitScrollbarKind.Scrollbar
+                && declaration.Property is CssPropertyId.Width or CssPropertyId.Height
+            )
+                rewritten.Add(
+                    new HtmlCssDeclaration(CssPropertyId.ScrollbarWidth, declaration.Value)
+                );
+            else if (
+                kind == HtmlWebkitScrollbarKind.Track
+                && declaration.Property == CssPropertyId.Background
+            )
+                rewritten.Add(
+                    new HtmlCssDeclaration(CssPropertyId.ScrollbarTrackColor, declaration.Value)
+                );
+            else if (
+                kind == HtmlWebkitScrollbarKind.Thumb
+                && declaration.Property == CssPropertyId.Background
+            )
+                rewritten.Add(
+                    new HtmlCssDeclaration(CssPropertyId.ScrollbarThumbColor, declaration.Value)
+                );
         }
 
-        return rewritten.Count == 0 ? HtmlCssDeclarationBlock.Empty : new HtmlCssDeclarationBlock([.. rewritten]);
+        return rewritten.Count == 0
+            ? HtmlCssDeclarationBlock.Empty
+            : new HtmlCssDeclarationBlock([.. rewritten]);
     }
 
-    private static bool TryParseMediaPrelude(ReadOnlySpan<char> prelude, out HtmlMediaCondition condition)
+    private static bool TryParseMediaPrelude(
+        ReadOnlySpan<char> prelude,
+        out HtmlMediaCondition condition
+    )
     {
         condition = default!;
         var normalized = prelude.Trim();
@@ -375,7 +459,10 @@ internal static class HtmlCssParser
         return true;
     }
 
-    private static void ParseDeclarationBlock(ReadOnlySpan<char> block, List<HtmlCssDeclaration> declarations)
+    private static void ParseDeclarationBlock(
+        ReadOnlySpan<char> block,
+        List<HtmlCssDeclaration> declarations
+    )
     {
         var cursor = 0;
         while (cursor < block.Length)
@@ -470,7 +557,11 @@ internal static class HtmlCssParser
             "border-right" => CssPropertyId.BorderRight,
             "border-bottom" => CssPropertyId.BorderBottom,
             "border-left" => CssPropertyId.BorderLeft,
-            "border-radius" or "border-top-left-radius" or "border-top-right-radius" or "border-bottom-right-radius" or "border-bottom-left-radius" => CssPropertyId.BorderRadius,
+            "border-radius"
+            or "border-top-left-radius"
+            or "border-top-right-radius"
+            or "border-bottom-right-radius"
+            or "border-bottom-left-radius" => CssPropertyId.BorderRadius,
             "border-collapse" => CssPropertyId.BorderCollapse,
             "border-spacing" => CssPropertyId.BorderSpacing,
             "box-shadow" => CssPropertyId.BoxShadow,
@@ -501,7 +592,7 @@ internal static class HtmlCssParser
             "place-content" => CssPropertyId.PlaceContent,
             "place-items" => CssPropertyId.PlaceItems,
             "place-self" => CssPropertyId.PlaceSelf,
-            _ => CssPropertyId.Unknown
+            _ => CssPropertyId.Unknown,
         };
     }
 

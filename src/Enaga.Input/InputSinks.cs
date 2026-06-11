@@ -15,7 +15,7 @@ public enum PointerCursorKind
 {
     Default,
     Pointer,
-    Text
+    Text,
 }
 
 public interface IPointerCursorSource
@@ -29,7 +29,12 @@ public interface ITextCompositionSink
 {
     void StartTextComposition();
     void UpdateTextComposition(string text, int cursorPosition);
-    void UpdateTextComposition(string text, int cursorPosition, int selectionStart, int selectionLength)
+    void UpdateTextComposition(
+        string text,
+        int cursorPosition,
+        int selectionStart,
+        int selectionLength
+    )
     {
         UpdateTextComposition(text, cursorPosition);
     }

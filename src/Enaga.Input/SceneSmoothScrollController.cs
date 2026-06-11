@@ -20,7 +20,12 @@ public static class SceneSmoothScrollController
         state.TargetScrollY = state.ScrollY;
     }
 
-    public static void SetImmediate(ISceneScrollOffsetState state, SceneLayoutBox box, float scrollX, float scrollY)
+    public static void SetImmediate(
+        ISceneScrollOffsetState state,
+        SceneLayoutBox box,
+        float scrollX,
+        float scrollY
+    )
     {
         state.ScrollX = SceneScrollMetrics.ClampScrollX(box, scrollX);
         state.ScrollY = SceneScrollMetrics.ClampScrollY(box, scrollY);
@@ -32,12 +37,21 @@ public static class SceneSmoothScrollController
         SceneLayoutBox box,
         float deltaX,
         float deltaY,
-        float wheelScrollFactor = SceneScrollMetrics.DefaultWheelScrollFactor)
+        float wheelScrollFactor = SceneScrollMetrics.DefaultWheelScrollFactor
+    )
     {
-        var nextScrollX = SceneScrollMetrics.ClampScrollX(box, state.TargetScrollX + deltaX * wheelScrollFactor);
-        var nextScrollY = SceneScrollMetrics.ClampScrollY(box, state.TargetScrollY - deltaY * wheelScrollFactor);
-        if (Math.Abs(nextScrollX - state.TargetScrollX) <= 0.001f &&
-            Math.Abs(nextScrollY - state.TargetScrollY) <= 0.001f)
+        var nextScrollX = SceneScrollMetrics.ClampScrollX(
+            box,
+            state.TargetScrollX + deltaX * wheelScrollFactor
+        );
+        var nextScrollY = SceneScrollMetrics.ClampScrollY(
+            box,
+            state.TargetScrollY - deltaY * wheelScrollFactor
+        );
+        if (
+            Math.Abs(nextScrollX - state.TargetScrollX) <= 0.001f
+            && Math.Abs(nextScrollY - state.TargetScrollY) <= 0.001f
+        )
         {
             return false;
         }
@@ -51,13 +65,14 @@ public static class SceneSmoothScrollController
         ISceneScrollOffsetState state,
         SceneLayoutBox box,
         double deltaSeconds,
-        double response = DefaultResponse)
+        double response = DefaultResponse
+    )
     {
         state.TargetScrollX = SceneScrollMetrics.ClampScrollX(box, state.TargetScrollX);
         state.TargetScrollY = SceneScrollMetrics.ClampScrollY(box, state.TargetScrollY);
         var dx = state.TargetScrollX - state.ScrollX;
         var dy = state.TargetScrollY - state.ScrollY;
-        // NOTE: comment out because smooth scroll is not working well. smoothed only after scroll end. 
+        // NOTE: comment out because smooth scroll is not working well. smoothed only after scroll end.
         //if (Math.Abs(dx) <= 0.5f && Math.Abs(dy) <= 0.5f)
         {
             state.ScrollX = state.TargetScrollX;

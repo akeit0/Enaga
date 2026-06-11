@@ -9,7 +9,11 @@ internal sealed class HtmlSceneTextStyleCache
     private readonly Dictionary<FontKey, SceneFont> fonts = new();
     private readonly Dictionary<TextStyleKey, SceneTextStyle> textStyles = new();
 
-    public SceneFont GetFont(HtmlComputedStyle style, float defaultSize = 16, int defaultWeight = 400)
+    public SceneFont GetFont(
+        HtmlComputedStyle style,
+        float defaultSize = 16,
+        int defaultWeight = 400
+    )
     {
         var key = FontKey.From(style, defaultSize, defaultWeight);
         if (fonts.TryGetValue(key, out var font))
@@ -23,17 +27,18 @@ internal sealed class HtmlSceneTextStyleCache
         return font;
     }
 
-    public SceneTextStyle GetInlineMeasureStyle(HtmlComputedStyle style)
-        => GetTextStyle(style, wrapText: false, textOverflowEllipsis: false, textShadows: null);
+    public SceneTextStyle GetInlineMeasureStyle(HtmlComputedStyle style) =>
+        GetTextStyle(style, wrapText: false, textOverflowEllipsis: false, textShadows: null);
 
-    public SceneTextStyle GetTextStyle(HtmlComputedStyle style)
-        => GetTextStyle(style, style.WrapText, style.TextOverflowEllipsis, style.TextShadows);
+    public SceneTextStyle GetTextStyle(HtmlComputedStyle style) =>
+        GetTextStyle(style, style.WrapText, style.TextOverflowEllipsis, style.TextShadows);
 
     public SceneTextStyle GetTextStyle(
         HtmlComputedStyle style,
         bool wrapText,
         bool textOverflowEllipsis,
-        SceneBoxShadow[]? textShadows)
+        SceneBoxShadow[]? textShadows
+    )
     {
         var fontKey = FontKey.From(style, 16, 400);
         var key = new TextStyleKey(
@@ -43,7 +48,8 @@ internal sealed class HtmlSceneTextStyleCache
             wrapText,
             style.Underline,
             textOverflowEllipsis,
-            textShadows);
+            textShadows
+        );
         if (textStyles.TryGetValue(key, out var textStyle))
             return textStyle;
 
@@ -58,19 +64,21 @@ internal sealed class HtmlSceneTextStyleCache
             Underline: style.Underline,
             TextOverflowEllipsis: textOverflowEllipsis,
             Font: GetFont(style, 16, 400),
-            TextShadows: textShadows);
+            TextShadows: textShadows
+        );
         textStyles[key] = textStyle;
         return textStyle;
     }
 
     private readonly record struct FontKey(float Size, string? Family, int Weight, bool Italic)
     {
-        public static FontKey From(HtmlComputedStyle style, float defaultSize, int defaultWeight)
-            => new(
+        public static FontKey From(HtmlComputedStyle style, float defaultSize, int defaultWeight) =>
+            new(
                 style.FontSize > 0 ? style.FontSize : defaultSize,
                 style.FontFamily,
                 style.FontWeight > 0 ? style.FontWeight : defaultWeight,
-                style.Italic);
+                style.Italic
+            );
     }
 
     private readonly record struct TextStyleKey(
@@ -80,5 +88,6 @@ internal sealed class HtmlSceneTextStyleCache
         bool WrapText,
         bool Underline,
         bool TextOverflowEllipsis,
-        SceneBoxShadow[]? TextShadows);
+        SceneBoxShadow[]? TextShadows
+    );
 }

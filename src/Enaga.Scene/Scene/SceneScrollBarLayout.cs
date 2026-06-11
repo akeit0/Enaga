@@ -28,14 +28,20 @@ public static class SceneScrollBarLayout
 
         var thumbHeight = Math.Min(
             trackHeight,
-            Math.Max(minThumbHeight, trackHeight * Math.Min(1, viewportHeight / contentHeight)));
+            Math.Max(minThumbHeight, trackHeight * Math.Min(1, viewportHeight / contentHeight))
+        );
         var thumbTravel = Math.Max(0, trackHeight - thumbHeight);
         var progress = maxScroll > 0 ? Math.Clamp(box.ScrollY / maxScroll, 0, 1) : 0;
         var trackLeft = box.AbsLeft + box.Width - gutterWidth + margin;
         var trackTop = box.AbsTop + margin;
         var radius = barWidth * 0.5f;
         var trackRect = new ScrollBarRect(trackLeft, trackTop, barWidth, trackHeight);
-        var thumbRect = new ScrollBarRect(trackLeft, trackTop + thumbTravel * progress, barWidth, thumbHeight);
+        var thumbRect = new ScrollBarRect(
+            trackLeft,
+            trackTop + thumbTravel * progress,
+            barWidth,
+            thumbHeight
+        );
         return new VerticalScrollBarMetrics(trackRect, thumbRect, radius);
     }
 
@@ -63,18 +69,30 @@ public static class SceneScrollBarLayout
 
         var thumbWidth = Math.Min(
             trackWidth,
-            Math.Max(minThumbWidth, trackWidth * Math.Min(1, viewportWidth / contentWidth)));
+            Math.Max(minThumbWidth, trackWidth * Math.Min(1, viewportWidth / contentWidth))
+        );
         var thumbTravel = Math.Max(0, trackWidth - thumbWidth);
         var progress = maxScroll > 0 ? Math.Clamp(box.ScrollX / maxScroll, 0, 1) : 0;
         var trackLeft = box.AbsLeft + margin;
         var trackTop = box.AbsTop + box.Height - gutterHeight + margin;
         var radius = barHeight * 0.5f;
         var trackRect = new ScrollBarRect(trackLeft, trackTop, trackWidth, barHeight);
-        var thumbRect = new ScrollBarRect(trackLeft + thumbTravel * progress, trackTop, thumbWidth, barHeight);
+        var thumbRect = new ScrollBarRect(
+            trackLeft + thumbTravel * progress,
+            trackTop,
+            thumbWidth,
+            barHeight
+        );
         return new HorizontalScrollBarMetrics(trackRect, thumbRect, radius);
     }
 
-    public static bool TryHitVerticalScrollBarThumb(SceneLayoutBox box, float x, float y, out VerticalScrollBarMetrics metrics, out float grabOffsetY)
+    public static bool TryHitVerticalScrollBarThumb(
+        SceneLayoutBox box,
+        float x,
+        float y,
+        out VerticalScrollBarMetrics metrics,
+        out float grabOffsetY
+    )
     {
         var resolved = ResolveVerticalScrollBar(box);
         if (resolved is not { } scrollBar || !scrollBar.ThumbRect.Contains(x, y))
@@ -89,7 +107,13 @@ public static class SceneScrollBarLayout
         return true;
     }
 
-    public static bool TryHitHorizontalScrollBarThumb(SceneLayoutBox box, float x, float y, out HorizontalScrollBarMetrics metrics, out float grabOffsetX)
+    public static bool TryHitHorizontalScrollBarThumb(
+        SceneLayoutBox box,
+        float x,
+        float y,
+        out HorizontalScrollBarMetrics metrics,
+        out float grabOffsetX
+    )
     {
         var resolved = ResolveHorizontalScrollBar(box);
         if (resolved is not { } scrollBar || !scrollBar.ThumbRect.Contains(x, y))
@@ -124,7 +148,10 @@ public static class SceneScrollBarLayout
         return maxScroll * normalized;
     }
 
-    public static float ResolveHorizontalScrollOffsetFromThumbLeft(SceneLayoutBox box, float thumbLeft)
+    public static float ResolveHorizontalScrollOffsetFromThumbLeft(
+        SceneLayoutBox box,
+        float thumbLeft
+    )
     {
         var metrics = ResolveHorizontalScrollBar(box);
         if (metrics is not { } scrollBar)
@@ -156,10 +183,18 @@ public static class SceneScrollBarLayout
         }
     }
 
-    public readonly record struct VerticalScrollBarMetrics(ScrollBarRect TrackRect, ScrollBarRect ThumbRect, float Radius);
+    public readonly record struct VerticalScrollBarMetrics(
+        ScrollBarRect TrackRect,
+        ScrollBarRect ThumbRect,
+        float Radius
+    );
 
-    public readonly record struct HorizontalScrollBarMetrics(ScrollBarRect TrackRect, ScrollBarRect ThumbRect, float Radius);
+    public readonly record struct HorizontalScrollBarMetrics(
+        ScrollBarRect TrackRect,
+        ScrollBarRect ThumbRect,
+        float Radius
+    );
 
-    private static float ResolveScrollBarMargin(float gutterSize)
-        => Math.Min(2, Math.Max(0, gutterSize) / 6);
+    private static float ResolveScrollBarMargin(float gutterSize) =>
+        Math.Min(2, Math.Max(0, gutterSize) / 6);
 }

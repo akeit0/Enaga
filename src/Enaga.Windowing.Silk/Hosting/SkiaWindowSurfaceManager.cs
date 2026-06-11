@@ -17,7 +17,11 @@ internal sealed class SkiaWindowSurfaceManager : IDisposable
     private ISkiaWindowSurface? surface;
     private Vector2D<int> surfaceFramebufferSize;
 
-    public SkiaWindowSurfaceManager(IWindow window, RenderGraphicsBackend graphicsBackend, TimeProvider? timeProvider = null)
+    public SkiaWindowSurfaceManager(
+        IWindow window,
+        RenderGraphicsBackend graphicsBackend,
+        TimeProvider? timeProvider = null
+    )
     {
         this.window = window ?? throw new ArgumentNullException(nameof(window));
         this.graphicsBackend = graphicsBackend;
@@ -28,19 +32,22 @@ internal sealed class SkiaWindowSurfaceManager : IDisposable
 
     public bool HasSurface => surface is not null;
 
-    public bool RequiresPresentOnRenderWithoutDamage => surface?.RequiresPresentOnRenderWithoutDamage == true;
+    public bool RequiresPresentOnRenderWithoutDamage =>
+        surface?.RequiresPresentOnRenderWithoutDamage == true;
 
-    public SKCanvas Canvas => surface?.Canvas ?? throw new InvalidOperationException("Skia window surface is not initialized.");
+    public SKCanvas Canvas =>
+        surface?.Canvas
+        ?? throw new InvalidOperationException("Skia window surface is not initialized.");
 
     public PresentDiagnosticsSnapshot LastDiagnostics => surface?.LastDiagnostics ?? default;
 
     public Vector2D<int> FramebufferSize => GetSafeSize(window.FramebufferSize);
 
-    public WindowSurfaceFrameTarget CaptureFrameTarget()
-        => new(GetSafeSize(window.Size), FramebufferSize);
+    public WindowSurfaceFrameTarget CaptureFrameTarget() =>
+        new(GetSafeSize(window.Size), FramebufferSize);
 
-    public bool IsCurrentFrameTarget(WindowSurfaceFrameTarget target)
-        => CaptureFrameTarget() == target;
+    public bool IsCurrentFrameTarget(WindowSurfaceFrameTarget target) =>
+        CaptureFrameTarget() == target;
 
     public void Initialize()
     {
@@ -88,7 +95,12 @@ internal sealed class SkiaWindowSurfaceManager : IDisposable
         surface.Canvas.Clear(clearColor);
         Span<SceneDamageRect> dirtyRects =
         [
-            new SceneDamageRect(0, 0, Math.Max(1, FramebufferSize.X), Math.Max(1, FramebufferSize.Y)),
+            new SceneDamageRect(
+                0,
+                0,
+                Math.Max(1, FramebufferSize.X),
+                Math.Max(1, FramebufferSize.Y)
+            ),
         ];
         surface.Present(dirtyRects);
     }
@@ -98,7 +110,11 @@ internal sealed class SkiaWindowSurfaceManager : IDisposable
         RenderIntoCanvas(renderRoot, elapsed, CaptureFrameTarget());
     }
 
-    public void RenderIntoCanvas(IRenderRoot renderRoot, TimeSpan elapsed, WindowSurfaceFrameTarget target)
+    public void RenderIntoCanvas(
+        IRenderRoot renderRoot,
+        TimeSpan elapsed,
+        WindowSurfaceFrameTarget target
+    )
     {
         ArgumentNullException.ThrowIfNull(renderRoot);
 
@@ -113,20 +129,37 @@ internal sealed class SkiaWindowSurfaceManager : IDisposable
         renderRoot.Render(Canvas, safeLogicalSize.X, safeLogicalSize.Y, elapsed);
     }
 
-    public ReadOnlySpan<SceneDamageRect> ScaleDirtyRectsToFramebuffer(ReadOnlySpan<SceneDamageRect> dirtyRects)
+    public ReadOnlySpan<SceneDamageRect> ScaleDirtyRectsToFramebuffer(
+        ReadOnlySpan<SceneDamageRect> dirtyRects
+    )
     {
         return ScaleDirtyRectsToFramebuffer(dirtyRects, CaptureFrameTarget());
     }
 
-    public ReadOnlySpan<SceneDamageRect> ScaleDirtyRectsToFramebuffer(ReadOnlySpan<SceneDamageRect> dirtyRects, WindowSurfaceFrameTarget target)
+    public ReadOnlySpan<SceneDamageRect> ScaleDirtyRectsToFramebuffer(
+        ReadOnlySpan<SceneDamageRect> dirtyRects,
+        WindowSurfaceFrameTarget target
+    )
     {
-        return FramebufferDirtyRectScaler.Scale(dirtyRects, target.LogicalSize, target.FramebufferSize, physicalDirtyRectBuffer);
+        return FramebufferDirtyRectScaler.Scale(
+            dirtyRects,
+            target.LogicalSize,
+            target.FramebufferSize,
+            physicalDirtyRectBuffer
+        );
     }
 
     public ReadOnlySpan<SceneDamageRect> FullFrameDirtyRect(WindowSurfaceFrameTarget target)
     {
         physicalDirtyRectBuffer.Clear();
-        physicalDirtyRectBuffer.Add(new SceneDamageRect(0, 0, Math.Max(1, target.FramebufferSize.X), Math.Max(1, target.FramebufferSize.Y)));
+        physicalDirtyRectBuffer.Add(
+            new SceneDamageRect(
+                0,
+                0,
+                Math.Max(1, target.FramebufferSize.X),
+                Math.Max(1, target.FramebufferSize.Y)
+            )
+        );
         return physicalDirtyRectBuffer.WrittenSpan;
     }
 
@@ -152,4 +185,7 @@ internal sealed class SkiaWindowSurfaceManager : IDisposable
     }
 }
 
-internal readonly record struct WindowSurfaceFrameTarget(Vector2D<int> LogicalSize, Vector2D<int> FramebufferSize);
+internal readonly record struct WindowSurfaceFrameTarget(
+    Vector2D<int> LogicalSize,
+    Vector2D<int> FramebufferSize
+);

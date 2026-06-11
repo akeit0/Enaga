@@ -6,7 +6,11 @@ namespace Enaga.Html;
 
 internal sealed partial class HtmlLayoutBuilder
 {
-    private InlineTextMeasure MeasureInlineText(string text, SceneTextStyle textStyle, float lineHeight)
+    private InlineTextMeasure MeasureInlineText(
+        string text,
+        SceneTextStyle textStyle,
+        float lineHeight
+    )
     {
         var key = new InlineTextMeasureKey(
             text,
@@ -16,7 +20,8 @@ internal sealed partial class HtmlLayoutBuilder
             textStyle.Underline,
             textStyle.Font.Italic,
             textStyle.TextOverflowEllipsis,
-            lineHeight);
+            lineHeight
+        );
         if (measurementCache.TryGetInlineText(key, out var cached))
             return cached;
 
@@ -32,19 +37,26 @@ internal sealed partial class HtmlLayoutBuilder
                     continue;
 
                 var line = text.AsSpan(lineStart, index - lineStart);
-                maxLineWidth = MathF.Max(maxLineWidth, MathF.Ceiling(textServices.MeasureTextWidth(line, textStyle)));
+                maxLineWidth = MathF.Max(
+                    maxLineWidth,
+                    MathF.Ceiling(textServices.MeasureTextWidth(line, textStyle))
+                );
                 lineCount += index < text.Length ? 1 : 0;
                 lineStart = index + 1;
             }
 
-            var multilineMeasured = new InlineTextMeasure(maxLineWidth, resolvedLineHeight * lineCount);
+            var multilineMeasured = new InlineTextMeasure(
+                maxLineWidth,
+                resolvedLineHeight * lineCount
+            );
             measurementCache.SetInlineText(key, multilineMeasured);
             return multilineMeasured;
         }
 
         var measured = new InlineTextMeasure(
             MathF.Ceiling(textServices.MeasureTextWidth(text.AsSpan(), textStyle)),
-            resolvedLineHeight);
+            resolvedLineHeight
+        );
         measurementCache.SetInlineText(key, measured);
         return measured;
     }
@@ -52,7 +64,10 @@ internal sealed partial class HtmlLayoutBuilder
     private sealed class HtmlLayoutMeasurementCache(HtmlPipelineMetrics metrics)
     {
         private readonly Dictionary<InlineTextMeasureKey, InlineTextMeasure> inlineText = new();
-        private readonly Dictionary<ContainerPercentResolveKey, HtmlSceneNode[]> containerPercentNodes = new();
+        private readonly Dictionary<
+            ContainerPercentResolveKey,
+            HtmlSceneNode[]
+        > containerPercentNodes = new();
         private LayoutOutputCache? layoutOutputs;
 
         public void BeginLayoutPass(LayoutOutputCache nextLayoutOutputs)
@@ -61,11 +76,11 @@ internal sealed partial class HtmlLayoutBuilder
             containerPercentNodes.Clear();
         }
 
-        public bool TryGetInlineText(InlineTextMeasureKey key, out InlineTextMeasure measure)
-            => inlineText.TryGetValue(key, out measure);
+        public bool TryGetInlineText(InlineTextMeasureKey key, out InlineTextMeasure measure) =>
+            inlineText.TryGetValue(key, out measure);
 
-        public void SetInlineText(InlineTextMeasureKey key, InlineTextMeasure measure)
-            => inlineText[key] = measure;
+        public void SetInlineText(InlineTextMeasureKey key, InlineTextMeasure measure) =>
+            inlineText[key] = measure;
 
         public bool TryGetIntrinsicSize(LayoutCacheKey key, out (float Width, float Height) measure)
         {
@@ -81,13 +96,20 @@ internal sealed partial class HtmlLayoutBuilder
             return false;
         }
 
-        public void SetIntrinsicSize(LayoutCacheKey key, (float Width, float Height) measure)
-            => (layoutOutputs ?? throw new InvalidOperationException("Layout output cache was not bound for this layout pass.")).Store(
+        public void SetIntrinsicSize(LayoutCacheKey key, (float Width, float Height) measure) =>
+            (
+                layoutOutputs
+                ?? throw new InvalidOperationException(
+                    "Layout output cache was not bound for this layout pass."
+                )
+            ).Store(
                 key,
                 new LayoutOutput(
                     new LayoutSize(measure.Width, measure.Height),
                     new LayoutSize(measure.Width, measure.Height),
-                    new LayoutRect(0, 0, measure.Width, measure.Height)));
+                    new LayoutRect(0, 0, measure.Width, measure.Height)
+                )
+            );
 
         public bool TryGetLayoutHeight(LayoutCacheKey key, out float height)
         {
@@ -103,19 +125,30 @@ internal sealed partial class HtmlLayoutBuilder
             return false;
         }
 
-        public void SetLayoutHeight(LayoutCacheKey key, float height)
-            => (layoutOutputs ?? throw new InvalidOperationException("Layout output cache was not bound for this layout pass.")).Store(
+        public void SetLayoutHeight(LayoutCacheKey key, float height) =>
+            (
+                layoutOutputs
+                ?? throw new InvalidOperationException(
+                    "Layout output cache was not bound for this layout pass."
+                )
+            ).Store(
                 key,
                 new LayoutOutput(
                     new LayoutSize(0, height),
                     new LayoutSize(0, height),
-                    new LayoutRect(0, 0, 0, height)));
+                    new LayoutRect(0, 0, 0, height)
+                )
+            );
 
-        public bool TryGetContainerPercentNodes(ContainerPercentResolveKey key, out HtmlSceneNode[] nodes)
-            => containerPercentNodes.TryGetValue(key, out nodes!);
+        public bool TryGetContainerPercentNodes(
+            ContainerPercentResolveKey key,
+            out HtmlSceneNode[] nodes
+        ) => containerPercentNodes.TryGetValue(key, out nodes!);
 
-        public void SetContainerPercentNodes(ContainerPercentResolveKey key, HtmlSceneNode[] nodes)
-            => containerPercentNodes[key] = nodes;
+        public void SetContainerPercentNodes(
+            ContainerPercentResolveKey key,
+            HtmlSceneNode[] nodes
+        ) => containerPercentNodes[key] = nodes;
     }
 
     private readonly record struct InlineTextMeasureKey(
@@ -126,15 +159,16 @@ internal sealed partial class HtmlLayoutBuilder
         bool Underline,
         bool Italic,
         bool TextOverflowEllipsis,
-        float LineHeight);
+        float LineHeight
+    );
 
-    private readonly record struct ContainerPercentResolveKey(HtmlSceneNode[] Nodes, int QuantizedContainerWidth);
+    private readonly record struct ContainerPercentResolveKey(
+        HtmlSceneNode[] Nodes,
+        int QuantizedContainerWidth
+    );
 
     private readonly record struct InlineTextMeasure(float Width, float Height);
 
-    private float ResolveNormalLineHeight(SceneFont font, float explicitLineHeight)
-        => explicitLineHeight > 0
-            ? explicitLineHeight
-            : textServices.MeasureLineHeight(font);
+    private float ResolveNormalLineHeight(SceneFont font, float explicitLineHeight) =>
+        explicitLineHeight > 0 ? explicitLineHeight : textServices.MeasureLineHeight(font);
 }
-

@@ -1,7 +1,8 @@
 using System.Drawing;
-using NativeInlineIme.Windows;
-using Enaga.Rendering;
 using Enaga.Input;
+using Enaga.Rendering;
+using NativeInlineIme.Windows;
+
 namespace Enaga.Platforms.Windows;
 
 internal sealed class RenderRootTextInputClient : ITextInputClient
@@ -38,7 +39,8 @@ internal sealed class RenderRootTextInputClient : ITextInputClient
                 cursor.X,
                 cursor.Y,
                 Math.Max(1, cursor.Width),
-                Math.Max(1, cursor.Height));
+                Math.Max(1, cursor.Height)
+            );
         }
     }
 
@@ -49,7 +51,12 @@ internal sealed class RenderRootTextInputClient : ITextInputClient
         SetPreeditText(preeditText, cursorPosition, 0, preeditText?.Length ?? 0);
     }
 
-    public void SetPreeditText(string? preeditText, int? cursorPosition, int selectionStart, int selectionLength)
+    public void SetPreeditText(
+        string? preeditText,
+        int? cursorPosition,
+        int selectionStart,
+        int selectionLength
+    )
     {
         if (string.IsNullOrEmpty(preeditText))
         {
@@ -71,7 +78,8 @@ internal sealed class RenderRootTextInputClient : ITextInputClient
             preeditText,
             cursorPosition ?? preeditText.Length,
             selectionStart,
-            selectionLength);
+            selectionLength
+        );
     }
 
     public void CommitText(string text)

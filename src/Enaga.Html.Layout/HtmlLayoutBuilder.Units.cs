@@ -4,7 +4,11 @@ namespace Enaga.Html;
 
 internal sealed partial class HtmlLayoutBuilder
 {
-    private static HtmlSceneNode[] ResolveViewportUnits(HtmlSceneNode[] nodes, float viewportWidth, float viewportHeight)
+    private static HtmlSceneNode[] ResolveViewportUnits(
+        HtmlSceneNode[] nodes,
+        float viewportWidth,
+        float viewportHeight
+    )
     {
         if (nodes.Length == 0)
             return nodes;
@@ -15,8 +19,7 @@ internal sealed partial class HtmlLayoutBuilder
             var node = nodes[index];
             var style = node.Style.CloneWithResolvedViewportUnits(viewportWidth, viewportHeight);
             var children = ResolveViewportUnits(node.Children, viewportWidth, viewportHeight);
-            if (ReferenceEquals(style, node.Style) &&
-                ReferenceEquals(children, node.Children))
+            if (ReferenceEquals(style, node.Style) && ReferenceEquals(children, node.Children))
             {
                 if (resolved is not null)
                     resolved[index] = node;
@@ -30,17 +33,16 @@ internal sealed partial class HtmlLayoutBuilder
                     resolved[copyIndex] = nodes[copyIndex];
             }
 
-            resolved[index] = node with
-            {
-                Style = style,
-                Children = children
-            };
+            resolved[index] = node with { Style = style, Children = children };
         }
 
         return resolved ?? nodes;
     }
 
-    private HtmlSceneNode[] ResolveContainerPercentUnits(HtmlSceneNode[] nodes, float containerWidth)
+    private HtmlSceneNode[] ResolveContainerPercentUnits(
+        HtmlSceneNode[] nodes,
+        float containerWidth
+    )
     {
         if (nodes.Length == 0)
             return nodes;
@@ -55,7 +57,8 @@ internal sealed partial class HtmlLayoutBuilder
             var node = nodes[index];
             var style = node.Style.CloneWithResolvedContainerPercentUnits(
                 containerWidth,
-                resolveInlineSize: node.NodeKind != SceneNodeKind.Image);
+                resolveInlineSize: node.NodeKind != SceneNodeKind.Image
+            );
             if (ReferenceEquals(style, node.Style))
             {
                 if (resolved is not null)
@@ -70,10 +73,7 @@ internal sealed partial class HtmlLayoutBuilder
                     resolved[copyIndex] = nodes[copyIndex];
             }
 
-            resolved[index] = node with
-            {
-                Style = style
-            };
+            resolved[index] = node with { Style = style };
         }
 
         var resolvedNodes = resolved ?? nodes;
@@ -81,4 +81,3 @@ internal sealed partial class HtmlLayoutBuilder
         return resolvedNodes;
     }
 }
-

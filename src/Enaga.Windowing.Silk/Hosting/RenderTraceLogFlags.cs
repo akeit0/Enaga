@@ -8,5 +8,5 @@ public enum RenderTraceLogFlags
     ViewPerFrame = 1 << 1,
     Damage = 1 << 2,
     Runtime = 1 << 3,
-    All = Paint | ViewPerFrame | Damage | Runtime
+    All = Paint | ViewPerFrame | Damage | Runtime,
 }

@@ -17,7 +17,8 @@ public sealed class HtmlElementSnapshotInvalidatorTests
             NewClass: "item active",
             HtmlAttributeChangeMask.Class,
             HtmlPseudoState.None,
-            HtmlPseudoState.None);
+            HtmlPseudoState.None
+        );
 
         var invalidation = HtmlElementSnapshotInvalidator.Classify(snapshot);
 
@@ -26,8 +27,16 @@ public sealed class HtmlElementSnapshotInvalidatorTests
         Assert.True(invalidation.Invalidation.HasFlag(PipelineInvalidation.SelectorSelf));
         Assert.True(invalidation.Invalidation.HasFlag(PipelineInvalidation.SelectorDescendants));
         Assert.True(invalidation.Invalidation.HasFlag(PipelineInvalidation.LayoutDescendants));
-        Assert.True(HtmlElementSnapshotInvalidator.EstimateDamage(invalidation.Invalidation).HasFlag(RenderDamage.RebuildStyle));
-        Assert.True(HtmlElementSnapshotInvalidator.EstimateDamage(invalidation.Invalidation).HasFlag(RenderDamage.Relayout));
+        Assert.True(
+            HtmlElementSnapshotInvalidator
+                .EstimateDamage(invalidation.Invalidation)
+                .HasFlag(RenderDamage.RebuildStyle)
+        );
+        Assert.True(
+            HtmlElementSnapshotInvalidator
+                .EstimateDamage(invalidation.Invalidation)
+                .HasFlag(RenderDamage.Relayout)
+        );
     }
 
     [Fact]
@@ -41,7 +50,8 @@ public sealed class HtmlElementSnapshotInvalidatorTests
             NewClass: null,
             HtmlAttributeChangeMask.Style,
             HtmlPseudoState.None,
-            HtmlPseudoState.None);
+            HtmlPseudoState.None
+        );
 
         var invalidation = HtmlElementSnapshotInvalidator.Classify(snapshot);
 
@@ -62,7 +72,8 @@ public sealed class HtmlElementSnapshotInvalidatorTests
             NewClass: null,
             HtmlAttributeChangeMask.None,
             HtmlPseudoState.None,
-            HtmlPseudoState.Hover);
+            HtmlPseudoState.Hover
+        );
 
         var invalidation = HtmlElementSnapshotInvalidator.Classify(snapshot);
 
@@ -86,7 +97,8 @@ public sealed class HtmlElementSnapshotInvalidatorTests
             NewClass: null,
             HtmlAttributeChangeMask.Id,
             HtmlPseudoState.None,
-            HtmlPseudoState.None);
+            HtmlPseudoState.None
+        );
 
         var invalidation = store.ApplySnapshot(snapshot);
         var data = store.GetOrCreate(snapshot.NodeId);
@@ -105,24 +117,30 @@ public sealed class HtmlElementSnapshotInvalidatorTests
         var nodeId = new HtmlNodeId(5);
         var set = new HtmlStyleInvalidationSet();
 
-        set.Add(new HtmlElementSnapshot(
-            nodeId,
-            OldId: null,
-            NewId: null,
-            OldClass: "item",
-            NewClass: "selected",
-            HtmlAttributeChangeMask.Class,
-            HtmlPseudoState.None,
-            HtmlPseudoState.None));
-        set.Add(new HtmlElementSnapshot(
-            nodeId,
-            OldId: null,
-            NewId: null,
-            OldClass: null,
-            NewClass: null,
-            HtmlAttributeChangeMask.Style,
-            HtmlPseudoState.None,
-            HtmlPseudoState.None));
+        set.Add(
+            new HtmlElementSnapshot(
+                nodeId,
+                OldId: null,
+                NewId: null,
+                OldClass: "item",
+                NewClass: "selected",
+                HtmlAttributeChangeMask.Class,
+                HtmlPseudoState.None,
+                HtmlPseudoState.None
+            )
+        );
+        set.Add(
+            new HtmlElementSnapshot(
+                nodeId,
+                OldId: null,
+                NewId: null,
+                OldClass: null,
+                NewClass: null,
+                HtmlAttributeChangeMask.Style,
+                HtmlPseudoState.None,
+                HtmlPseudoState.None
+            )
+        );
 
         Assert.Equal(1, set.Count);
         Assert.True(set.RestyleHint.HasFlag(RestyleHint.MatchDescendants));

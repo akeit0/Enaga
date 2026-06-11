@@ -11,7 +11,7 @@ public enum HtmlAttributeChangeMask : uint
     Src = 1 << 4,
     Direction = 1 << 5,
     Lang = 1 << 6,
-    Other = 1u << 31
+    Other = 1u << 31,
 }
 
 [Flags]
@@ -23,7 +23,7 @@ public enum HtmlPseudoState : uint
     Focus = 1 << 2,
     Disabled = 1 << 3,
     Checked = 1 << 4,
-    Visited = 1 << 5
+    Visited = 1 << 5,
 }
 
 public readonly record struct HtmlElementSnapshot(
@@ -34,7 +34,8 @@ public readonly record struct HtmlElementSnapshot(
     string? NewClass,
     HtmlAttributeChangeMask AttributeChanges,
     HtmlPseudoState OldPseudoState,
-    HtmlPseudoState NewPseudoState)
+    HtmlPseudoState NewPseudoState
+)
 {
     public bool HasAttributeChange => AttributeChanges != HtmlAttributeChangeMask.None;
 

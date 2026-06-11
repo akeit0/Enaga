@@ -1,7 +1,7 @@
+using Enaga.Html.Dom;
 using Enaga.Layout;
 using Enaga.Rendering;
 using Enaga.Scene;
-using Enaga.Html.Dom;
 
 namespace Enaga.Html;
 
@@ -20,7 +20,12 @@ internal sealed class HtmlDocumentSceneBuilder
         var textServices = (options.BackendServices ?? DummyRuntimeBackendServices.Create()).Text;
         sceneTreeBuilder = new HtmlSceneTreeBuilder(options, layoutConfig, metrics);
         styleTraversal = new HtmlStyleTraversal(options, layoutConfig);
-        layoutBuilder = new HtmlLayoutBuilder(options.RootId, textServices, metrics, sceneNodeIdAllocator);
+        layoutBuilder = new HtmlLayoutBuilder(
+            options.RootId,
+            textServices,
+            metrics,
+            sceneNodeIdAllocator
+        );
     }
 
     public HtmlPipelineMetricsSnapshot LastMetrics { get; private set; }
@@ -36,14 +41,16 @@ internal sealed class HtmlDocumentSceneBuilder
     public IReadOnlyDictionary<SceneNodeId, HtmlNodeId> LastSceneNodeDomIds { get; private set; } =
         new Dictionary<SceneNodeId, HtmlNodeId>();
 
-    public void InvalidateResourceDependentLayout()
-        => sceneTreeBuilder.InvalidateResourceDependentLayout();
+    public void InvalidateResourceDependentLayout() =>
+        sceneTreeBuilder.InvalidateResourceDependentLayout();
 
-    public void ApplyHoverSnapshot(IReadOnlySet<HtmlNodeId>? oldHoveredNodeIds, IReadOnlySet<HtmlNodeId>? newHoveredNodeIds)
-        => sceneTreeBuilder.ApplyHoverSnapshot(oldHoveredNodeIds, newHoveredNodeIds);
+    public void ApplyHoverSnapshot(
+        IReadOnlySet<HtmlNodeId>? oldHoveredNodeIds,
+        IReadOnlySet<HtmlNodeId>? newHoveredNodeIds
+    ) => sceneTreeBuilder.ApplyHoverSnapshot(oldHoveredNodeIds, newHoveredNodeIds);
 
-    public void ApplyActiveSnapshot(HtmlNodeId? oldActiveNodeId, HtmlNodeId? newActiveNodeId)
-        => sceneTreeBuilder.ApplyActiveSnapshot(oldActiveNodeId, newActiveNodeId);
+    public void ApplyActiveSnapshot(HtmlNodeId? oldActiveNodeId, HtmlNodeId? newActiveNodeId) =>
+        sceneTreeBuilder.ApplyActiveSnapshot(oldActiveNodeId, newActiveNodeId);
 
     public SceneLayoutCommit Build(
         HtmlParsedDocument document,
@@ -51,7 +58,8 @@ internal sealed class HtmlDocumentSceneBuilder
         int height,
         float viewportScale,
         IReadOnlySet<HtmlNodeId>? hoveredDomNodeIds = null,
-        HtmlNodeId? activeDomNodeId = null)
+        HtmlNodeId? activeDomNodeId = null
+    )
     {
         metrics.Reset();
         LastComputedStyleTree = styleTraversal.Resolve(
@@ -59,7 +67,8 @@ internal sealed class HtmlDocumentSceneBuilder
             width,
             height,
             hoveredDomNodeIds,
-            activeDomNodeId);
+            activeDomNodeId
+        );
         var styleTree = LastComputedStyleTree;
         metrics.AddStyleMatchCascade(styleTree.Styles.Count);
         var styledTree = sceneTreeBuilder.GetOrCreate(document, width, height, styleTree);
@@ -68,7 +77,13 @@ internal sealed class HtmlDocumentSceneBuilder
         layoutOutputStore.BeginDocument(document, styledTree.StyleStoreGeneration);
         layoutOutputStore.UpdateLayoutTree(HtmlSceneNodeId.Root, styledTree.RootChildren);
         layoutOutputStore.InvalidateNodes(sceneTreeBuilder.LastLayoutDirtyNodes);
-        var commit = layoutBuilder.Build(styledTree, layoutOutputStore, width, height, viewportScale);
+        var commit = layoutBuilder.Build(
+            styledTree,
+            layoutOutputStore,
+            width,
+            height,
+            viewportScale
+        );
         LastFragmentTree = layoutBuilder.LastFragmentTree;
         LastSceneNodeDomIds = layoutBuilder.LastSceneNodeDomIds;
         LastMetrics = metrics.Snapshot();

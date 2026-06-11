@@ -49,8 +49,20 @@ public sealed class TextInputMetricsWrapTests
         using var font = metrics.CreateFont(style);
         var maxWidth = font.MeasureText("wrapped text ", paint) + 0.1f;
 
-        var first = metrics.CreateLayout(style, paint, "wrapped text measurement cache", 22, maxWidth);
-        var second = metrics.CreateLayout(style, paint, "wrapped text measurement cache", 22, maxWidth);
+        var first = metrics.CreateLayout(
+            style,
+            paint,
+            "wrapped text measurement cache",
+            22,
+            maxWidth
+        );
+        var second = metrics.CreateLayout(
+            style,
+            paint,
+            "wrapped text measurement cache",
+            22,
+            maxWidth
+        );
 
         Assert.Same(first, second);
     }
@@ -66,8 +78,20 @@ public sealed class TextInputMetricsWrapTests
         var narrowWidth = font.MeasureText("wrapped ", paint) + 0.1f;
         var wideWidth = font.MeasureText("wrapped text measurement cache", paint) + 0.1f;
 
-        var narrow = metrics.CreateLayout(style, paint, "wrapped text measurement cache", 22, narrowWidth);
-        var wide = metrics.CreateLayout(style, paint, "wrapped text measurement cache", 22, wideWidth);
+        var narrow = metrics.CreateLayout(
+            style,
+            paint,
+            "wrapped text measurement cache",
+            22,
+            narrowWidth
+        );
+        var wide = metrics.CreateLayout(
+            style,
+            paint,
+            "wrapped text measurement cache",
+            22,
+            wideWidth
+        );
 
         Assert.NotSame(narrow, wide);
     }
@@ -84,7 +108,10 @@ public sealed class TextInputMetricsWrapTests
         var count = services.BreakText(text.AsSpan(), halfWidth, style, out var measuredWidth);
 
         Assert.InRange(count, 1, text.Length - 1);
-        Assert.True(measuredWidth <= halfWidth + 0.5f, $"measuredWidth={measuredWidth} halfWidth={halfWidth}");
+        Assert.True(
+            measuredWidth <= halfWidth + 0.5f,
+            $"measuredWidth={measuredWidth} halfWidth={halfWidth}"
+        );
     }
 
     [Fact]
@@ -107,7 +134,10 @@ public sealed class TextInputMetricsWrapTests
 
         var lineHeight = services.MeasureLineHeight(style.Font);
 
-        Assert.True(lineHeight >= MathF.Ceiling(style.Font.Size * 1.35f), $"lineHeight={lineHeight}");
+        Assert.True(
+            lineHeight >= MathF.Ceiling(style.Font.Size * 1.35f),
+            $"lineHeight={lineHeight}"
+        );
     }
 
     [Fact]
@@ -117,9 +147,16 @@ public sealed class TextInputMetricsWrapTests
         var style = new SceneTextStyle(16, WrapText: true);
         var text = "alpha beta gamma";
         var wideHeight = services.MeasureTextHeight(text, width: 1000, style);
-        var narrowHeight = services.MeasureTextHeight(text, width: services.MeasureTextWidth("alpha ", style) + 0.1f, style);
+        var narrowHeight = services.MeasureTextHeight(
+            text,
+            width: services.MeasureTextWidth("alpha ", style) + 0.1f,
+            style
+        );
 
-        Assert.True(narrowHeight > wideHeight, $"narrowHeight={narrowHeight} wideHeight={wideHeight}");
+        Assert.True(
+            narrowHeight > wideHeight,
+            $"narrowHeight={narrowHeight} wideHeight={wideHeight}"
+        );
     }
 
     [Fact]
@@ -171,7 +208,8 @@ public sealed class TextInputMetricsWrapTests
 
         Assert.True(
             font.Embolden || font.Typeface.FontStyle.Weight >= 600,
-            $"Expected bold fallback or synthetic emboldening, family={font.Typeface.FamilyName}, weight={font.Typeface.FontStyle.Weight}");
+            $"Expected bold fallback or synthetic emboldening, family={font.Typeface.FamilyName}, weight={font.Typeface.FontStyle.Weight}"
+        );
     }
 
     [Fact]

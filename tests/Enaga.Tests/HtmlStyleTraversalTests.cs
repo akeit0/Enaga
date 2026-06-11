@@ -22,10 +22,12 @@ public sealed class HtmlStyleTraversalTests
             body { color: #112233; }
             .card { width: 120px; background: #445566; }
             .card > span { color: #abcdef; }
-            """);
+            """
+        );
         var traversal = new HtmlStyleTraversal(
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
-            LayoutEngineConfig.WebDefaults);
+            LayoutEngineConfig.WebDefaults
+        );
 
         var tree = traversal.Resolve(parsed, 320, 180);
         var card = FindElement(parsed.RootElement, "card");
@@ -42,17 +44,15 @@ public sealed class HtmlStyleTraversalTests
     {
         var parsed = Parse(
             "<body><div id='cta'>Hover</div></body>",
-            "div { background: #112233; } div:hover { background: #445566; }");
+            "div { background: #112233; } div:hover { background: #445566; }"
+        );
         var traversal = new HtmlStyleTraversal(
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
-            LayoutEngineConfig.WebDefaults);
+            LayoutEngineConfig.WebDefaults
+        );
 
         var button = FindElement(parsed.RootElement, "cta");
-        var tree = traversal.Resolve(
-            parsed,
-            320,
-            180,
-            new HashSet<HtmlNodeId> { button.NodeId });
+        var tree = traversal.Resolve(parsed, 320, 180, new HashSet<HtmlNodeId> { button.NodeId });
 
         Assert.Equal("#445566", tree.Styles[button.NodeId].BackgroundColor);
     }
@@ -61,12 +61,16 @@ public sealed class HtmlStyleTraversalTests
     public void Scene_builder_exposes_initial_computed_style_tree()
     {
         var parser = new Enaga.Html.HtmlDocumentParser();
-        var parsed = parser.Parse(new Enaga.Html.HtmlDocument(
-            "<body><main id='app'>Hello</main></body>",
-            "main { width: 200px; }"));
+        var parsed = parser.Parse(
+            new Enaga.Html.HtmlDocument(
+                "<body><main id='app'>Hello</main></body>",
+                "main { width: 200px; }"
+            )
+        );
         var builder = new HtmlDocumentSceneBuilder(
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
-            new SceneNodeIdAllocator());
+            new SceneNodeIdAllocator()
+        );
 
         builder.Build(parsed, 320, 180, viewportScale: 1);
         var app = FindElement(parsed.RootElement, "app");
@@ -89,19 +93,17 @@ public sealed class HtmlStyleTraversalTests
               </table>
             </body>
             """,
-            ".iana-table td { background: #fafafc; } .iana-table tr:hover td { background: #f0f0f8; }");
+            ".iana-table td { background: #fafafc; } .iana-table tr:hover td { background: #f0f0f8; }"
+        );
         var traversal = new HtmlStyleTraversal(
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
-            LayoutEngineConfig.WebDefaults);
+            LayoutEngineConfig.WebDefaults
+        );
         var row = FindElement(parsed.RootElement, "row");
         var file = FindElement(parsed.RootElement, "file");
         var description = FindElement(parsed.RootElement, "description");
 
-        var tree = traversal.Resolve(
-            parsed,
-            520,
-            120,
-            new HashSet<HtmlNodeId> { row.NodeId });
+        var tree = traversal.Resolve(parsed, 520, 120, new HashSet<HtmlNodeId> { row.NodeId });
 
         Assert.Equal("#f0f0f8", tree.Styles[file.NodeId].BackgroundColor);
         Assert.Equal("#f0f0f8", tree.Styles[description.NodeId].BackgroundColor);
@@ -120,19 +122,17 @@ public sealed class HtmlStyleTraversalTests
               </table>
             </body>
             """,
-            ".iana-table td { background: #fafafc; } .iana-table tr:hover td { background: #f0f0f8; }");
+            ".iana-table td { background: #fafafc; } .iana-table tr:hover td { background: #f0f0f8; }"
+        );
         var traversal = new HtmlStyleTraversal(
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
-            LayoutEngineConfig.WebDefaults);
+            LayoutEngineConfig.WebDefaults
+        );
         var note = FindElement(parsed.RootElement, "note");
         var file = FindElement(parsed.RootElement, "file");
         var description = FindElement(parsed.RootElement, "description");
 
-        var tree = traversal.Resolve(
-            parsed,
-            520,
-            120,
-            new HashSet<HtmlNodeId> { note.NodeId });
+        var tree = traversal.Resolve(parsed, 520, 120, new HashSet<HtmlNodeId> { note.NodeId });
 
         Assert.Equal("#f0f0f8", tree.Styles[file.NodeId].BackgroundColor);
         Assert.Equal("#f0f0f8", tree.Styles[description.NodeId].BackgroundColor);
@@ -153,10 +153,12 @@ public sealed class HtmlStyleTraversalTests
               </table>
             </body>
             """,
-            "#summary { background: #101820; } .iana-table td { background: #fafafc; } .iana-table tr:hover td { background: #f0f0f8; }");
+            "#summary { background: #101820; } .iana-table td { background: #fafafc; } .iana-table tr:hover td { background: #f0f0f8; }"
+        );
         var traversal = new HtmlStyleTraversal(
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
-            LayoutEngineConfig.WebDefaults);
+            LayoutEngineConfig.WebDefaults
+        );
         var summary = FindElement(parsed.RootElement, "summary");
 
         var first = traversal.Resolve(parsed, 520, 120);
@@ -169,11 +171,18 @@ public sealed class HtmlStyleTraversalTests
     [Fact]
     public void Resolve_clears_cached_styles_when_document_changes()
     {
-        var first = Parse("<body><div id='target'>One</div></body>", "#target { background: #112233; }");
-        var second = Parse("<body><div id='target'>Two</div></body>", "#target { background: #445566; }");
+        var first = Parse(
+            "<body><div id='target'>One</div></body>",
+            "#target { background: #112233; }"
+        );
+        var second = Parse(
+            "<body><div id='target'>Two</div></body>",
+            "#target { background: #445566; }"
+        );
         var traversal = new HtmlStyleTraversal(
             new Enaga.Html.HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()),
-            LayoutEngineConfig.WebDefaults);
+            LayoutEngineConfig.WebDefaults
+        );
 
         var firstTarget = FindElement(first.RootElement, "target");
         var secondTarget = FindElement(second.RootElement, "target");
@@ -203,9 +212,7 @@ public sealed class HtmlStyleTraversalTests
                 {
                     return FindElement(childElement, id);
                 }
-                catch (InvalidOperationException)
-                {
-                }
+                catch (InvalidOperationException) { }
             }
         }
 

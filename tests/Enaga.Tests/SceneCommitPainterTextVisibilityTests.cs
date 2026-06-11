@@ -25,7 +25,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
             contentTop: 0,
             contentBottom: 14,
             lineIndex: 0,
-            lineHeight: 16.2f);
+            lineHeight: 16.2f
+        );
 
         Assert.True(shouldDraw);
     }
@@ -38,7 +39,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
             contentTop: 0,
             contentBottom: 14,
             lineIndex: 0,
-            lineHeight: 16.2f);
+            lineHeight: 16.2f
+        );
 
         Assert.True(shouldDraw);
     }
@@ -51,7 +53,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
             contentTop: 0,
             contentBottom: 14,
             lineIndex: 1,
-            lineHeight: 16.2f);
+            lineHeight: 16.2f
+        );
 
         Assert.False(shouldDraw);
     }
@@ -63,7 +66,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
             contentTop: 10,
             contentBottom: 30,
             caretTop: 24,
-            caretHeight: 12);
+            caretHeight: 12
+        );
 
         Assert.True(shouldDraw);
     }
@@ -75,7 +79,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
             contentTop: 10,
             contentBottom: 30,
             caretTop: 31,
-            caretHeight: 12);
+            caretHeight: 12
+        );
 
         Assert.False(shouldDraw);
     }
@@ -86,7 +91,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
         var color = SceneCommitPainter.ResolveTextInputTextColor(
             showPlaceholder: true,
             placeholderColor: null,
-            textColor: "#f8fafc");
+            textColor: "#f8fafc"
+        );
 
         Assert.Equal(new SKColor(0x47, 0x55, 0x69), color);
     }
@@ -97,7 +103,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
         var color = SceneCommitPainter.ResolveTextInputTextColor(
             showPlaceholder: false,
             placeholderColor: "#475569",
-            textColor: "#f8fafc");
+            textColor: "#f8fafc"
+        );
 
         Assert.Equal(new SKColor(0xF8, 0xFA, 0xFC), color);
     }
@@ -109,7 +116,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
             showPlaceholder: false,
             placeholderColor: "#475569",
             textColor: null,
-            backgroundColor: "#ffffff");
+            backgroundColor: "#ffffff"
+        );
 
         Assert.Equal(new SKColor(0x11, 0x18, 0x27, 0xFF), color);
     }
@@ -120,7 +128,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
         var color = SceneCommitPainter.ResolveTextInputTextColor(
             showPlaceholder: false,
             placeholderColor: "#475569",
-            textColor: "#18131fff");
+            textColor: "#18131fff"
+        );
 
         Assert.Equal(new SKColor(0x18, 0x13, 0x1F, 0xFF), color);
     }
@@ -146,7 +155,10 @@ public sealed class SceneCommitPainterTextVisibilityTests
     [Fact]
     public void TryParseCssColor_ParsesRgbaFunctions()
     {
-        var success = SceneCommitPainter.TryParseCssColor("rgba(85, 255, 6, 0.8627451)", out var color);
+        var success = SceneCommitPainter.TryParseCssColor(
+            "rgba(85, 255, 6, 0.8627451)",
+            out var color
+        );
 
         Assert.True(success);
         Assert.Equal(new SKColor(0x55, 0xFF, 0x06, 0xDC), color);
@@ -190,8 +202,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
         {
             PaintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>
             {
-                [Root] = new(BackgroundColor: "#00ff00")
-            }
+                [Root] = new(BackgroundColor: "#00ff00"),
+            },
         };
 
         painter.Paint(canvas, commit, TimeSpan.Zero);
@@ -246,12 +258,15 @@ public sealed class SceneCommitPainterTextVisibilityTests
             using var painter = new SceneCommitPainter();
             var commit = CreateImageCommit(
                 $"https://example.invalid/{Guid.NewGuid():N}.svg",
-                placeholderPath);
+                placeholderPath
+            );
 
             painter.Paint(canvas, commit, TimeSpan.Zero);
             var completed = SpinWait.SpinUntil(
-                () => SkiaImageAssetCache.Resolve(placeholderPath).State == SkiaImageAssetState.Ready,
-                TimeSpan.FromSeconds(5));
+                () =>
+                    SkiaImageAssetCache.Resolve(placeholderPath).State == SkiaImageAssetState.Ready,
+                TimeSpan.FromSeconds(5)
+            );
             Assert.True(completed);
             painter.Paint(canvas, commit, TimeSpan.FromMilliseconds(16));
 
@@ -274,12 +289,17 @@ public sealed class SceneCommitPainterTextVisibilityTests
         {
             PaintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>
             {
-                [One] = new(BackgroundColor: "#00ff00")
-            }
+                [One] = new(BackgroundColor: "#00ff00"),
+            },
         };
 
         painter.Paint(canvas, firstCommit, TimeSpan.Zero);
-        painter.Paint(canvas, secondCommit, TimeSpan.FromMilliseconds(16), [new SceneDamageRect(0, 0, 160, 100)]);
+        painter.Paint(
+            canvas,
+            secondCommit,
+            TimeSpan.FromMilliseconds(16),
+            [new SceneDamageRect(0, 0, 160, 100)]
+        );
 
         Assert.Equal(new SKColor(0, 255, 0, 255), bitmap.GetPixel(16, 16));
     }
@@ -295,7 +315,7 @@ public sealed class SceneCommitPainterTextVisibilityTests
             new SceneViewport(64, 40),
             new Dictionary<SceneNodeId, SceneGraphNode>
             {
-                [Root] = new(SceneNodeKind.View, null, [])
+                [Root] = new(SceneNodeKind.View, null, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
@@ -319,9 +339,12 @@ public sealed class SceneCommitPainterTextVisibilityTests
                         "#006eff",
                         "#006eff",
                         "#006eff",
-                        "#006eff"))
+                        "#006eff"
+                    )
+                ),
             },
-            []);
+            []
+        );
 
         painter.Paint(canvas, commit, TimeSpan.Zero);
 
@@ -340,7 +363,7 @@ public sealed class SceneCommitPainterTextVisibilityTests
             new SceneViewport(64, 40),
             new Dictionary<SceneNodeId, SceneGraphNode>
             {
-                [Root] = new(SceneNodeKind.View, null, [])
+                [Root] = new(SceneNodeKind.View, null, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
@@ -364,9 +387,12 @@ public sealed class SceneCommitPainterTextVisibilityTests
                         "#006eff",
                         "#ff0000",
                         "#006eff",
-                        "#006eff"))
+                        "#006eff"
+                    )
+                ),
             },
-            []);
+            []
+        );
 
         painter.Paint(canvas, commit, TimeSpan.Zero);
 
@@ -384,7 +410,7 @@ public sealed class SceneCommitPainterTextVisibilityTests
             new SceneViewport(80, 60),
             new Dictionary<SceneNodeId, SceneGraphNode>
             {
-                [Root] = new(SceneNodeKind.View, null, [])
+                [Root] = new(SceneNodeKind.View, null, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
@@ -394,9 +420,11 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     10,
                     50,
                     30,
-                    BackgroundShadows: [new SceneBoxShadow("#777777", 0, 5, 4, -4)])
+                    BackgroundShadows: [new SceneBoxShadow("#777777", 0, 5, 4, -4)]
+                ),
             },
-            []);
+            []
+        );
 
         painter.Paint(canvas, commit, TimeSpan.Zero);
 
@@ -416,15 +444,32 @@ public sealed class SceneCommitPainterTextVisibilityTests
             {
                 [Root] = new(SceneNodeKind.View, null, [Title, Box]),
                 [Title] = new(SceneNodeKind.View, Root, []),
-                [Box] = new(SceneNodeKind.View, Root, [])
+                [Box] = new(SceneNodeKind.View, Root, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
                 [Root] = new(SceneNodeKind.View, 0, 0, 120, 60),
-                [Title] = new(SceneNodeKind.View, 0, 10, 80, 20, BackgroundColor: "#ffffff", IsPositioned: true),
-                [Box] = new(SceneNodeKind.View, 0, 20, 100, 30, BorderColor: "#000066", BorderWidth: 1)
+                [Title] = new(
+                    SceneNodeKind.View,
+                    0,
+                    10,
+                    80,
+                    20,
+                    BackgroundColor: "#ffffff",
+                    IsPositioned: true
+                ),
+                [Box] = new(
+                    SceneNodeKind.View,
+                    0,
+                    20,
+                    100,
+                    30,
+                    BorderColor: "#000066",
+                    BorderWidth: 1
+                ),
             },
-            []);
+            []
+        );
 
         painter.Paint(canvas, commit, TimeSpan.Zero);
 
@@ -489,7 +534,7 @@ public sealed class SceneCommitPainterTextVisibilityTests
             {
                 [Root] = new(SceneNodeKind.View, null, [Visible, Offscreen]),
                 [Visible] = new(SceneNodeKind.Text, Root, []),
-                [Offscreen] = new(SceneNodeKind.Text, Root, [])
+                [Offscreen] = new(SceneNodeKind.Text, Root, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
@@ -501,7 +546,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     80,
                     24,
                     TextContent: "visible",
-                    TextStyle: new SceneTextStyle(16, "#101820")),
+                    TextStyle: new SceneTextStyle(16, "#101820")
+                ),
                 [Offscreen] = new(
                     SceneNodeKind.Text,
                     8,
@@ -509,9 +555,11 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     80,
                     24,
                     TextContent: "offscreen",
-                    TextStyle: new SceneTextStyle(16, "#101820"))
+                    TextStyle: new SceneTextStyle(16, "#101820")
+                ),
             },
-            []);
+            []
+        );
 
         painter.Paint(canvas, commit, TimeSpan.Zero);
 
@@ -530,7 +578,12 @@ public sealed class SceneCommitPainterTextVisibilityTests
         var secondCommit = CreateSingleTextCommit("second", width: 80);
 
         painter.Paint(canvas, firstCommit, TimeSpan.Zero);
-        painter.Paint(canvas, secondCommit, TimeSpan.FromMilliseconds(16), [new SceneDamageRect(0, 0, 120, 60)]);
+        painter.Paint(
+            canvas,
+            secondCommit,
+            TimeSpan.FromMilliseconds(16),
+            [new SceneDamageRect(0, 0, 120, 60)]
+        );
 
         Assert.True(painter.LastDirectDirtyPaintUsed);
         Assert.False(painter.LastPictureReused);
@@ -551,7 +604,12 @@ public sealed class SceneCommitPainterTextVisibilityTests
         var hitCount = painter.ScrollContentPictureCacheHits;
         var cacheCount = painter.ScrollContentPictureCacheCount;
 
-        painter.Paint(canvas, secondCommit, TimeSpan.FromMilliseconds(16), [new SceneDamageRect(0, 0, 160, 100)]);
+        painter.Paint(
+            canvas,
+            secondCommit,
+            TimeSpan.FromMilliseconds(16),
+            [new SceneDamageRect(0, 0, 160, 100)]
+        );
 
         Assert.True(painter.LastDirectDirtyPaintUsed);
         Assert.True(cacheCount > 0);
@@ -573,7 +631,12 @@ public sealed class SceneCommitPainterTextVisibilityTests
         var cacheCount = painter.ScrollContentPictureCacheCount;
         var missCount = painter.ScrollContentPictureCacheMisses;
 
-        painter.Paint(canvas, secondCommit, TimeSpan.FromMilliseconds(16), [new SceneDamageRect(0, 0, 160, 100)]);
+        painter.Paint(
+            canvas,
+            secondCommit,
+            TimeSpan.FromMilliseconds(16),
+            [new SceneDamageRect(0, 0, 160, 100)]
+        );
 
         Assert.Equal(1, cacheCount);
         Assert.Equal(cacheCount, painter.ScrollContentPictureCacheCount);
@@ -593,7 +656,12 @@ public sealed class SceneCommitPainterTextVisibilityTests
         var cacheCount = painter.ScrollContentPictureCacheCount;
         var missCount = painter.ScrollContentPictureCacheMisses;
 
-        painter.Paint(canvas, secondCommit, TimeSpan.FromMilliseconds(16), [new SceneDamageRect(0, 0, 160, 100)]);
+        painter.Paint(
+            canvas,
+            secondCommit,
+            TimeSpan.FromMilliseconds(16),
+            [new SceneDamageRect(0, 0, 160, 100)]
+        );
 
         Assert.Equal(1, cacheCount);
         Assert.Equal(cacheCount, painter.ScrollContentPictureCacheCount);
@@ -606,14 +674,27 @@ public sealed class SceneCommitPainterTextVisibilityTests
         using var bitmap = new SKBitmap(160, 100, true);
         using var canvas = new SKCanvas(bitmap);
         using var painter = new SceneCommitPainter();
-        var firstCommit = CreateScrollCommit(scrollY: 0, firstText: "first row", contentHeight: 420);
-        var secondCommit = CreateScrollCommit(scrollY: 0, firstText: "hovered row", contentHeight: 420);
+        var firstCommit = CreateScrollCommit(
+            scrollY: 0,
+            firstText: "first row",
+            contentHeight: 420
+        );
+        var secondCommit = CreateScrollCommit(
+            scrollY: 0,
+            firstText: "hovered row",
+            contentHeight: 420
+        );
 
         painter.Paint(canvas, firstCommit, TimeSpan.Zero);
         var cacheCount = painter.ScrollContentPictureCacheCount;
         var missCount = painter.ScrollContentPictureCacheMisses;
 
-        painter.Paint(canvas, secondCommit, TimeSpan.FromMilliseconds(16), [new SceneDamageRect(0, 0, 160, 20)]);
+        painter.Paint(
+            canvas,
+            secondCommit,
+            TimeSpan.FromMilliseconds(16),
+            [new SceneDamageRect(0, 0, 160, 20)]
+        );
 
         Assert.True(painter.LastDirectDirtyPaintUsed);
         Assert.True(cacheCount > 0);
@@ -629,7 +710,7 @@ public sealed class SceneCommitPainterTextVisibilityTests
             new SceneViewport(64, 40),
             new Dictionary<SceneNodeId, SceneGraphNode>
             {
-                [Root] = new(SceneNodeKind.View, null, [])
+                [Root] = new(SceneNodeKind.View, null, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
@@ -641,12 +722,18 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     20,
                     BorderColor: "#006eff",
                     BorderWidth: 2,
-                    BorderStyle: borderStyle)
+                    BorderStyle: borderStyle
+                ),
             },
-            []);
+            []
+        );
     }
 
-    private static SceneLayoutCommit CreateSingleTextCommit(string text, float width = 180, bool textOverflowEllipsis = false)
+    private static SceneLayoutCommit CreateSingleTextCommit(
+        string text,
+        float width = 180,
+        bool textOverflowEllipsis = false
+    )
     {
         return new SceneLayoutCommit(
             Root,
@@ -654,7 +741,7 @@ public sealed class SceneCommitPainterTextVisibilityTests
             new Dictionary<SceneNodeId, SceneGraphNode>
             {
                 [Root] = new(SceneNodeKind.View, null, [Text]),
-                [Text] = new(SceneNodeKind.Text, Root, [])
+                [Text] = new(SceneNodeKind.Text, Root, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
@@ -666,12 +753,21 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     width,
                     32,
                     TextContent: text,
-                    TextStyle: new SceneTextStyle(16, "#101820", TextOverflowEllipsis: textOverflowEllipsis))
+                    TextStyle: new SceneTextStyle(
+                        16,
+                        "#101820",
+                        TextOverflowEllipsis: textOverflowEllipsis
+                    )
+                ),
             },
-            []);
+            []
+        );
     }
 
-    private static SceneLayoutCommit CreateImageCommit(string imageSource, string? placeholderSource = null)
+    private static SceneLayoutCommit CreateImageCommit(
+        string imageSource,
+        string? placeholderSource = null
+    )
     {
         return new SceneLayoutCommit(
             Root,
@@ -679,7 +775,7 @@ public sealed class SceneCommitPainterTextVisibilityTests
             new Dictionary<SceneNodeId, SceneGraphNode>
             {
                 [Root] = new(SceneNodeKind.View, null, [One]),
-                [One] = new(SceneNodeKind.Image, Root, [])
+                [One] = new(SceneNodeKind.Image, Root, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
@@ -691,12 +787,19 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     48,
                     32,
                     ImageSource: imageSource,
-                    ImagePlaceholderSource: placeholderSource)
+                    ImagePlaceholderSource: placeholderSource
+                ),
             },
-            []);
+            []
+        );
     }
 
-    private static SceneLayoutCommit CreateScrollCommit(float scrollY, string firstText = "first row", string secondText = "second row", float contentHeight = 220)
+    private static SceneLayoutCommit CreateScrollCommit(
+        float scrollY,
+        string firstText = "first row",
+        string secondText = "second row",
+        float contentHeight = 220
+    )
     {
         return new SceneLayoutCommit(
             Root,
@@ -705,7 +808,7 @@ public sealed class SceneCommitPainterTextVisibilityTests
             {
                 [Root] = new(SceneNodeKind.ScrollView, null, [One, Two]),
                 [One] = new(SceneNodeKind.Text, Root, []),
-                [Two] = new(SceneNodeKind.Text, Root, [])
+                [Two] = new(SceneNodeKind.Text, Root, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
@@ -718,7 +821,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     IsScrollContainer: true,
                     ClipContent: true,
                     ContentHeight: contentHeight,
-                    ScrollY: scrollY),
+                    ScrollY: scrollY
+                ),
                 [One] = new(
                     SceneNodeKind.Text,
                     8,
@@ -726,7 +830,8 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     120,
                     24,
                     TextContent: firstText,
-                    TextStyle: new SceneTextStyle(16, "#101820")),
+                    TextStyle: new SceneTextStyle(16, "#101820")
+                ),
                 [Two] = new(
                     SceneNodeKind.Text,
                     8,
@@ -734,9 +839,11 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     120,
                     24,
                     TextContent: secondText,
-                    TextStyle: new SceneTextStyle(16, "#101820"))
+                    TextStyle: new SceneTextStyle(16, "#101820")
+                ),
             },
-            []); 
+            []
+        );
     }
 
     private static SceneLayoutCommit CreateScrollBackgroundCommit()
@@ -748,7 +855,7 @@ public sealed class SceneCommitPainterTextVisibilityTests
             {
                 [Root] = new(SceneNodeKind.ScrollView, null, [One, Two]),
                 [One] = new(SceneNodeKind.View, Root, []),
-                [Two] = new(SceneNodeKind.View, Root, [])
+                [Two] = new(SceneNodeKind.View, Root, []),
             },
             new Dictionary<SceneNodeId, SceneLayoutBox>
             {
@@ -761,11 +868,13 @@ public sealed class SceneCommitPainterTextVisibilityTests
                     IsScrollContainer: true,
                     ClipContent: true,
                     ContentHeight: 260,
-                    ScrollY: 0),
+                    ScrollY: 0
+                ),
                 [One] = new(SceneNodeKind.View, 8, 8, 120, 24, BackgroundColor: "#ff0000"),
-                [Two] = new(SceneNodeKind.View, 8, 220, 120, 24, BackgroundColor: "#101820")
+                [Two] = new(SceneNodeKind.View, 8, 220, 120, 24, BackgroundColor: "#101820"),
             },
-            []);
+            []
+        );
     }
 
     private static IEnumerable<SKColor> SampleTopBorder(SKBitmap bitmap)

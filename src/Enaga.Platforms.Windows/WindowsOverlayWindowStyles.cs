@@ -55,7 +55,11 @@ internal sealed class WindowsOverlayWindowStyles : IDisposable
         if (options.NoActivate)
         {
             wndProc = WndProcCallback;
-            previousWndProc = SetWindowLongPtr(hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(wndProc));
+            previousWndProc = SetWindowLongPtr(
+                hwnd,
+                GWLP_WNDPROC,
+                Marshal.GetFunctionPointerForDelegate(wndProc)
+            );
         }
     }
 
@@ -96,7 +100,8 @@ internal sealed class WindowsOverlayWindowStyles : IDisposable
             0,
             0,
             0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
+        );
     }
 
     private static nint GetWindowLongPtr(nint hWnd, int index)
@@ -127,10 +132,24 @@ internal sealed class WindowsOverlayWindowStyles : IDisposable
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+    private static extern bool SetWindowPos(
+        nint hWnd,
+        nint hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags
+    );
 
     [DllImport("user32.dll", EntryPoint = "CallWindowProcW")]
-    private static extern nint CallWindowProc(nint previousWndProc, nint hwnd, uint message, nint wParam, nint lParam);
+    private static extern nint CallWindowProc(
+        nint previousWndProc,
+        nint hwnd,
+        uint message,
+        nint wParam,
+        nint lParam
+    );
 
     private delegate nint WndProc(nint hwnd, uint message, nint wParam, nint lParam);
 }

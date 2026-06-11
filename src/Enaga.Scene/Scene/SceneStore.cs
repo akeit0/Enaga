@@ -25,7 +25,11 @@ public sealed class SceneStore
     {
         this.rootId = rootId;
         this.viewport = viewport;
-        nodes[rootId] = new MutableSceneNode { Kind = SceneNodeKind.View, Label = rootId.ToString() };
+        nodes[rootId] = new MutableSceneNode
+        {
+            Kind = SceneNodeKind.View,
+            Label = rootId.ToString(),
+        };
     }
 
     public void Apply(SceneMutation mutation)
@@ -69,7 +73,13 @@ public sealed class SceneStore
         }
     }
 
-    public void UpsertNode(SceneNodeId id, SceneNodeKind kind, SceneNodeId? parentId = null, string? label = null, SceneLayoutBox? nodeLayout = null)
+    public void UpsertNode(
+        SceneNodeId id,
+        SceneNodeKind kind,
+        SceneNodeId? parentId = null,
+        string? label = null,
+        SceneLayoutBox? nodeLayout = null
+    )
     {
         lock (sync)
         {
@@ -120,14 +130,20 @@ public sealed class SceneStore
             snapshotNodes.Clear();
             snapshotNodes.EnsureCapacity(nodes.Count);
             foreach (var (id, node) in nodes)
-                snapshotNodes[id] = new SceneGraphNode(node.Kind, node.ParentId, [.. node.Children], node.Label);
+                snapshotNodes[id] = new SceneGraphNode(
+                    node.Kind,
+                    node.ParentId,
+                    [.. node.Children],
+                    node.Label
+                );
 
             snapshotLayout.CopyFrom(layout);
             cachedSnapshot = SceneLayoutCommitFactory.Create(
                 rootId,
                 viewport,
                 snapshotNodes,
-                snapshotLayout);
+                snapshotLayout
+            );
             snapshotDirty = false;
             return cachedSnapshot;
         }
@@ -164,10 +180,19 @@ public sealed class SceneStore
         viewport = nextViewport;
         nodes.Clear();
         layout.Clear();
-        nodes[rootId] = new MutableSceneNode { Kind = SceneNodeKind.View, Label = rootId.ToString() };
+        nodes[rootId] = new MutableSceneNode
+        {
+            Kind = SceneNodeKind.View,
+            Label = rootId.ToString(),
+        };
     }
 
-    private void ApplyUpsert(SceneNodeId id, SceneNodeKind kind, SceneNodeId? parentId, string? label)
+    private void ApplyUpsert(
+        SceneNodeId id,
+        SceneNodeKind kind,
+        SceneNodeId? parentId,
+        string? label
+    )
     {
         if (!nodes.TryGetValue(id, out var node))
         {
@@ -175,9 +200,11 @@ public sealed class SceneStore
             nodes[id] = node;
         }
 
-        if (node.ParentId is { } previousParentId &&
-            previousParentId != parentId &&
-            nodes.TryGetValue(previousParentId, out var previousParent))
+        if (
+            node.ParentId is { } previousParentId
+            && previousParentId != parentId
+            && nodes.TryGetValue(previousParentId, out var previousParent)
+        )
         {
             previousParent.Children.Remove(id);
         }

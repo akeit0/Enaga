@@ -4,14 +4,18 @@ internal readonly record struct HtmlFragmentDamageResult(
     IReadOnlyList<HtmlDirtyRect> DirtyRects,
     int AddedFragments,
     int RemovedFragments,
-    int ChangedFragments)
+    int ChangedFragments
+)
 {
     public bool HasDamage => DirtyRects.Count > 0;
 }
 
 internal static class HtmlFragmentDamage
 {
-    public static HtmlFragmentDamageResult Diff(HtmlFragmentTree? previous, HtmlFragmentTree current)
+    public static HtmlFragmentDamageResult Diff(
+        HtmlFragmentTree? previous,
+        HtmlFragmentTree current
+    )
     {
         ArgumentNullException.ThrowIfNull(current);
 
@@ -35,7 +39,10 @@ internal static class HtmlFragmentDamage
             if (HasSamePaintBounds(previousFragment, currentFragment))
                 continue;
 
-            AddDirtyRect(dirtyRects, previousFragment.VisualOverflow.Union(currentFragment.VisualOverflow));
+            AddDirtyRect(
+                dirtyRects,
+                previousFragment.VisualOverflow.Union(currentFragment.VisualOverflow)
+            );
             changed++;
         }
 
@@ -60,9 +67,9 @@ internal static class HtmlFragmentDamage
         return new HtmlFragmentDamageResult(dirtyRects, current.OrderedFragments.Count, 0, 0);
     }
 
-    private static bool HasSamePaintBounds(HtmlFragment previous, HtmlFragment current)
-        => previous.PaintVersion == current.PaintVersion &&
-           previous.VisualOverflow.Equals(current.VisualOverflow);
+    private static bool HasSamePaintBounds(HtmlFragment previous, HtmlFragment current) =>
+        previous.PaintVersion == current.PaintVersion
+        && previous.VisualOverflow.Equals(current.VisualOverflow);
 
     private static void AddDirtyRect(List<HtmlDirtyRect> dirtyRects, HtmlLayoutRect rect)
     {

@@ -10,8 +10,11 @@ namespace Enaga.Tests;
 public sealed class HtmlBrowserDocumentLoaderTests
 {
     [Fact]
-    public void NormalizeNavigationSource_PromotesBareHostToHttps()
-        => Assert.Equal("https://example.com", HtmlBrowserDocumentLoader.NormalizeNavigationSource("example.com"));
+    public void NormalizeNavigationSource_PromotesBareHostToHttps() =>
+        Assert.Equal(
+            "https://example.com",
+            HtmlBrowserDocumentLoader.NormalizeNavigationSource("example.com")
+        );
 
     [Fact]
     public void Load_UsesDocumentAndRuntimeOptions()
@@ -29,14 +32,20 @@ public sealed class HtmlBrowserDocumentLoaderTests
 
             return request.Path switch
             {
-                "/index.html" => TestHttpResponse.Ok("""
+                "/index.html" => TestHttpResponse.Ok(
+                    """
                     <body>
                       <div id="status">idle</div>
                       <script src="./app.js"></script>
                     </body>
-                    """, "text/html; charset=utf-8"),
-                "/app.js" => TestHttpResponse.Ok("document.getElementById('status').textContent = navigator.userAgent;", "text/javascript; charset=utf-8"),
-                _ => TestHttpResponse.NotFound()
+                    """,
+                    "text/html; charset=utf-8"
+                ),
+                "/app.js" => TestHttpResponse.Ok(
+                    "document.getElementById('status').textContent = navigator.userAgent;",
+                    "text/javascript; charset=utf-8"
+                ),
+                _ => TestHttpResponse.NotFound(),
             };
         });
 
@@ -44,8 +53,16 @@ public sealed class HtmlBrowserDocumentLoaderTests
             server.Url("/index.html"),
             options: new HtmlBrowserDocumentLoadOptions(
                 EnableScripts: true,
-                DocumentHttpClientOptions: new HtmlDocumentHttpClientOptions(documentUserAgent, "text/html", documentAcceptLanguage),
-                ScriptRuntimeOptions: new HtmlBrowserScriptRuntimeOptions(new BrowserRequestProfile(runtimeUserAgent, runtimeAcceptLanguage))));
+                DocumentHttpClientOptions: new HtmlDocumentHttpClientOptions(
+                    documentUserAgent,
+                    "text/html",
+                    documentAcceptLanguage
+                ),
+                ScriptRuntimeOptions: new HtmlBrowserScriptRuntimeOptions(
+                    new BrowserRequestProfile(runtimeUserAgent, runtimeAcceptLanguage)
+                )
+            )
+        );
 
         Assert.Contains(runtimeUserAgent, loaded.Document.Html, StringComparison.Ordinal);
         Assert.NotNull(loaded.ScriptRuntime);
@@ -59,9 +76,19 @@ public sealed class HtmlBrowserDocumentLoaderTests
         }
 
         Assert.Equal(documentUserAgent, documentRequest.Headers["User-Agent"]);
-        Assert.Equal(documentAcceptLanguage.Replace(" ", string.Empty, StringComparison.Ordinal), documentRequest.Headers["Accept-Language"].Replace(" ", string.Empty, StringComparison.Ordinal));
+        Assert.Equal(
+            documentAcceptLanguage.Replace(" ", string.Empty, StringComparison.Ordinal),
+            documentRequest
+                .Headers["Accept-Language"]
+                .Replace(" ", string.Empty, StringComparison.Ordinal)
+        );
         Assert.Equal(runtimeUserAgent, scriptRequest.Headers["User-Agent"]);
-        Assert.Equal(runtimeAcceptLanguage.Replace(" ", string.Empty, StringComparison.Ordinal), scriptRequest.Headers["Accept-Language"].Replace(" ", string.Empty, StringComparison.Ordinal));
+        Assert.Equal(
+            runtimeAcceptLanguage.Replace(" ", string.Empty, StringComparison.Ordinal),
+            scriptRequest
+                .Headers["Accept-Language"]
+                .Replace(" ", string.Empty, StringComparison.Ordinal)
+        );
     }
 
     private sealed class TestHttpServer : IDisposable
@@ -157,12 +184,22 @@ public sealed class HtmlBrowserDocumentLoaderTests
 
     private sealed record TestHttpRequest(string Path, IReadOnlyDictionary<string, string> Headers);
 
-    private sealed record TestHttpResponse(string Status, string Body, string ContentType, IReadOnlyDictionary<string, string> Headers)
+    private sealed record TestHttpResponse(
+        string Status,
+        string Body,
+        string ContentType,
+        IReadOnlyDictionary<string, string> Headers
+    )
     {
-        public static TestHttpResponse Ok(string body, string contentType)
-            => new("200 OK", body, contentType, new Dictionary<string, string>());
+        public static TestHttpResponse Ok(string body, string contentType) =>
+            new("200 OK", body, contentType, new Dictionary<string, string>());
 
-        public static TestHttpResponse NotFound()
-            => new("404 Not Found", string.Empty, "text/plain; charset=utf-8", new Dictionary<string, string>());
+        public static TestHttpResponse NotFound() =>
+            new(
+                "404 Not Found",
+                string.Empty,
+                "text/plain; charset=utf-8",
+                new Dictionary<string, string>()
+            );
     }
 }

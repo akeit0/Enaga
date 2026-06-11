@@ -70,8 +70,8 @@ public sealed class SceneNodeMap<T> : IReadOnlyDictionary<SceneNodeId, T>
         items.Clear();
     }
 
-    public bool ContainsKey(SceneNodeId key)
-        => items.ContainsKey(key) || (fallback?.ContainsKey(key) == true);
+    public bool ContainsKey(SceneNodeId key) =>
+        items.ContainsKey(key) || (fallback?.ContainsKey(key) == true);
 
     public void CopyFrom(IReadOnlyDictionary<SceneNodeId, T> source)
     {
@@ -81,19 +81,19 @@ public sealed class SceneNodeMap<T> : IReadOnlyDictionary<SceneNodeId, T>
             items[pair.Key] = pair.Value;
     }
 
-    public static SceneNodeMap<T> CreateOverlay(SceneNodeMap<T> fallback, int overrideCapacity = 0)
-        => fallback.fallback is null
+    public static SceneNodeMap<T> CreateOverlay(
+        SceneNodeMap<T> fallback,
+        int overrideCapacity = 0
+    ) =>
+        fallback.fallback is null
             ? new SceneNodeMap<T>(fallback, overrideCapacity)
             : new SceneNodeMap<T>(fallback);
 
-    public void EnsureCapacity(int capacity)
-        => items.EnsureCapacity(capacity);
+    public void EnsureCapacity(int capacity) => items.EnsureCapacity(capacity);
 
-    public Enumerator GetEnumerator()
-        => new(items, fallback);
+    public Enumerator GetEnumerator() => new(items, fallback);
 
-    public bool Remove(SceneNodeId key)
-        => items.Remove(key);
+    public bool Remove(SceneNodeId key) => items.Remove(key);
 
     public bool TryGetValue(SceneNodeId key, out T value)
     {
@@ -106,11 +106,11 @@ public sealed class SceneNodeMap<T> : IReadOnlyDictionary<SceneNodeId, T>
         return false;
     }
 
-    IEnumerator IEnumerable.GetEnumerator()
-        => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    IEnumerator<KeyValuePair<SceneNodeId, T>> IEnumerable<KeyValuePair<SceneNodeId, T>>.GetEnumerator()
-        => GetEnumerator();
+    IEnumerator<KeyValuePair<SceneNodeId, T>> IEnumerable<
+        KeyValuePair<SceneNodeId, T>
+    >.GetEnumerator() => GetEnumerator();
 
     private IEnumerable<KeyValuePair<SceneNodeId, T>> EnumerateOverlay()
     {

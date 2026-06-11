@@ -5,7 +5,7 @@ internal enum NativeImageLoadState
     None,
     Pending,
     Loaded,
-    Failed
+    Failed,
 }
 
 internal sealed class NativeImageState(string id)

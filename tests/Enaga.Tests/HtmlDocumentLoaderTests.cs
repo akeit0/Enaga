@@ -19,9 +19,11 @@ public sealed class HtmlDocumentLoaderTests
 
             return request.Path switch
             {
-                "/index.html" => TestHttpResponse.Ok("<body><link rel=\"stylesheet\" href=\"style.css\"><img src=\"images/hero.png\"></body>"),
+                "/index.html" => TestHttpResponse.Ok(
+                    "<body><link rel=\"stylesheet\" href=\"style.css\"><img src=\"images/hero.png\"></body>"
+                ),
                 "/style.css" => TestHttpResponse.Ok("img { display: block; }"),
-                _ => TestHttpResponse.NotFound()
+                _ => TestHttpResponse.NotFound(),
             };
         });
 
@@ -30,13 +32,19 @@ public sealed class HtmlDocumentLoaderTests
         Assert.Contains("<img", document.Html, StringComparison.Ordinal);
         Assert.Contains("display: block", document.StyleSheet, StringComparison.Ordinal);
         Assert.Equal(server.Url("/"), document.BasePath);
-        Assert.Contains(userAgents, value => value.Contains("Mozilla/5.0", StringComparison.Ordinal));
+        Assert.Contains(
+            userAgents,
+            value => value.Contains("Mozilla/5.0", StringComparison.Ordinal)
+        );
     }
 
     [Fact]
     public async Task LoadAsyncReadsLinkedStyleSheetFromLocalRelativePath()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "html-loader-" + Guid.NewGuid().ToString("N"));
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "html-loader-" + Guid.NewGuid().ToString("N")
+        );
         Directory.CreateDirectory(directory);
         try
         {
@@ -44,7 +52,10 @@ public sealed class HtmlDocumentLoaderTests
             Directory.CreateDirectory(assetDirectory);
             var htmlPath = Path.Combine(directory, "saved-page.html");
             var cssPath = Path.Combine(assetDirectory, "style.css");
-            await File.WriteAllTextAsync(htmlPath, """<body><link rel="stylesheet" href="./saved-page_files/style.css"><main class="card">Local</main></body>""");
+            await File.WriteAllTextAsync(
+                htmlPath,
+                """<body><link rel="stylesheet" href="./saved-page_files/style.css"><main class="card">Local</main></body>"""
+            );
             await File.WriteAllTextAsync(cssPath, ".card { color: #123456; }");
 
             var document = await HtmlDocumentLoader.LoadAsync(htmlPath);
@@ -66,15 +77,18 @@ public sealed class HtmlDocumentLoaderTests
         using var server = new TestHttpServer(request =>
         {
             requestCount++;
-            if (request.Headers.TryGetValue("Cookie", out var cookie) &&
-                cookie.Contains("PHPSESSID=test-session", StringComparison.Ordinal))
+            if (
+                request.Headers.TryGetValue("Cookie", out var cookie)
+                && cookie.Contains("PHPSESSID=test-session", StringComparison.Ordinal)
+            )
             {
                 return TestHttpResponse.Ok("<body><h1>Real page</h1></body>");
             }
 
             return TestHttpResponse.Ok(
                 "<a href=\"/word1580.html\">Please click here.</a>",
-                new Dictionary<string, string> { ["Set-Cookie"] = "PHPSESSID=test-session; path=/" });
+                new Dictionary<string, string> { ["Set-Cookie"] = "PHPSESSID=test-session; path=/" }
+            );
         });
 
         var document = await HtmlDocumentLoader.LoadAsync(server.Url("/word1580.html"));
@@ -96,16 +110,19 @@ public sealed class HtmlDocumentLoaderTests
         Assert.DoesNotContain("Windows NT", userAgent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SampleBrowser", userAgent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ja,en-US", acceptLanguage, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("text/html", client.DefaultRequestHeaders.Accept.ToString(), StringComparison.Ordinal);
+        Assert.Contains(
+            "text/html",
+            client.DefaultRequestHeaders.Accept.ToString(),
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
     public void CreateHttpClientAcceptsCallerProvidedHeaders()
     {
-        using var client = HtmlDocumentLoader.CreateHttpClient(new HtmlDocumentHttpClientOptions(
-            "TestAgent/1.0",
-            "text/plain",
-            "fr-FR,fr;q=0.9"));
+        using var client = HtmlDocumentLoader.CreateHttpClient(
+            new HtmlDocumentHttpClientOptions("TestAgent/1.0", "text/plain", "fr-FR,fr;q=0.9")
+        );
 
         Assert.Equal("TestAgent/1.0", client.DefaultRequestHeaders.UserAgent.ToString());
         Assert.Equal("text/plain", client.DefaultRequestHeaders.Accept.ToString());
@@ -204,12 +221,18 @@ public sealed class HtmlDocumentLoaderTests
 
     private sealed record TestHttpRequest(string Path, IReadOnlyDictionary<string, string> Headers);
 
-    private sealed record TestHttpResponse(string Status, string Body, IReadOnlyDictionary<string, string> Headers)
+    private sealed record TestHttpResponse(
+        string Status,
+        string Body,
+        IReadOnlyDictionary<string, string> Headers
+    )
     {
-        public static TestHttpResponse Ok(string body, IReadOnlyDictionary<string, string>? headers = null)
-            => new("200 OK", body, headers ?? new Dictionary<string, string>());
+        public static TestHttpResponse Ok(
+            string body,
+            IReadOnlyDictionary<string, string>? headers = null
+        ) => new("200 OK", body, headers ?? new Dictionary<string, string>());
 
-        public static TestHttpResponse NotFound()
-            => new("404 Not Found", string.Empty, new Dictionary<string, string>());
+        public static TestHttpResponse NotFound() =>
+            new("404 Not Found", string.Empty, new Dictionary<string, string>());
     }
 }

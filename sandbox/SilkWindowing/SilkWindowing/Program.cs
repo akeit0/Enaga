@@ -33,13 +33,9 @@ public class Program
     }
 
     // These two methods are unused for this tutorial, aside from the logging we added earlier.
-    private static void OnUpdate(double deltaTime)
-    {
-    }
+    private static void OnUpdate(double deltaTime) { }
 
-    private static void OnRender(double deltaTime)
-    {
-    }
+    private static void OnRender(double deltaTime) { }
 
     private static void KeyDown(IKeyboard keyboard, Key key, int keyCode)
     {

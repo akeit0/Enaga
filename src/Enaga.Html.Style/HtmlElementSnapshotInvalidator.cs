@@ -5,20 +5,20 @@ namespace Enaga.Html.Style;
 internal readonly record struct HtmlElementSnapshotInvalidation(
     HtmlNodeId NodeId,
     RestyleHint RestyleHint,
-    PipelineInvalidation Invalidation)
+    PipelineInvalidation Invalidation
+)
 {
-    public bool IsEmpty => RestyleHint == RestyleHint.None && Invalidation == PipelineInvalidation.None;
+    public bool IsEmpty =>
+        RestyleHint == RestyleHint.None && Invalidation == PipelineInvalidation.None;
 }
 
 internal static class HtmlElementSnapshotInvalidator
 {
     private const HtmlAttributeChangeMask SelectorIdentityAttributes =
-        HtmlAttributeChangeMask.Id |
-        HtmlAttributeChangeMask.Class;
+        HtmlAttributeChangeMask.Id | HtmlAttributeChangeMask.Class;
 
     private const HtmlAttributeChangeMask InheritedStyleAttributes =
-        HtmlAttributeChangeMask.Direction |
-        HtmlAttributeChangeMask.Lang;
+        HtmlAttributeChangeMask.Direction | HtmlAttributeChangeMask.Lang;
 
     public static HtmlElementSnapshotInvalidation Classify(HtmlElementSnapshot snapshot)
     {
@@ -26,55 +26,66 @@ internal static class HtmlElementSnapshotInvalidator
         var invalidation = PipelineInvalidation.None;
 
         var attributeChanges = snapshot.AttributeChanges;
-        if ((attributeChanges & SelectorIdentityAttributes) != 0 ||
-            !StringEquals(snapshot.OldId, snapshot.NewId) ||
-            !StringEquals(snapshot.OldClass, snapshot.NewClass))
+        if (
+            (attributeChanges & SelectorIdentityAttributes) != 0
+            || !StringEquals(snapshot.OldId, snapshot.NewId)
+            || !StringEquals(snapshot.OldClass, snapshot.NewClass)
+        )
         {
-            restyle |= RestyleHint.MatchSelf | RestyleHint.MatchDescendants | RestyleHint.RebuildFormattingTree;
+            restyle |=
+                RestyleHint.MatchSelf
+                | RestyleHint.MatchDescendants
+                | RestyleHint.RebuildFormattingTree;
             invalidation |=
-                PipelineInvalidation.SelectorSelf |
-                PipelineInvalidation.SelectorDescendants |
-                PipelineInvalidation.CascadeSelf |
-                PipelineInvalidation.CascadeDescendants |
-                PipelineInvalidation.LayoutSelf |
-                PipelineInvalidation.LayoutDescendants |
-                PipelineInvalidation.FragmentSelf |
-                PipelineInvalidation.PaintSelf |
-                PipelineInvalidation.HitTest;
+                PipelineInvalidation.SelectorSelf
+                | PipelineInvalidation.SelectorDescendants
+                | PipelineInvalidation.CascadeSelf
+                | PipelineInvalidation.CascadeDescendants
+                | PipelineInvalidation.LayoutSelf
+                | PipelineInvalidation.LayoutDescendants
+                | PipelineInvalidation.FragmentSelf
+                | PipelineInvalidation.PaintSelf
+                | PipelineInvalidation.HitTest;
         }
 
         if ((attributeChanges & HtmlAttributeChangeMask.Style) != 0)
         {
-            restyle |= RestyleHint.ReplaceInlineStyle | RestyleHint.CascadeSelf | RestyleHint.RebuildFormattingTree;
+            restyle |=
+                RestyleHint.ReplaceInlineStyle
+                | RestyleHint.CascadeSelf
+                | RestyleHint.RebuildFormattingTree;
             invalidation |=
-                PipelineInvalidation.CascadeSelf |
-                PipelineInvalidation.LayoutSelf |
-                PipelineInvalidation.FragmentSelf |
-                PipelineInvalidation.PaintSelf |
-                PipelineInvalidation.HitTest;
+                PipelineInvalidation.CascadeSelf
+                | PipelineInvalidation.LayoutSelf
+                | PipelineInvalidation.FragmentSelf
+                | PipelineInvalidation.PaintSelf
+                | PipelineInvalidation.HitTest;
         }
 
         if ((attributeChanges & InheritedStyleAttributes) != 0)
         {
-            restyle |= RestyleHint.CascadeSelf | RestyleHint.CascadeDescendants | RestyleHint.RebuildFormattingTree;
+            restyle |=
+                RestyleHint.CascadeSelf
+                | RestyleHint.CascadeDescendants
+                | RestyleHint.RebuildFormattingTree;
             invalidation |=
-                PipelineInvalidation.CascadeSelf |
-                PipelineInvalidation.CascadeDescendants |
-                PipelineInvalidation.LayoutSelf |
-                PipelineInvalidation.LayoutDescendants |
-                PipelineInvalidation.FragmentSelf |
-                PipelineInvalidation.PaintSelf |
-                PipelineInvalidation.HitTest;
+                PipelineInvalidation.CascadeSelf
+                | PipelineInvalidation.CascadeDescendants
+                | PipelineInvalidation.LayoutSelf
+                | PipelineInvalidation.LayoutDescendants
+                | PipelineInvalidation.FragmentSelf
+                | PipelineInvalidation.PaintSelf
+                | PipelineInvalidation.HitTest;
         }
 
         if ((attributeChanges & HtmlAttributeChangeMask.Src) != 0)
         {
             invalidation |=
-                PipelineInvalidation.LayoutSelf |
-                PipelineInvalidation.FragmentSelf |
-                PipelineInvalidation.PaintSelf |
-                PipelineInvalidation.RasterSelf |
-                PipelineInvalidation.HitTest;
+                PipelineInvalidation.LayoutSelf
+                | PipelineInvalidation.FragmentSelf
+                | PipelineInvalidation.PaintSelf
+                | PipelineInvalidation.RasterSelf
+                | PipelineInvalidation.HitTest;
         }
 
         if ((attributeChanges & HtmlAttributeChangeMask.Href) != 0)
@@ -86,22 +97,22 @@ internal static class HtmlElementSnapshotInvalidator
         {
             restyle |= RestyleHint.MatchSelf | RestyleHint.RebuildFormattingTree;
             invalidation |=
-                PipelineInvalidation.SelectorSelf |
-                PipelineInvalidation.CascadeSelf |
-                PipelineInvalidation.LayoutSelf |
-                PipelineInvalidation.FragmentSelf |
-                PipelineInvalidation.PaintSelf |
-                PipelineInvalidation.HitTest;
+                PipelineInvalidation.SelectorSelf
+                | PipelineInvalidation.CascadeSelf
+                | PipelineInvalidation.LayoutSelf
+                | PipelineInvalidation.FragmentSelf
+                | PipelineInvalidation.PaintSelf
+                | PipelineInvalidation.HitTest;
         }
 
         if (snapshot.ChangedPseudoStates != HtmlPseudoState.None)
         {
             restyle |= RestyleHint.PseudoState | RestyleHint.MatchSelf;
             invalidation |=
-                PipelineInvalidation.SelectorSelf |
-                PipelineInvalidation.CascadeSelf |
-                PipelineInvalidation.PaintSelf |
-                PipelineInvalidation.HitTest;
+                PipelineInvalidation.SelectorSelf
+                | PipelineInvalidation.CascadeSelf
+                | PipelineInvalidation.PaintSelf
+                | PipelineInvalidation.HitTest;
         }
 
         return new HtmlElementSnapshotInvalidation(snapshot.NodeId, restyle, invalidation);
@@ -110,10 +121,25 @@ internal static class HtmlElementSnapshotInvalidator
     public static RenderDamage EstimateDamage(PipelineInvalidation invalidation)
     {
         var damage = RenderDamage.None;
-        if ((invalidation & (PipelineInvalidation.SelectorSelf | PipelineInvalidation.SelectorDescendants | PipelineInvalidation.CascadeSelf | PipelineInvalidation.CascadeDescendants)) != 0)
+        if (
+            (
+                invalidation
+                & (
+                    PipelineInvalidation.SelectorSelf
+                    | PipelineInvalidation.SelectorDescendants
+                    | PipelineInvalidation.CascadeSelf
+                    | PipelineInvalidation.CascadeDescendants
+                )
+            ) != 0
+        )
             damage |= RenderDamage.RebuildStyle;
 
-        if ((invalidation & (PipelineInvalidation.LayoutSelf | PipelineInvalidation.LayoutDescendants)) != 0)
+        if (
+            (
+                invalidation
+                & (PipelineInvalidation.LayoutSelf | PipelineInvalidation.LayoutDescendants)
+            ) != 0
+        )
             damage |= RenderDamage.RebuildLayoutTree | RenderDamage.Relayout;
 
         if ((invalidation & PipelineInvalidation.FragmentSelf) != 0)
@@ -134,6 +160,6 @@ internal static class HtmlElementSnapshotInvalidator
         return damage;
     }
 
-    private static bool StringEquals(string? left, string? right)
-        => string.Equals(left, right, StringComparison.Ordinal);
+    private static bool StringEquals(string? left, string? right) =>
+        string.Equals(left, right, StringComparison.Ordinal);
 }

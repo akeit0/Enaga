@@ -1,8 +1,8 @@
-using Enaga.Rendering;
-using Enaga.Rendering.Skia;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Enaga.Rendering;
+using Enaga.Rendering.Skia;
 using SkiaSharp;
 using Xunit;
 
@@ -44,11 +44,14 @@ public sealed class SkiaImageAssetLoaderTests
     public void LoadFromPath_DecodesSvgImage()
     {
         var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.svg");
-        File.WriteAllText(filePath, """
+        File.WriteAllText(
+            filePath,
+            """
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 20" fill="none">
               <rect width="32" height="20" rx="4" fill="#2563EB"/>
             </svg>
-            """);
+            """
+        );
 
         try
         {
@@ -76,7 +79,11 @@ public sealed class SkiaImageAssetLoaderTests
         {
             var exception = Record.Exception(() => SkiaImageAssetLoader.LoadFromPath(filePath));
             var asset = SkiaImageAssetLoader.LoadFromPath(filePath);
-            var loaded = SkiaImageAssetLoader.TryLoadFromPath(filePath, out var tryAsset, out var error);
+            var loaded = SkiaImageAssetLoader.TryLoadFromPath(
+                filePath,
+                out var tryAsset,
+                out var error
+            );
 
             Assert.Null(exception);
             Assert.Null(asset);
@@ -94,7 +101,10 @@ public sealed class SkiaImageAssetLoaderTests
     public void Resolve_FileUri_LocalImage_IsReady()
     {
         var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.svg");
-        File.WriteAllText(filePath, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" />");
+        File.WriteAllText(
+            filePath,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" />"
+        );
         try
         {
             var result = WebImageCache.Resolve(new Uri(filePath).AbsoluteUri);
@@ -120,12 +130,14 @@ public sealed class SkiaImageAssetLoaderTests
             if (userAgent?.Contains("Mozilla/5.0", StringComparison.Ordinal) != true)
                 return TestHttpResponse.Forbidden("Status 403 Forbidden: User-Agent required.");
 
-            return TestHttpResponse.Ok("""
+            return TestHttpResponse.Ok(
+                """
                 <svg xmlns="http://www.w3.org/2000/svg" width="234px" height="72px" viewBox="0 0 468 144">
                   <linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#0673BA"/><stop offset="1" stop-color="#11A14E"/></linearGradient>
                   <rect width="468" height="144" fill="url(#g)" />
                 </svg>
-                """);
+                """
+            );
         });
 
         var source = server.Url($"/iana-logo-header-{Guid.NewGuid():N}.svg");
@@ -134,17 +146,22 @@ public sealed class SkiaImageAssetLoaderTests
 
         var downloaded = SpinWait.SpinUntil(
             () => WebImageCache.Resolve(source).State != WebImageCacheState.Pending,
-            TimeSpan.FromSeconds(5));
+            TimeSpan.FromSeconds(5)
+        );
 
         Assert.True(downloaded);
         var image = WebImageCache.Resolve(source);
         Assert.Equal(WebImageCacheState.Ready, image.State);
         Assert.NotNull(image.LocalPath);
-        Assert.Contains(userAgents, value => value.Contains("Mozilla/5.0", StringComparison.Ordinal));
+        Assert.Contains(
+            userAgents,
+            value => value.Contains("Mozilla/5.0", StringComparison.Ordinal)
+        );
 
         var decoded = SpinWait.SpinUntil(
             () => SkiaImageAssetCache.Resolve(image.LocalPath).State != SkiaImageAssetState.Pending,
-            TimeSpan.FromSeconds(5));
+            TimeSpan.FromSeconds(5)
+        );
 
         Assert.True(decoded);
         var asset = SkiaImageAssetCache.Resolve(image.LocalPath);
@@ -173,7 +190,8 @@ public sealed class SkiaImageAssetLoaderTests
 
             var completed = SpinWait.SpinUntil(
                 () => SkiaImageAssetCache.Resolve(filePath).State != SkiaImageAssetState.Pending,
-                TimeSpan.FromSeconds(5));
+                TimeSpan.FromSeconds(5)
+            );
 
             Assert.True(completed);
             var resolved = SkiaImageAssetCache.Resolve(filePath);
@@ -267,7 +285,9 @@ public sealed class SkiaImageAssetLoaderTests
                 .Append(bodyBytes.Length)
                 .Append("\r\nConnection: close\r\n\r\n");
 
-            await stream.WriteAsync(Encoding.ASCII.GetBytes(headerBuilder.ToString())).ConfigureAwait(false);
+            await stream
+                .WriteAsync(Encoding.ASCII.GetBytes(headerBuilder.ToString()))
+                .ConfigureAwait(false);
             await stream.WriteAsync(bodyBytes).ConfigureAwait(false);
         }
     }
@@ -276,10 +296,8 @@ public sealed class SkiaImageAssetLoaderTests
 
     private sealed record TestHttpResponse(string Status, string Body)
     {
-        public static TestHttpResponse Ok(string body)
-            => new("200 OK", body);
+        public static TestHttpResponse Ok(string body) => new("200 OK", body);
 
-        public static TestHttpResponse Forbidden(string body)
-            => new("403 Forbidden", body);
+        public static TestHttpResponse Forbidden(string body) => new("403 Forbidden", body);
     }
 }

@@ -22,23 +22,26 @@ public sealed class HtmlDomDocument
 
     public ulong Version { get; private set; }
 
-    public HtmlDomElement? Body => string.Equals(RootElement.LocalName, "body", StringComparison.OrdinalIgnoreCase)
-        ? RootElement
-        : QuerySelector("body");
+    public HtmlDomElement? Body =>
+        string.Equals(RootElement.LocalName, "body", StringComparison.OrdinalIgnoreCase)
+            ? RootElement
+            : QuerySelector("body");
 
-    public HtmlDomElement DocumentElement => string.Equals(RootElement.LocalName, "html", StringComparison.OrdinalIgnoreCase)
-        ? RootElement
-        : QuerySelector("html") ?? RootElement;
+    public HtmlDomElement DocumentElement =>
+        string.Equals(RootElement.LocalName, "html", StringComparison.OrdinalIgnoreCase)
+            ? RootElement
+            : QuerySelector("html") ?? RootElement;
 
-    public HtmlDomElement? Head => string.Equals(RootElement.LocalName, "head", StringComparison.OrdinalIgnoreCase)
-        ? RootElement
-        : QuerySelector("head");
+    public HtmlDomElement? Head =>
+        string.Equals(RootElement.LocalName, "head", StringComparison.OrdinalIgnoreCase)
+            ? RootElement
+            : QuerySelector("head");
 
-    public HtmlDomElement? GetElementById(string id)
-        => elementsById.TryGetValue(id, out var element) ? element : null;
+    public HtmlDomElement? GetElementById(string id) =>
+        elementsById.TryGetValue(id, out var element) ? element : null;
 
-    public HtmlDomElement? GetElementByNodeId(HtmlNodeId nodeId)
-        => elementsByNodeId.TryGetValue(nodeId, out var element) ? element : null;
+    public HtmlDomElement? GetElementByNodeId(HtmlNodeId nodeId) =>
+        elementsByNodeId.TryGetValue(nodeId, out var element) ? element : null;
 
     public HtmlDomElement CreateElement(string localName)
     {
@@ -53,7 +56,8 @@ public sealed class HtmlDomDocument
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
             [],
             string.Empty,
-            string.Empty);
+            string.Empty
+        );
         elementsByNodeId[element.NodeId] = element;
         return element;
     }
@@ -73,8 +77,14 @@ public sealed class HtmlDomDocument
             return null;
 
         var value = text ?? string.Empty;
-        if (element.Children.Count == (value.Length == 0 ? 0 : 1) &&
-            (value.Length == 0 || element.Children[0] is HtmlDomText existingText && string.Equals(existingText.Text, value, StringComparison.Ordinal)))
+        if (
+            element.Children.Count == (value.Length == 0 ? 0 : 1)
+            && (
+                value.Length == 0
+                || element.Children[0] is HtmlDomText existingText
+                    && string.Equals(existingText.Text, value, StringComparison.Ordinal)
+            )
+        )
         {
             return null;
         }
@@ -83,7 +93,7 @@ public sealed class HtmlDomDocument
         {
             Children = value.Length == 0 ? [] : [new HtmlDomText(value)],
             InitialTextContent = value,
-            InitialInnerText = IsNonRenderedTextElement(element.LocalName) ? string.Empty : value
+            InitialInnerText = IsNonRenderedTextElement(element.LocalName) ? string.Empty : value,
         };
         ReplaceElement(nodeId, nextElement);
         return elementsByNodeId[nodeId];
@@ -91,28 +101,39 @@ public sealed class HtmlDomDocument
 
     public HtmlDomElement? SetAttribute(HtmlNodeId nodeId, string name, string? value)
     {
-        if (!elementsByNodeId.TryGetValue(nodeId, out var element) ||
-            string.IsNullOrWhiteSpace(name))
+        if (
+            !elementsByNodeId.TryGetValue(nodeId, out var element)
+            || string.IsNullOrWhiteSpace(name)
+        )
         {
             return null;
         }
 
         var normalizedName = name.Trim();
-        if (element.Attributes.TryGetValue(normalizedName, out var existingValue) &&
-            string.Equals(existingValue, value ?? string.Empty, StringComparison.Ordinal))
+        if (
+            element.Attributes.TryGetValue(normalizedName, out var existingValue)
+            && string.Equals(existingValue, value ?? string.Empty, StringComparison.Ordinal)
+        )
         {
             return null;
         }
 
-        var attributes = new Dictionary<string, string>(element.Attributes, StringComparer.OrdinalIgnoreCase)
+        var attributes = new Dictionary<string, string>(
+            element.Attributes,
+            StringComparer.OrdinalIgnoreCase
+        )
         {
-            [normalizedName] = value ?? string.Empty
+            [normalizedName] = value ?? string.Empty,
         };
         var nextElement = element with
         {
             Attributes = attributes,
-            Id = string.Equals(normalizedName, "id", StringComparison.OrdinalIgnoreCase) ? value : element.Id,
-            ClassName = string.Equals(normalizedName, "class", StringComparison.OrdinalIgnoreCase) ? value : element.ClassName
+            Id = string.Equals(normalizedName, "id", StringComparison.OrdinalIgnoreCase)
+                ? value
+                : element.Id,
+            ClassName = string.Equals(normalizedName, "class", StringComparison.OrdinalIgnoreCase)
+                ? value
+                : element.ClassName,
         };
         ReplaceElement(nodeId, nextElement);
         return elementsByNodeId[nodeId];
@@ -120,22 +141,31 @@ public sealed class HtmlDomDocument
 
     public HtmlDomElement? RemoveAttribute(HtmlNodeId nodeId, string name)
     {
-        if (!elementsByNodeId.TryGetValue(nodeId, out var element) ||
-            string.IsNullOrWhiteSpace(name))
+        if (
+            !elementsByNodeId.TryGetValue(nodeId, out var element)
+            || string.IsNullOrWhiteSpace(name)
+        )
         {
             return null;
         }
 
         var normalizedName = name.Trim();
-        var attributes = new Dictionary<string, string>(element.Attributes, StringComparer.OrdinalIgnoreCase);
+        var attributes = new Dictionary<string, string>(
+            element.Attributes,
+            StringComparer.OrdinalIgnoreCase
+        );
         if (!attributes.Remove(normalizedName))
             return null;
 
         var nextElement = element with
         {
             Attributes = attributes,
-            Id = string.Equals(normalizedName, "id", StringComparison.OrdinalIgnoreCase) ? null : element.Id,
-            ClassName = string.Equals(normalizedName, "class", StringComparison.OrdinalIgnoreCase) ? null : element.ClassName
+            Id = string.Equals(normalizedName, "id", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : element.Id,
+            ClassName = string.Equals(normalizedName, "class", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : element.ClassName,
         };
         ReplaceElement(nodeId, nextElement);
         return elementsByNodeId[nodeId];
@@ -143,8 +173,10 @@ public sealed class HtmlDomDocument
 
     public HtmlDomElement? AppendChild(HtmlNodeId parentNodeId, HtmlNodeId childNodeId)
     {
-        if (!elementsByNodeId.TryGetValue(parentNodeId, out var parent) ||
-            !elementsByNodeId.TryGetValue(childNodeId, out var child))
+        if (
+            !elementsByNodeId.TryGetValue(parentNodeId, out var parent)
+            || !elementsByNodeId.TryGetValue(childNodeId, out var child)
+        )
         {
             return null;
         }
@@ -155,7 +187,10 @@ public sealed class HtmlDomDocument
         return elementsByNodeId[parentNodeId];
     }
 
-    public HtmlDomElement? ReplaceChildren(HtmlNodeId parentNodeId, IReadOnlyList<HtmlDomNode> children)
+    public HtmlDomElement? ReplaceChildren(
+        HtmlNodeId parentNodeId,
+        IReadOnlyList<HtmlDomNode> children
+    )
     {
         if (!elementsByNodeId.TryGetValue(parentNodeId, out var parent))
             return null;
@@ -181,8 +216,8 @@ public sealed class HtmlDomDocument
         return ReplaceChildren(parentNodeId, importedChildren);
     }
 
-    public HtmlNodeId GetParentNodeId(HtmlNodeId nodeId)
-        => parentNodeIds.TryGetValue(nodeId, out var parentNodeId) ? parentNodeId : default;
+    public HtmlNodeId GetParentNodeId(HtmlNodeId nodeId) =>
+        parentNodeIds.TryGetValue(nodeId, out var parentNodeId) ? parentNodeId : default;
 
     public HtmlDomElement? QuerySelector(string selector)
     {
@@ -195,7 +230,10 @@ public sealed class HtmlDomDocument
         if (trimmed.StartsWith(".", StringComparison.Ordinal))
             return FindFirst(RootElement, element => element.HasClass(trimmed[1..]));
 
-        return FindFirst(RootElement, element => string.Equals(element.LocalName, trimmed, StringComparison.OrdinalIgnoreCase));
+        return FindFirst(
+            RootElement,
+            element => string.Equals(element.LocalName, trimmed, StringComparison.OrdinalIgnoreCase)
+        );
     }
 
     public IReadOnlyList<HtmlDomElement> GetElementsByTagName(string localName)
@@ -204,11 +242,14 @@ public sealed class HtmlDomDocument
             return [];
 
         var elements = new List<HtmlDomElement>();
-        CollectElements(RootElement, element =>
-        {
-            if (string.Equals(element.LocalName, localName, StringComparison.OrdinalIgnoreCase))
-                elements.Add(element);
-        });
+        CollectElements(
+            RootElement,
+            element =>
+            {
+                if (string.Equals(element.LocalName, localName, StringComparison.OrdinalIgnoreCase))
+                    elements.Add(element);
+            }
+        );
         return elements;
     }
 
@@ -218,11 +259,14 @@ public sealed class HtmlDomDocument
             return [];
 
         var elements = new List<HtmlDomElement>();
-        CollectElements(RootElement, element =>
-        {
-            if (element.HasClass(className))
-                elements.Add(element);
-        });
+        CollectElements(
+            RootElement,
+            element =>
+            {
+                if (element.HasClass(className))
+                    elements.Add(element);
+            }
+        );
         return elements;
     }
 
@@ -242,19 +286,25 @@ public sealed class HtmlDomDocument
 
         if (trimmed.StartsWith(".", StringComparison.Ordinal))
         {
-            CollectElements(RootElement, element =>
-            {
-                if (element.HasClass(trimmed[1..]))
-                    elements.Add(element);
-            });
+            CollectElements(
+                RootElement,
+                element =>
+                {
+                    if (element.HasClass(trimmed[1..]))
+                        elements.Add(element);
+                }
+            );
             return elements;
         }
 
-        CollectElements(RootElement, element =>
-        {
-            if (string.Equals(element.LocalName, trimmed, StringComparison.OrdinalIgnoreCase))
-                elements.Add(element);
-        });
+        CollectElements(
+            RootElement,
+            element =>
+            {
+                if (string.Equals(element.LocalName, trimmed, StringComparison.OrdinalIgnoreCase))
+                    elements.Add(element);
+            }
+        );
         return elements;
     }
 
@@ -289,26 +339,39 @@ public sealed class HtmlDomDocument
                 IndexElement(childElement, element.NodeId);
     }
 
-    private HtmlDomElement CloneElementCore(HtmlDomElement element, bool deep, HtmlNodeId parentNodeId)
+    private HtmlDomElement CloneElementCore(
+        HtmlDomElement element,
+        bool deep,
+        HtmlNodeId parentNodeId
+    )
     {
         var cloneNodeId = new HtmlNodeId(Interlocked.Increment(ref nextGeneratedNodeId));
         var children = deep
-            ? element.Children.Select(child => child is HtmlDomElement childElement
-                ? CloneElementCore(childElement, deep: true, cloneNodeId)
-                : child).ToArray()
+            ? element
+                .Children.Select(child =>
+                    child is HtmlDomElement childElement
+                        ? CloneElementCore(childElement, deep: true, cloneNodeId)
+                        : child
+                )
+                .ToArray()
             : [];
-        var clone = RecalculateElement(element with
-        {
-            NodeId = cloneNodeId,
-            Attributes = new Dictionary<string, string>(element.Attributes, StringComparer.OrdinalIgnoreCase),
-            Children = children
-        });
+        var clone = RecalculateElement(
+            element with
+            {
+                NodeId = cloneNodeId,
+                Attributes = new Dictionary<string, string>(
+                    element.Attributes,
+                    StringComparer.OrdinalIgnoreCase
+                ),
+                Children = children,
+            }
+        );
         IndexClonedElement(clone, parentNodeId);
         return clone;
     }
 
-    private HtmlDomNode ImportNode(HtmlDomNode node)
-        => node is HtmlDomElement element ? ImportElement(element) : node;
+    private HtmlDomNode ImportNode(HtmlDomNode node) =>
+        node is HtmlDomElement element ? ImportElement(element) : node;
 
     private HtmlDomElement ImportElement(HtmlDomElement element)
     {
@@ -317,12 +380,17 @@ public sealed class HtmlDomDocument
         for (var index = 0; index < element.Children.Count; index++)
             children[index] = ImportNode(element.Children[index]);
 
-        return RecalculateElement(element with
-        {
-            NodeId = importedNodeId,
-            Attributes = new Dictionary<string, string>(element.Attributes, StringComparer.OrdinalIgnoreCase),
-            Children = children
-        });
+        return RecalculateElement(
+            element with
+            {
+                NodeId = importedNodeId,
+                Attributes = new Dictionary<string, string>(
+                    element.Attributes,
+                    StringComparer.OrdinalIgnoreCase
+                ),
+                Children = children,
+            }
+        );
     }
 
     private void IndexClonedElement(HtmlDomElement element, HtmlNodeId parentNodeId)
@@ -353,10 +421,15 @@ public sealed class HtmlDomDocument
         Version++;
     }
 
-    private void PropagateDetachedChildReplacement(HtmlNodeId childNodeId, HtmlDomElement replacement)
+    private void PropagateDetachedChildReplacement(
+        HtmlNodeId childNodeId,
+        HtmlDomElement replacement
+    )
     {
-        if (!parentNodeIds.TryGetValue(childNodeId, out var parentNodeId) ||
-            !elementsByNodeId.TryGetValue(parentNodeId, out var parent))
+        if (
+            !parentNodeIds.TryGetValue(childNodeId, out var parentNodeId)
+            || !elementsByNodeId.TryGetValue(parentNodeId, out var parent)
+        )
         {
             return;
         }
@@ -365,8 +438,10 @@ public sealed class HtmlDomDocument
         var children = new HtmlDomNode[parent.Children.Count];
         for (var index = 0; index < parent.Children.Count; index++)
         {
-            if (parent.Children[index] is HtmlDomElement childElement &&
-                childElement.NodeId == childNodeId)
+            if (
+                parent.Children[index] is HtmlDomElement childElement
+                && childElement.NodeId == childNodeId
+            )
             {
                 children[index] = replacement;
                 changed = true;
@@ -385,7 +460,12 @@ public sealed class HtmlDomDocument
         PropagateDetachedChildReplacement(parentNodeId, nextParent);
     }
 
-    private static bool TryReplaceElement(HtmlDomElement current, HtmlNodeId nodeId, HtmlDomElement replacement, out HtmlDomElement next)
+    private static bool TryReplaceElement(
+        HtmlDomElement current,
+        HtmlNodeId nodeId,
+        HtmlDomElement replacement,
+        out HtmlDomElement next
+    )
     {
         if (current.NodeId == nodeId)
         {
@@ -397,8 +477,10 @@ public sealed class HtmlDomDocument
         var children = new HtmlDomNode[current.Children.Count];
         for (var index = 0; index < current.Children.Count; index++)
         {
-            if (current.Children[index] is HtmlDomElement childElement &&
-                TryReplaceElement(childElement, nodeId, replacement, out var nextChild))
+            if (
+                current.Children[index] is HtmlDomElement childElement
+                && TryReplaceElement(childElement, nodeId, replacement, out var nextChild)
+            )
             {
                 children[index] = nextChild;
                 changed = true;
@@ -422,13 +504,13 @@ public sealed class HtmlDomDocument
         IndexElement(RootElement, default);
     }
 
-    private static HtmlDomElement RecalculateElement(HtmlDomElement element)
-        => element with
+    private static HtmlDomElement RecalculateElement(HtmlDomElement element) =>
+        element with
         {
             InitialTextContent = BuildTextContent(element.Children),
             InitialInnerText = IsNonRenderedTextElement(element.LocalName)
                 ? string.Empty
-                : BuildInnerText(element.Children)
+                : BuildInnerText(element.Children),
         };
 
     private static string BuildTextContent(IReadOnlyList<HtmlDomNode> children)
@@ -460,7 +542,8 @@ public sealed class HtmlDomDocument
                 case HtmlDomText text:
                     builder.Append(text.Text);
                     break;
-                case HtmlDomElement childElement when !IsNonRenderedTextElement(childElement.LocalName):
+                case HtmlDomElement childElement
+                    when !IsNonRenderedTextElement(childElement.LocalName):
                     builder.Append(childElement.InnerText);
                     break;
             }
@@ -469,13 +552,19 @@ public sealed class HtmlDomDocument
         return builder.ToString();
     }
 
-    private static HtmlDomElement? FindFirst(HtmlDomElement element, Func<HtmlDomElement, bool> predicate)
+    private static HtmlDomElement? FindFirst(
+        HtmlDomElement element,
+        Func<HtmlDomElement, bool> predicate
+    )
     {
         if (predicate(element))
             return element;
 
         foreach (var child in element.Children)
-            if (child is HtmlDomElement childElement && FindFirst(childElement, predicate) is { } found)
+            if (
+                child is HtmlDomElement childElement
+                && FindFirst(childElement, predicate) is { } found
+            )
                 return found;
 
         return null;
@@ -533,7 +622,7 @@ public sealed class HtmlDomDocument
                 '&' => builder.Append("&amp;"),
                 '<' => builder.Append("&lt;"),
                 '>' => builder.Append("&gt;"),
-                _ => builder.Append(ch)
+                _ => builder.Append(ch),
             };
         }
     }
@@ -548,12 +637,12 @@ public sealed class HtmlDomDocument
                 '<' => builder.Append("&lt;"),
                 '>' => builder.Append("&gt;"),
                 '"' => builder.Append("&quot;"),
-                _ => builder.Append(ch)
+                _ => builder.Append(ch),
             };
         }
     }
 
-    private static bool IsNonRenderedTextElement(string localName)
-        => string.Equals(localName, "script", StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(localName, "style", StringComparison.OrdinalIgnoreCase);
+    private static bool IsNonRenderedTextElement(string localName) =>
+        string.Equals(localName, "script", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(localName, "style", StringComparison.OrdinalIgnoreCase);
 }

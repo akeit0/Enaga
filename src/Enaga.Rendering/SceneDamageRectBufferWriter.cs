@@ -12,9 +12,10 @@ public sealed class SceneDamageRectBufferWriter : IDisposable
 
     public SceneDamageRectBufferWriter(int capacity = 0)
     {
-        Buffer = capacity > 0
-            ? ArrayPool<SceneDamageRect>.Shared.Rent(capacity)
-            : Array.Empty<SceneDamageRect>();
+        Buffer =
+            capacity > 0
+                ? ArrayPool<SceneDamageRect>.Shared.Rent(capacity)
+                : Array.Empty<SceneDamageRect>();
     }
 
     public void Clear()

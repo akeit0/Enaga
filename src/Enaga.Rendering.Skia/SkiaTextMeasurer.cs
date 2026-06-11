@@ -1,6 +1,6 @@
+using System.Globalization;
 using Enaga.Scene;
 using SkiaSharp;
-using System.Globalization;
 
 namespace Enaga.Rendering.Skia;
 
@@ -13,7 +13,8 @@ internal sealed class SkiaTextMeasurer
     public SkiaTextMeasurer(TextFontCatalog fontCatalog, SkiaFontCollection fontCollection)
     {
         this.fontCatalog = fontCatalog ?? throw new ArgumentNullException(nameof(fontCatalog));
-        this.fontCollection = fontCollection ?? throw new ArgumentNullException(nameof(fontCollection));
+        this.fontCollection =
+            fontCollection ?? throw new ArgumentNullException(nameof(fontCollection));
     }
 
     public float MeasureLineHeight(float fontSize)
@@ -48,7 +49,13 @@ internal sealed class SkiaTextMeasurer
             return fontLease.Data.Font.MeasureText(content, null);
         }
 
-        if (fontCatalog.TryResolveSingleTypefaceForText(textStyle.Font, content, out var singleTypeface))
+        if (
+            fontCatalog.TryResolveSingleTypefaceForText(
+                textStyle.Font,
+                content,
+                out var singleTypeface
+            )
+        )
         {
             using var font = SkiaFontSynthesis.CreateFont(singleTypeface, textStyle.Font);
             return font.MeasureText(content, null);
@@ -57,7 +64,12 @@ internal sealed class SkiaTextMeasurer
         return MeasureFallbackTextWidth(content, textStyle.Font);
     }
 
-    public int BreakText(ReadOnlySpan<char> content, float maxWidth, SceneTextStyle textStyle, out float measuredWidth)
+    public int BreakText(
+        ReadOnlySpan<char> content,
+        float maxWidth,
+        SceneTextStyle textStyle,
+        out float measuredWidth
+    )
     {
         measuredWidth = 0;
         if (content.IsEmpty || maxWidth <= 0)
@@ -69,7 +81,13 @@ internal sealed class SkiaTextMeasurer
             return fontLease.Data.Font.BreakText(content, maxWidth, out measuredWidth, null);
         }
 
-        if (fontCatalog.TryResolveSingleTypefaceForText(textStyle.Font, content, out var singleTypeface))
+        if (
+            fontCatalog.TryResolveSingleTypefaceForText(
+                textStyle.Font,
+                content,
+                out var singleTypeface
+            )
+        )
         {
             using var font = SkiaFontSynthesis.CreateFont(singleTypeface, textStyle.Font);
             return font.BreakText(content, maxWidth, out measuredWidth, null);
@@ -78,7 +96,10 @@ internal sealed class SkiaTextMeasurer
         return BreakFallbackText(content, maxWidth, textStyle.Font, out measuredWidth);
     }
 
-    private static float ResolveLineHeight(SkiaFontCollection.SkiaFontData fontData, float fallbackFontSize)
+    private static float ResolveLineHeight(
+        SkiaFontCollection.SkiaFontData fontData,
+        float fallbackFontSize
+    )
     {
         var metrics = fontData.Metrics;
         var measured = metrics.Descent - metrics.Ascent + Math.Max(0, metrics.Leading);
@@ -89,7 +110,11 @@ internal sealed class SkiaTextMeasurer
         return MathF.Ceiling(normalLineHeight);
     }
 
-    private int CountVisualLines(ReadOnlySpan<char> content, float maxWidth, SceneTextStyle textStyle)
+    private int CountVisualLines(
+        ReadOnlySpan<char> content,
+        float maxWidth,
+        SceneTextStyle textStyle
+    )
     {
         var lineCount = 0;
         var lineStart = 0;
@@ -113,10 +138,7 @@ internal sealed class SkiaTextMeasurer
 
     private int CountWrappedLine(ReadOnlySpan<char> line, float maxWidth, SceneTextStyle textStyle)
     {
-        if (line.IsEmpty ||
-            !textStyle.WrapText ||
-            !float.IsFinite(maxWidth) ||
-            maxWidth <= 0)
+        if (line.IsEmpty || !textStyle.WrapText || !float.IsFinite(maxWidth) || maxWidth <= 0)
         {
             return 1;
         }
@@ -135,7 +157,10 @@ internal sealed class SkiaTextMeasurer
             var breakCount = FindLastWrapOpportunity(remaining[..Math.Max(0, fitCount)]);
             if (breakCount <= 0)
                 breakCount = fitCount > 0 ? fitCount : GetFirstTextElementLength(remaining);
-            if (breakCount < remaining.Length && IsLineStartProhibitedJapanesePunctuation(remaining[breakCount]))
+            if (
+                breakCount < remaining.Length
+                && IsLineStartProhibitedJapanesePunctuation(remaining[breakCount])
+            )
                 breakCount += GetFirstTextElementLength(remaining[breakCount..]);
 
             remaining = remaining[breakCount..];
@@ -169,31 +194,67 @@ internal sealed class SkiaTextMeasurer
         {
             if (char.IsWhiteSpace(text[index]))
                 return index + 1;
-            if (index > 0 &&
-                IsCjkCharacter(text[index - 1]) &&
-                !IsLineStartProhibitedJapanesePunctuation(text[index]))
+            if (
+                index > 0
+                && IsCjkCharacter(text[index - 1])
+                && !IsLineStartProhibitedJapanesePunctuation(text[index])
+            )
                 return index;
         }
 
         return -1;
     }
 
-    private static bool IsCjkCharacter(char ch)
-        => ch is >= '\u3040' and <= '\u30ff' ||
-           ch is >= '\u3400' and <= '\u9fff' ||
-           ch is >= '\uf900' and <= '\ufaff';
+    private static bool IsCjkCharacter(char ch) =>
+        ch is >= '\u3040' and <= '\u30ff'
+        || ch is >= '\u3400' and <= '\u9fff'
+        || ch is >= '\uf900' and <= '\ufaff';
 
-    private static bool IsLineStartProhibitedJapanesePunctuation(char ch)
-        => ch is '。' or '、' or '，' or '．' or '！' or '？' or '）' or ')' or '］' or ']' or '｝' or '}' or '」' or '』' or '】' or '〉' or '》' or 'ぁ' or 'ぃ' or 'ぅ' or 'ぇ' or 'ぉ' or 'っ' or 'ゃ' or 'ゅ' or 'ょ' or 'ァ' or 'ィ' or 'ゥ' or 'ェ' or 'ォ' or 'ッ' or 'ャ' or 'ュ' or 'ョ' or 'ー';
+    private static bool IsLineStartProhibitedJapanesePunctuation(char ch) =>
+        ch
+            is '。'
+                or '、'
+                or '，'
+                or '．'
+                or '！'
+                or '？'
+                or '）'
+                or ')'
+                or '］'
+                or ']'
+                or '｝'
+                or '}'
+                or '」'
+                or '』'
+                or '】'
+                or '〉'
+                or '》'
+                or 'ぁ'
+                or 'ぃ'
+                or 'ぅ'
+                or 'ぇ'
+                or 'ぉ'
+                or 'っ'
+                or 'ゃ'
+                or 'ゅ'
+                or 'ょ'
+                or 'ァ'
+                or 'ィ'
+                or 'ゥ'
+                or 'ェ'
+                or 'ォ'
+                or 'ッ'
+                or 'ャ'
+                or 'ュ'
+                or 'ョ'
+                or 'ー';
 
     private static int GetFirstTextElementLength(ReadOnlySpan<char> text)
     {
         if (text.IsEmpty)
             return 0;
 
-        if (char.IsHighSurrogate(text[0]) &&
-            text.Length > 1 &&
-            char.IsLowSurrogate(text[1]))
+        if (char.IsHighSurrogate(text[0]) && text.Length > 1 && char.IsLowSurrogate(text[1]))
         {
             return 2;
         }
@@ -212,7 +273,10 @@ internal sealed class SkiaTextMeasurer
         {
             var elementStart = index;
             var elementLength = GetTextElementLength(text[index..]);
-            var typeface = fontCatalog.ResolveTypefaceForText(sceneFont, text.Slice(elementStart, elementLength));
+            var typeface = fontCatalog.ResolveTypefaceForText(
+                sceneFont,
+                text.Slice(elementStart, elementLength)
+            );
             if (runTypeface is not null && ReferenceEquals(runTypeface, typeface))
             {
                 runLength = elementStart + elementLength - runStart;
@@ -235,7 +299,12 @@ internal sealed class SkiaTextMeasurer
         return width;
     }
 
-    private int BreakFallbackText(ReadOnlySpan<char> text, float maxWidth, SceneFont sceneFont, out float measuredWidth)
+    private int BreakFallbackText(
+        ReadOnlySpan<char> text,
+        float maxWidth,
+        SceneFont sceneFont,
+        out float measuredWidth
+    )
     {
         measuredWidth = 0;
         var fitCount = 0;
@@ -258,7 +327,15 @@ internal sealed class SkiaTextMeasurer
 
             if (runTypeface is not null)
             {
-                var runFitCount = BreakRun(text, runStart, runLength, sceneFont, runTypeface, maxWidth - measuredWidth, out var runMeasuredWidth);
+                var runFitCount = BreakRun(
+                    text,
+                    runStart,
+                    runLength,
+                    sceneFont,
+                    runTypeface,
+                    maxWidth - measuredWidth,
+                    out var runMeasuredWidth
+                );
                 measuredWidth += runMeasuredWidth;
                 fitCount += runFitCount;
                 if (runFitCount < runLength)
@@ -273,7 +350,15 @@ internal sealed class SkiaTextMeasurer
 
         if (runTypeface is not null)
         {
-            var runFitCount = BreakRun(text, runStart, runLength, sceneFont, runTypeface, maxWidth - measuredWidth, out var runMeasuredWidth);
+            var runFitCount = BreakRun(
+                text,
+                runStart,
+                runLength,
+                sceneFont,
+                runTypeface,
+                maxWidth - measuredWidth,
+                out var runMeasuredWidth
+            );
             measuredWidth += runMeasuredWidth;
             fitCount += runFitCount;
         }
@@ -281,13 +366,27 @@ internal sealed class SkiaTextMeasurer
         return fitCount;
     }
 
-    private static float MeasureRun(ReadOnlySpan<char> text, int start, int length, SceneFont sceneFont, SKTypeface typeface)
+    private static float MeasureRun(
+        ReadOnlySpan<char> text,
+        int start,
+        int length,
+        SceneFont sceneFont,
+        SKTypeface typeface
+    )
     {
         using var font = SkiaFontSynthesis.CreateFont(typeface, sceneFont);
         return font.MeasureText(text.Slice(start, length), null);
     }
 
-    private static int BreakRun(ReadOnlySpan<char> text, int start, int length, SceneFont sceneFont, SKTypeface typeface, float maxWidth, out float measuredWidth)
+    private static int BreakRun(
+        ReadOnlySpan<char> text,
+        int start,
+        int length,
+        SceneFont sceneFont,
+        SKTypeface typeface,
+        float maxWidth,
+        out float measuredWidth
+    )
     {
         using var font = SkiaFontSynthesis.CreateFont(typeface, sceneFont);
         return font.BreakText(text.Slice(start, length), maxWidth, out measuredWidth, null);
@@ -300,7 +399,8 @@ internal sealed class SkiaTextMeasurer
         {
             if (text[length] == '\u200d')
             {
-                var nextLength = length + 1 < text.Length ? GetFirstScalarLength(text[(length + 1)..]) : 0;
+                var nextLength =
+                    length + 1 < text.Length ? GetFirstScalarLength(text[(length + 1)..]) : 0;
                 if (nextLength <= 0)
                     break;
 
@@ -330,22 +430,28 @@ internal sealed class SkiaTextMeasurer
         if (text.IsEmpty)
             return 0;
 
-        return char.IsHighSurrogate(text[0]) &&
-               text.Length > 1 &&
-               char.IsLowSurrogate(text[1])
+        return char.IsHighSurrogate(text[0]) && text.Length > 1 && char.IsLowSurrogate(text[1])
             ? 2
             : 1;
     }
 
-    private static bool IsCombiningOrVariation(char ch)
-        => CharUnicodeInfo.GetUnicodeCategory(ch) is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark ||
-           ch is >= '\ufe00' and <= '\ufe0f';
+    private static bool IsCombiningOrVariation(char ch) =>
+        CharUnicodeInfo.GetUnicodeCategory(ch)
+            is UnicodeCategory.NonSpacingMark
+                or UnicodeCategory.SpacingCombiningMark
+                or UnicodeCategory.EnclosingMark
+        || ch is >= '\ufe00' and <= '\ufe0f';
 
     private static bool IsAsciiWithoutCombiningMarks(ReadOnlySpan<char> text)
     {
         foreach (var ch in text)
         {
-            if (ch > 0x7f || CharUnicodeInfo.GetUnicodeCategory(ch) is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark)
+            if (
+                ch > 0x7f
+                || CharUnicodeInfo.GetUnicodeCategory(ch)
+                    is UnicodeCategory.NonSpacingMark
+                        or UnicodeCategory.SpacingCombiningMark
+            )
                 return false;
         }
 

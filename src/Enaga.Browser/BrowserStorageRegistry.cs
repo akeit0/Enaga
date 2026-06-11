@@ -3,7 +3,9 @@ namespace Enaga.Browser;
 internal static class BrowserStorageRegistry
 {
     private static readonly object Gate = new();
-    private static readonly Dictionary<string, BrowserStorageArea> LocalStorageByOrigin = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, BrowserStorageArea> LocalStorageByOrigin = new(
+        StringComparer.Ordinal
+    );
 
     public static BrowserStorageArea GetLocalStorageArea(string documentSource, string? basePath)
     {
@@ -41,7 +43,9 @@ internal static class BrowserStorageRegistry
         if (uri.IsFile)
         {
             var localPath = uri.LocalPath;
-            var directory = Directory.Exists(localPath) ? localPath : Path.GetDirectoryName(localPath);
+            var directory = Directory.Exists(localPath)
+                ? localPath
+                : Path.GetDirectoryName(localPath);
             return "file:" + Path.GetFullPath(directory ?? Environment.CurrentDirectory);
         }
 

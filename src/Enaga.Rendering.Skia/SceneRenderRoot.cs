@@ -1,9 +1,21 @@
 using Enaga.Input;
 using Enaga.Scene;
 using SkiaSharp;
+
 namespace Enaga.Rendering.Skia;
 
-public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRenderSurfaceInvalidationSink, IInputSink, IPointerCursorSource, ITextCompositionRangeSink, IRenderDiagnosticsProvider, IRenderDirtyRectSource, IRenderWakeSource, IOverlayInputHitTestSource, IDisposable
+public sealed class SceneRenderRoot
+    : IRenderRoot,
+        IRenderGpuContextSink,
+        IRenderSurfaceInvalidationSink,
+        IInputSink,
+        IPointerCursorSource,
+        ITextCompositionRangeSink,
+        IRenderDiagnosticsProvider,
+        IRenderDirtyRectSource,
+        IRenderWakeSource,
+        IOverlayInputHitTestSource,
+        IDisposable
 {
     private const double ScaleOverlayDurationSeconds = 2.5;
     private const double ScaleOverlayFadeDurationSeconds = 0.25;
@@ -33,17 +45,21 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
     private float lastPointerY;
     private event Action? renderWakeRequested;
 
-    public SceneRenderRoot(ISceneFrameSource source, bool diagnosticsEnabled = false, bool requiresFullFramePresentation = false, bool viewCounter = false)
+    public SceneRenderRoot(
+        ISceneFrameSource source,
+        bool diagnosticsEnabled = false,
+        bool requiresFullFramePresentation = false,
+        bool viewCounter = false
+    )
         : this(
             source,
             new SceneRenderRootOptions
             {
                 DiagnosticsEnabled = diagnosticsEnabled,
                 RequiresFullFramePresentation = requiresFullFramePresentation,
-                ViewCounter = viewCounter
-            })
-    {
-    }
+                ViewCounter = viewCounter,
+            }
+        ) { }
 
     public SceneRenderRoot(ISceneFrameSource source, SceneRenderRootOptions? options)
     {
@@ -53,16 +69,23 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         diagnosticsEnabled = options.DiagnosticsEnabled;
         requiresFullFramePresentation = options.RequiresFullFramePresentation;
         viewCounter = options.ViewCounter;
-        timeProvider = options.TimeProvider ?? throw new ArgumentNullException(nameof(options.TimeProvider));
+        timeProvider =
+            options.TimeProvider ?? throw new ArgumentNullException(nameof(options.TimeProvider));
         painter = CreatePainter(source, timeProvider);
         WebImageCache.ImageChanged += OnImageCacheChanged;
         SkiaImageAssetCache.AssetChanged += OnImageCacheChanged;
     }
 
-    private static SceneCommitPainter CreatePainter(ISceneFrameSource source, TimeProvider timeProvider)
+    private static SceneCommitPainter CreatePainter(
+        ISceneFrameSource source,
+        TimeProvider timeProvider
+    )
     {
-        if (source is IRuntimeBackendServicesSource backendServicesSource &&
-            backendServicesSource.BackendServices.Text is SkiaRuntimeTextServices skiaTextServices)
+        if (
+            source is IRuntimeBackendServicesSource backendServicesSource
+            && backendServicesSource.BackendServices.Text
+                is SkiaRuntimeTextServices skiaTextServices
+        )
         {
             return new SceneCommitPainter(skiaTextServices.TextResources, timeProvider);
         }
@@ -70,8 +93,8 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         return new SceneCommitPainter(timeProvider);
     }
 
-    private float ViewportScale
-        => source is IRenderViewportScaleSource scaleSource
+    private float ViewportScale =>
+        source is IRenderViewportScaleSource scaleSource
             ? Math.Clamp(scaleSource.ViewportScale, 0.25f, 5f)
             : 1f;
 
@@ -134,8 +157,8 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         }
     }
 
-    public PointerCursorKind CurrentCursor
-        => source is IPointerCursorSource cursorSource
+    public PointerCursorKind CurrentCursor =>
+        source is IPointerCursorSource cursorSource
             ? cursorSource.CurrentCursor
             : PointerCursorKind.Default;
 
@@ -145,8 +168,8 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
             return true;
 
         var scale = ViewportScale;
-        return source is IOverlayInputHitTestSource hitTestSource &&
-               hitTestSource.HitTestOverlayInput(x / scale, y / scale);
+        return source is IOverlayInputHitTestSource hitTestSource
+            && hitTestSource.HitTestOverlayInput(x / scale, y / scale);
     }
 
     public void PointerDown(int button, int buttons, bool synthetic)
@@ -253,11 +276,21 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         }
     }
 
-    public void UpdateTextComposition(string text, int cursorPosition, int selectionStart, int selectionLength)
+    public void UpdateTextComposition(
+        string text,
+        int cursorPosition,
+        int selectionStart,
+        int selectionLength
+    )
     {
         if (source is ITextCompositionSink compositionSink)
         {
-            compositionSink.UpdateTextComposition(text, cursorPosition, selectionStart, selectionLength);
+            compositionSink.UpdateTextComposition(
+                text,
+                cursorPosition,
+                selectionStart,
+                selectionLength
+            );
             RequestInputRenderWake();
         }
     }
@@ -297,7 +330,12 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
                 return false;
 
             var scale = ViewportScale;
-            cursor = new TextCompositionCursor(cursor.X * scale, cursor.Y * scale, cursor.Width * scale, cursor.Height * scale);
+            cursor = new TextCompositionCursor(
+                cursor.X * scale,
+                cursor.Y * scale,
+                cursor.Width * scale,
+                cursor.Height * scale
+            );
             return true;
         }
 
@@ -309,11 +347,16 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
     {
         var sourceStartTimestamp = timeProvider.GetTimestamp();
         var viewportScale = ViewportScale;
-        var viewportScaleChanged = hasRenderedFrame && Math.Abs(viewportScale - lastViewportScale) > 0.001f;
-        var presentationSizeChanged = hasRenderedFrame && (width != lastPresentationWidth || height != lastPresentationHeight);
+        var viewportScaleChanged =
+            hasRenderedFrame && Math.Abs(viewportScale - lastViewportScale) > 0.001f;
+        var presentationSizeChanged =
+            hasRenderedFrame
+            && (width != lastPresentationWidth || height != lastPresentationHeight);
         var nowTimestamp = timeProvider.GetTimestamp();
         if (viewportScaleChanged)
-            scaleOverlayUntilTimestamp = nowTimestamp + (long)(timeProvider.TimestampFrequency * ScaleOverlayDurationSeconds);
+            scaleOverlayUntilTimestamp =
+                nowTimestamp
+                + (long)(timeProvider.TimestampFrequency * ScaleOverlayDurationSeconds);
         var scaleOverlayOpacity = ResolveScaleOverlayOpacity(nowTimestamp);
         var scaleOverlayVisible = scaleOverlayOpacity > 0.001f;
         var hadScaleOverlay = lastScaleOverlayOpacity > 0.001f;
@@ -348,20 +391,27 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
 
         ReadOnlySpan<SceneDamageRect> sceneDirtyRects;
         var hasSourceDamage =
-            effectiveDamageReasons != SceneDamageReason.None ||
-            frameResult.DirtyRects.Length > 0 ||
-            lowLevelDirtyRects.Length > 0 ||
-            errorChanged ||
-            viewportScaleChanged ||
-            presentationSizeChanged ||
-            surfaceInvalidated ||
-            scaleOverlayVisible ||
-            hadScaleOverlay ||
-            imageReady;
-        if ((requiresFullFramePresentation && hasSourceDamage) || viewportScaleChanged || surfaceInvalidated || imageReady)
+            effectiveDamageReasons != SceneDamageReason.None
+            || frameResult.DirtyRects.Length > 0
+            || lowLevelDirtyRects.Length > 0
+            || errorChanged
+            || viewportScaleChanged
+            || presentationSizeChanged
+            || surfaceInvalidated
+            || scaleOverlayVisible
+            || hadScaleOverlay
+            || imageReady;
+        if (
+            (requiresFullFramePresentation && hasSourceDamage)
+            || viewportScaleChanged
+            || surfaceInvalidated
+            || imageReady
+        )
         {
             sceneDirtyRectBuffer.Clear();
-            sceneDirtyRectBuffer.Add(new SceneDamageRect(0, 0, Math.Max(1, logicalWidth), Math.Max(1, logicalHeight)));
+            sceneDirtyRectBuffer.Add(
+                new SceneDamageRect(0, 0, Math.Max(1, logicalWidth), Math.Max(1, logicalHeight))
+            );
             sceneDirtyRects = sceneDirtyRectBuffer.WrittenSpan;
         }
         else if (requiresFullFramePresentation)
@@ -382,20 +432,42 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
                 logicalHeight,
                 errorChanged,
                 sceneDirtyRectBuffer,
-                sceneDirtyRectScratchBuffer);
+                sceneDirtyRectScratchBuffer
+            );
             if (presentationSizeChanged && previousCommit is not null)
             {
                 sceneDirtyRects = MergeDirtyRects(
                     sceneDirtyRects,
-                    ResolveResizeExposureDirtyRects(previousCommit.Viewport.Width, previousCommit.Viewport.Height, logicalWidth, logicalHeight, sceneDirtyRectScratchBuffer),
+                    ResolveResizeExposureDirtyRects(
+                        previousCommit.Viewport.Width,
+                        previousCommit.Viewport.Height,
+                        logicalWidth,
+                        logicalHeight,
+                        sceneDirtyRectScratchBuffer
+                    ),
                     logicalWidth,
-                    logicalHeight);
+                    logicalHeight
+                );
             }
         }
-        var presentationSceneDirtyRects = ScaleSceneDirtyRectsToViewport(sceneDirtyRects, viewportScale, width, height);
-        var effectivePresentationDirtyRects = MergeDirtyRects(presentationSceneDirtyRects, lowLevelDirtyRects, width, height);
+        var presentationSceneDirtyRects = ScaleSceneDirtyRectsToViewport(
+            sceneDirtyRects,
+            viewportScale,
+            width,
+            height
+        );
+        var effectivePresentationDirtyRects = MergeDirtyRects(
+            presentationSceneDirtyRects,
+            lowLevelDirtyRects,
+            width,
+            height
+        );
         if (scaleOverlayVisible || hadScaleOverlay)
-            effectivePresentationDirtyRects = AddScaleOverlayDirtyRect(effectivePresentationDirtyRects, width, height);
+            effectivePresentationDirtyRects = AddScaleOverlayDirtyRect(
+                effectivePresentationDirtyRects,
+                width,
+                height
+            );
         CaptureDirtyRects(effectivePresentationDirtyRects);
         lastCommit = commit;
         lastErrorMessage = errorMessage;
@@ -405,16 +477,28 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         lastPresentationHeight = height;
         hasRenderedFrame = true;
 
-        var shouldPaint = effectivePresentationDirtyRects.Length > 0 || !string.IsNullOrWhiteSpace(errorMessage);
+        var shouldPaint =
+            effectivePresentationDirtyRects.Length > 0 || !string.IsNullOrWhiteSpace(errorMessage);
         if (shouldPaint)
         {
             canvas.Save();
             if (Math.Abs(viewportScale - 1f) > 0.001f)
                 canvas.Scale(viewportScale);
-            painter.Paint(canvas, commit, elapsed, sceneDirtyRects.Length > 0 ? sceneDirtyRects : lowLevelDirtyRects);
+            painter.Paint(
+                canvas,
+                commit,
+                elapsed,
+                sceneDirtyRects.Length > 0 ? sceneDirtyRects : lowLevelDirtyRects
+            );
             canvas.Restore();
             painter.PaintScrollBars(canvas, commit, viewportScale, width, height);
-            lowLevelSkiaRenderer?.RenderLowLevelSkia(canvas, width, height, elapsed, effectivePresentationDirtyRects);
+            lowLevelSkiaRenderer?.RenderLowLevelSkia(
+                canvas,
+                width,
+                height,
+                elapsed,
+                effectivePresentationDirtyRects
+            );
             if (scaleOverlayVisible)
                 DrawScaleOverlay(canvas, viewportScale, width, scaleOverlayOpacity);
         }
@@ -449,7 +533,8 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
             effectiveDamageReasons,
             width,
             height,
-            runtimeState);
+            runtimeState
+        );
         if (scaleOverlayVisible)
         {
             renderWakeRequested?.Invoke();
@@ -460,11 +545,9 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         }
     }
 
-    public void SetRenderGpuContext(GRContext? context)
-        => painter.SetRenderGpuContext(context);
+    public void SetRenderGpuContext(GRContext? context) => painter.SetRenderGpuContext(context);
 
-    private void RequestInputRenderWake()
-        => renderWakeRequested?.Invoke();
+    private void RequestInputRenderWake() => renderWakeRequested?.Invoke();
 
     public RenderRootDiagnosticsSnapshot GetRenderRootDiagnosticsSnapshot()
     {
@@ -476,7 +559,12 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         return lastDirtyRectBuffer.WrittenSpan;
     }
 
-    private ReadOnlySpan<SceneDamageRect> MergeDirtyRects(ReadOnlySpan<SceneDamageRect> sceneDirtyRects, ReadOnlySpan<SceneDamageRect> lowLevelDirtyRects, int width, int height)
+    private ReadOnlySpan<SceneDamageRect> MergeDirtyRects(
+        ReadOnlySpan<SceneDamageRect> sceneDirtyRects,
+        ReadOnlySpan<SceneDamageRect> lowLevelDirtyRects,
+        int width,
+        int height
+    )
     {
         if (sceneDirtyRects.Length == 0)
             return lowLevelDirtyRects;
@@ -484,10 +572,15 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         if (lowLevelDirtyRects.Length == 0)
             return sceneDirtyRects;
 
-        if (ContainsFullFrameRect(sceneDirtyRects, width, height) || ContainsFullFrameRect(lowLevelDirtyRects, width, height))
+        if (
+            ContainsFullFrameRect(sceneDirtyRects, width, height)
+            || ContainsFullFrameRect(lowLevelDirtyRects, width, height)
+        )
         {
             mergedDirtyRectBuffer.Clear();
-            mergedDirtyRectBuffer.Add(new SceneDamageRect(0, 0, Math.Max(1, width), Math.Max(1, height)));
+            mergedDirtyRectBuffer.Add(
+                new SceneDamageRect(0, 0, Math.Max(1, width), Math.Max(1, height))
+            );
             return mergedDirtyRectBuffer.WrittenSpan;
         }
 
@@ -499,7 +592,11 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         return mergedDirtyRectBuffer.WrittenSpan;
     }
 
-    private ReadOnlySpan<SceneDamageRect> AddScaleOverlayDirtyRect(ReadOnlySpan<SceneDamageRect> dirtyRects, int width, int height)
+    private ReadOnlySpan<SceneDamageRect> AddScaleOverlayDirtyRect(
+        ReadOnlySpan<SceneDamageRect> dirtyRects,
+        int width,
+        int height
+    )
     {
         if (ContainsFullFrameRect(dirtyRects, width, height))
             return dirtyRects;
@@ -516,7 +613,8 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         int previousHeight,
         int width,
         int height,
-        SceneDamageRectBufferWriter buffer)
+        SceneDamageRectBufferWriter buffer
+    )
     {
         buffer.Clear();
         var safePreviousWidth = Math.Max(1, previousWidth);
@@ -525,21 +623,33 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         var safeHeight = Math.Max(1, height);
 
         if (safeWidth > safePreviousWidth)
-            buffer.Add(new SceneDamageRect(safePreviousWidth, 0, safeWidth - safePreviousWidth, safeHeight));
+            buffer.Add(
+                new SceneDamageRect(safePreviousWidth, 0, safeWidth - safePreviousWidth, safeHeight)
+            );
 
         if (safeHeight > safePreviousHeight)
-            buffer.Add(new SceneDamageRect(0, safePreviousHeight, Math.Min(safePreviousWidth, safeWidth), safeHeight - safePreviousHeight));
+            buffer.Add(
+                new SceneDamageRect(
+                    0,
+                    safePreviousHeight,
+                    Math.Min(safePreviousWidth, safeWidth),
+                    safeHeight - safePreviousHeight
+                )
+            );
 
         return buffer.WrittenSpan;
     }
 
-    private bool HitTestScaleOverlayInput()
-        => lastDiagnostics.Width > 0 &&
-           HitTestScaleOverlayInput(lastPointerX, lastPointerY);
+    private bool HitTestScaleOverlayInput() =>
+        lastDiagnostics.Width > 0 && HitTestScaleOverlayInput(lastPointerX, lastPointerY);
 
-    private bool HitTestScaleOverlayInput(float x, float y)
-        => IsScaleOverlayActive() &&
-           Contains(ResolveScaleOverlayGeometry(lastDiagnostics.Width, lastDiagnostics.Height).Rect, x, y);
+    private bool HitTestScaleOverlayInput(float x, float y) =>
+        IsScaleOverlayActive()
+        && Contains(
+            ResolveScaleOverlayGeometry(lastDiagnostics.Width, lastDiagnostics.Height).Rect,
+            x,
+            y
+        );
 
     private bool TryHandleScaleOverlayPointerDown()
     {
@@ -563,8 +673,8 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         return true;
     }
 
-    private bool IsScaleOverlayActive()
-        => ResolveScaleOverlayOpacity(timeProvider.GetTimestamp()) > 0.001f;
+    private bool IsScaleOverlayActive() =>
+        ResolveScaleOverlayOpacity(timeProvider.GetTimestamp()) > 0.001f;
 
     private float ResolveScaleOverlayOpacity(long nowTimestamp)
     {
@@ -579,60 +689,131 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         return Math.Clamp((float)(remainingTicks / fadeTicks), 0f, 1f);
     }
 
-    private static bool Contains(SceneDamageRect rect, float x, float y)
-        => x >= rect.X &&
-           x <= rect.X + rect.Width &&
-           y >= rect.Y &&
-           y <= rect.Y + rect.Height;
+    private static bool Contains(SceneDamageRect rect, float x, float y) =>
+        x >= rect.X && x <= rect.X + rect.Width && y >= rect.Y && y <= rect.Y + rect.Height;
 
-    private static SceneDamageRect ResolveScaleOverlayRect(int width, int height)
-        => ResolveScaleOverlayGeometry(width, height).Rect;
+    private static SceneDamageRect ResolveScaleOverlayRect(int width, int height) =>
+        ResolveScaleOverlayGeometry(width, height).Rect;
 
     private static ScaleOverlayGeometry ResolveScaleOverlayGeometry(int width, int height)
     {
         var overlayWidth = Math.Min(Math.Max(1, width), 330);
         var overlayHeight = Math.Min(Math.Max(1, height), 48);
-        var rect = new SceneDamageRect(Math.Max(0, (width - overlayWidth) / 2), 0, overlayWidth, overlayHeight);
+        var rect = new SceneDamageRect(
+            Math.Max(0, (width - overlayWidth) / 2),
+            0,
+            overlayWidth,
+            overlayHeight
+        );
         var right = rect.X + rect.Width;
         return new ScaleOverlayGeometry(
             rect,
             new SceneDamageRect(right - 148, rect.Y, 36, rect.Height),
             new SceneDamageRect(right - 112, rect.Y, 34, rect.Height),
-            new SceneDamageRect(right - 74, rect.Y + 7, 64, Math.Max(1, rect.Height - 14)));
+            new SceneDamageRect(right - 74, rect.Y + 7, 64, Math.Max(1, rect.Height - 14))
+        );
     }
 
-    private static void DrawScaleOverlay(SKCanvas canvas, float viewportScale, int width, float opacity)
+    private static void DrawScaleOverlay(
+        SKCanvas canvas,
+        float viewportScale,
+        int width,
+        float opacity
+    )
     {
         var rect = ResolveScaleOverlayGeometry(width, 48).Rect;
         var skRect = new SKRect(rect.X, rect.Y, rect.X + rect.Width, rect.Y + rect.Height);
         using var overlayOpacityPaint = new SKPaint
         {
-            Color = SKColors.White.WithAlpha((byte)Math.Clamp((int)MathF.Round(opacity * 255f), 0, 255))
+            Color = SKColors.White.WithAlpha(
+                (byte)Math.Clamp((int)MathF.Round(opacity * 255f), 0, 255)
+            ),
         };
         canvas.SaveLayer(skRect, overlayOpacityPaint);
 
-        using var background = new SKPaint { Color = new SKColor(31, 31, 31, 244), IsAntialias = true };
+        using var background = new SKPaint
+        {
+            Color = new SKColor(31, 31, 31, 244),
+            IsAntialias = true,
+        };
         canvas.DrawRoundRect(skRect, 13, 13, background);
 
-        using var boldTypeface = SKTypeface.FromFamilyName(null, SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
-        using var regularTypeface = SKTypeface.FromFamilyName(null, SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
+        using var boldTypeface = SKTypeface.FromFamilyName(
+            null,
+            SKFontStyleWeight.Bold,
+            SKFontStyleWidth.Normal,
+            SKFontStyleSlant.Upright
+        );
+        using var regularTypeface = SKTypeface.FromFamilyName(
+            null,
+            SKFontStyleWeight.Normal,
+            SKFontStyleWidth.Normal,
+            SKFontStyleSlant.Upright
+        );
         using var percentFont = new SKFont(boldTypeface, 14);
         using var percentPaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
-        canvas.DrawText($"{MathF.Round(viewportScale * 100)}%", skRect.Left + 14, skRect.Top + 29, SKTextAlign.Left, percentFont, percentPaint);
+        canvas.DrawText(
+            $"{MathF.Round(viewportScale * 100)}%",
+            skRect.Left + 14,
+            skRect.Top + 29,
+            SKTextAlign.Left,
+            percentFont,
+            percentPaint
+        );
 
         using var actionFont = new SKFont(regularTypeface, 28);
-        using var actionPaint = new SKPaint { Color = new SKColor(210, 210, 210), IsAntialias = true };
-        canvas.DrawText("-", skRect.Right - 130, skRect.Top + 29, SKTextAlign.Center, actionFont, actionPaint);
-        canvas.DrawText("+", skRect.Right - 96, skRect.Top + 29, SKTextAlign.Center, actionFont, actionPaint);
+        using var actionPaint = new SKPaint
+        {
+            Color = new SKColor(210, 210, 210),
+            IsAntialias = true,
+        };
+        canvas.DrawText(
+            "-",
+            skRect.Right - 130,
+            skRect.Top + 29,
+            SKTextAlign.Center,
+            actionFont,
+            actionPaint
+        );
+        canvas.DrawText(
+            "+",
+            skRect.Right - 96,
+            skRect.Top + 29,
+            SKTextAlign.Center,
+            actionFont,
+            actionPaint
+        );
 
-        var resetRect = new SKRect(skRect.Right - 74, skRect.Top + 7, skRect.Right - 10, skRect.Bottom - 7);
-        using var resetFill = new SKPaint { Color = new SKColor(68, 68, 68, 255), IsAntialias = true };
-        using var resetStroke = new SKPaint { Color = new SKColor(110, 110, 110, 255), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
+        var resetRect = new SKRect(
+            skRect.Right - 74,
+            skRect.Top + 7,
+            skRect.Right - 10,
+            skRect.Bottom - 7
+        );
+        using var resetFill = new SKPaint
+        {
+            Color = new SKColor(68, 68, 68, 255),
+            IsAntialias = true,
+        };
+        using var resetStroke = new SKPaint
+        {
+            Color = new SKColor(110, 110, 110, 255),
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1,
+        };
         canvas.DrawRoundRect(resetRect, 8, 8, resetFill);
         canvas.DrawRoundRect(resetRect, 8, 8, resetStroke);
         using var resetFont = new SKFont(boldTypeface, 13);
         using var resetPaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
-        canvas.DrawText("reset", resetRect.MidX, resetRect.Top + 22, SKTextAlign.Center, resetFont, resetPaint);
+        canvas.DrawText(
+            "reset",
+            resetRect.MidX,
+            resetRect.Top + 22,
+            SKTextAlign.Center,
+            resetFont,
+            resetPaint
+        );
         canvas.Restore();
     }
 
@@ -640,13 +821,15 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         SceneDamageRect Rect,
         SceneDamageRect DecreaseRect,
         SceneDamageRect IncreaseRect,
-        SceneDamageRect ResetRect);
+        SceneDamageRect ResetRect
+    );
 
     private ReadOnlySpan<SceneDamageRect> ScaleSceneDirtyRectsToViewport(
         ReadOnlySpan<SceneDamageRect> dirtyRects,
         float viewportScale,
         int width,
-        int height)
+        int height
+    )
     {
         if (dirtyRects.Length == 0 || Math.Abs(viewportScale - 1f) <= 0.001f)
             return dirtyRects;
@@ -658,25 +841,41 @@ public sealed class SceneRenderRoot : IRenderRoot, IRenderGpuContextSink, IRende
         {
             var left = Math.Clamp((int)MathF.Floor(dirtyRect.X * viewportScale), 0, safeWidth);
             var top = Math.Clamp((int)MathF.Floor(dirtyRect.Y * viewportScale), 0, safeHeight);
-            var right = Math.Clamp((int)MathF.Ceiling((dirtyRect.X + dirtyRect.Width) * viewportScale), 0, safeWidth);
-            var bottom = Math.Clamp((int)MathF.Ceiling((dirtyRect.Y + dirtyRect.Height) * viewportScale), 0, safeHeight);
+            var right = Math.Clamp(
+                (int)MathF.Ceiling((dirtyRect.X + dirtyRect.Width) * viewportScale),
+                0,
+                safeWidth
+            );
+            var bottom = Math.Clamp(
+                (int)MathF.Ceiling((dirtyRect.Y + dirtyRect.Height) * viewportScale),
+                0,
+                safeHeight
+            );
             var scaledWidth = right - left;
             var scaledHeight = bottom - top;
             if (scaledWidth > 0 && scaledHeight > 0)
-                presentationSceneDirtyRectBuffer.Add(new SceneDamageRect(left, top, scaledWidth, scaledHeight));
+                presentationSceneDirtyRectBuffer.Add(
+                    new SceneDamageRect(left, top, scaledWidth, scaledHeight)
+                );
         }
 
         return presentationSceneDirtyRectBuffer.WrittenSpan;
     }
 
-    private static bool ContainsFullFrameRect(ReadOnlySpan<SceneDamageRect> dirtyRects, int width, int height)
+    private static bool ContainsFullFrameRect(
+        ReadOnlySpan<SceneDamageRect> dirtyRects,
+        int width,
+        int height
+    )
     {
         foreach (var dirtyRect in dirtyRects)
         {
-            if (dirtyRect.X <= 0 &&
-                dirtyRect.Y <= 0 &&
-                dirtyRect.Width >= width &&
-                dirtyRect.Height >= height)
+            if (
+                dirtyRect.X <= 0
+                && dirtyRect.Y <= 0
+                && dirtyRect.Width >= width
+                && dirtyRect.Height >= height
+            )
             {
                 return true;
             }

@@ -1,7 +1,7 @@
+using Enaga.Input;
 using Enaga.Rendering;
 using Enaga.Rendering.Skia;
 using Enaga.Scene;
-using Enaga.Input;
 using SkiaSharp;
 using Xunit;
 
@@ -127,7 +127,10 @@ public sealed class SceneRenderRootViewportScaleTests
     {
         var source = new TestViewportScaleFrameSource();
         var timeProvider = new TestTimeProvider();
-        using var root = new SceneRenderRoot(source, new SceneRenderRootOptions { TimeProvider = timeProvider });
+        using var root = new SceneRenderRoot(
+            source,
+            new SceneRenderRootOptions { TimeProvider = timeProvider }
+        );
         using var bitmap = new SKBitmap(500, 120);
         using var canvas = new SKCanvas(bitmap);
 
@@ -136,12 +139,18 @@ public sealed class SceneRenderRootViewportScaleTests
         root.Render(canvas, 500, 120, TimeSpan.FromMilliseconds(16));
         timeProvider.Advance(TimeSpan.FromMilliseconds(24));
         root.Render(canvas, 500, 120, TimeSpan.FromMilliseconds(24));
-        Assert.Contains(root.GetLastDirtyRects().ToArray(), rect => rect == new SceneDamageRect(85, 0, 330, 48));
+        Assert.Contains(
+            root.GetLastDirtyRects().ToArray(),
+            rect => rect == new SceneDamageRect(85, 0, 330, 48)
+        );
 
         timeProvider.Advance(TimeSpan.FromSeconds(3));
         root.Render(canvas, 500, 120, TimeSpan.FromMilliseconds(40));
 
-        Assert.Contains(root.GetLastDirtyRects().ToArray(), rect => rect == new SceneDamageRect(85, 0, 330, 48));
+        Assert.Contains(
+            root.GetLastDirtyRects().ToArray(),
+            rect => rect == new SceneDamageRect(85, 0, 330, 48)
+        );
         Assert.False(root.HitTestOverlayInput(250, 20));
     }
 
@@ -159,7 +168,10 @@ public sealed class SceneRenderRootViewportScaleTests
         Assert.Equal(1, wakeCount);
     }
 
-    private sealed class TestViewportScaleFrameSource : ISceneFrameSource, IRenderViewportScaleController, IInputSink
+    private sealed class TestViewportScaleFrameSource
+        : ISceneFrameSource,
+            IRenderViewportScaleController,
+            IInputSink
     {
         private bool rendered;
 
@@ -200,7 +212,12 @@ public sealed class SceneRenderRootViewportScaleTests
             if (!rendered)
             {
                 rendered = true;
-                return SceneFrameResult.FullFrame(commit, width, height, SceneDamageReason.RuntimeReload);
+                return SceneFrameResult.FullFrame(
+                    commit,
+                    width,
+                    height,
+                    SceneDamageReason.RuntimeReload
+                );
             }
 
             return SceneFrameResult.NoDamage(commit);
@@ -216,29 +233,17 @@ public sealed class SceneRenderRootViewportScaleTests
             PointerDownCount++;
         }
 
-        public void PointerUp(int button, int buttons, bool synthetic)
-        {
-        }
+        public void PointerUp(int button, int buttons, bool synthetic) { }
 
-        public void Wheel(float deltaX, float deltaY, bool synthetic)
-        {
-        }
+        public void Wheel(float deltaX, float deltaY, bool synthetic) { }
 
-        public void Wheel(float deltaX, float deltaY, bool synthetic, int modifiers = 0)
-        {
-        }
+        public void Wheel(float deltaX, float deltaY, bool synthetic, int modifiers = 0) { }
 
-        public void KeyDown(string key, int modifiers, bool repeat, bool synthetic)
-        {
-        }
+        public void KeyDown(string key, int modifiers, bool repeat, bool synthetic) { }
 
-        public void KeyUp(string key, int modifiers, bool synthetic)
-        {
-        }
+        public void KeyUp(string key, int modifiers, bool synthetic) { }
 
-        public void TextInput(string text, bool synthetic)
-        {
-        }
+        public void TextInput(string text, bool synthetic) { }
 
         private static SceneLayoutCommit CreateCommit(int width, int height)
         {
@@ -264,16 +269,15 @@ public sealed class SceneRenderRootViewportScaleTests
 
         public override long TimestampFrequency => timestampFrequency;
 
-        public override DateTimeOffset GetUtcNow()
-            => DateTimeOffset.UnixEpoch + GetElapsedTime(0, timestamp);
+        public override DateTimeOffset GetUtcNow() =>
+            DateTimeOffset.UnixEpoch + GetElapsedTime(0, timestamp);
 
-        public override long GetTimestamp()
-            => timestamp;
+        public override long GetTimestamp() => timestamp;
 
         public void Advance(TimeSpan delta)
         {
-            timestamp += (long)Math.Round(delta.TotalSeconds * timestampFrequency, MidpointRounding.AwayFromZero);
+            timestamp += (long)
+                Math.Round(delta.TotalSeconds * timestampFrequency, MidpointRounding.AwayFromZero);
         }
     }
-
 }

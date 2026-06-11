@@ -9,7 +9,7 @@ public sealed class ReactRuntimeReloadOptions
         "*.jsx",
         "*.ts",
         "*.tsx",
-        "*.json"
+        "*.json",
     ];
 
     public static ReactRuntimeReloadOptions Production { get; } = new();
@@ -27,14 +27,15 @@ public sealed class ReactRuntimeReloadOptions
     public static ReactRuntimeReloadOptions Development(
         ReactRuntimeReloadMode mode = ReactRuntimeReloadMode.FastRefresh,
         IEnumerable<string>? watchPaths = null,
-        IEnumerable<string>? watchPatterns = null)
+        IEnumerable<string>? watchPatterns = null
+    )
     {
         return new ReactRuntimeReloadOptions
         {
             Mode = mode,
             EnableFileWatching = true,
             WatchPaths = watchPaths?.ToArray() ?? Array.Empty<string>(),
-            WatchPatterns = watchPatterns?.ToArray() ?? DefaultWatchPatterns
+            WatchPatterns = watchPatterns?.ToArray() ?? DefaultWatchPatterns,
         };
     }
 }

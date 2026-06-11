@@ -1,7 +1,7 @@
+using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Collections.Generic;
 
 namespace NativeInlineIme.Windows;
 
@@ -226,7 +226,12 @@ public sealed class Imm32InputMethod : IDisposable
                 var cursor = Math.Max(0, ImmGetCompositionStringW(himc, GcsCursorPos, null, 0));
                 var selection = GetTargetRange(himc, composition.Length, cursor);
                 Composition = composition;
-                Client?.SetPreeditText(composition, cursor, selection.Start, selection.End - selection.Start);
+                Client?.SetPreeditText(
+                    composition,
+                    cursor,
+                    selection.Start,
+                    selection.End - selection.Start
+                );
                 MoveImeWindow(Client?.CursorRectangle ?? RectangleF.Empty, himc);
             }
         }
@@ -297,8 +302,8 @@ public sealed class Imm32InputMethod : IDisposable
                 Left = x1,
                 Top = y1,
                 Right = x2,
-                Bottom = y2 + CaretMargin
-            }
+                Bottom = y2 + CaretMargin,
+            },
         };
 
         ImmSetCandidateWindow(himc, ref form);
@@ -439,7 +444,12 @@ public sealed class Imm32InputMethod : IDisposable
     private static extern bool ImmReleaseContext(nint hWnd, nint hImc);
 
     [DllImport("imm32.dll")]
-    private static extern int ImmGetCompositionStringW(nint hImc, int dwIndex, byte[]? lpBuf, int dwBufLen);
+    private static extern int ImmGetCompositionStringW(
+        nint hImc,
+        int dwIndex,
+        byte[]? lpBuf,
+        int dwBufLen
+    );
 
     [DllImport("imm32.dll")]
     private static extern int ImmSetCandidateWindow(nint hImc, ref CandidateForm candidate);

@@ -7,10 +7,7 @@ public partial class Form1 : Form
     public Form1()
     {
         InitializeComponent();
-        imeTextBox = new ImeTextBoxControl
-        {
-            Location = new Point(32, 72)
-        };
+        imeTextBox = new ImeTextBoxControl { Location = new Point(32, 72) };
 
         Controls.Add(imeTextBox);
     }

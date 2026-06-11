@@ -10,8 +10,8 @@ public static partial class HtmlDocumentLoader
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    private static string DecodeText(byte[] bytes, string? declaredEncoding)
-        => DetectEncoding(bytes, declaredEncoding).GetString(SkipBom(bytes));
+    private static string DecodeText(byte[] bytes, string? declaredEncoding) =>
+        DetectEncoding(bytes, declaredEncoding).GetString(SkipBom(bytes));
 
     private static Encoding DetectEncoding(byte[] bytes, string? declaredEncoding)
     {
@@ -36,11 +36,13 @@ public static partial class HtmlDocumentLoader
     private static Encoding? ResolveEncoding(string value)
     {
         var normalized = value.Trim().Trim('"', '\'');
-        if (normalized.Equals("shift_jis", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Equals("shift-jis", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Equals("sjis", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Equals("windows-31j", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Equals("x-sjis", StringComparison.OrdinalIgnoreCase))
+        if (
+            normalized.Equals("shift_jis", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("shift-jis", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("sjis", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("windows-31j", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("x-sjis", StringComparison.OrdinalIgnoreCase)
+        )
         {
             return Encoding.GetEncoding(932);
         }
@@ -61,14 +63,17 @@ public static partial class HtmlDocumentLoader
         return match.Success ? match.Groups[1].Value : null;
     }
 
-    private static string DecodeWithBomOrUtf8(byte[] bytes)
-        => Encoding.UTF8.GetString(SkipBom(bytes));
+    private static string DecodeWithBomOrUtf8(byte[] bytes) =>
+        Encoding.UTF8.GetString(SkipBom(bytes));
 
-    private static ReadOnlySpan<byte> SkipBom(byte[] bytes)
-        => bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF
+    private static ReadOnlySpan<byte> SkipBom(byte[] bytes) =>
+        bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF
             ? bytes.AsSpan(3)
             : bytes;
 
-    [GeneratedRegex("charset\\s*=\\s*['\\\"]?([^\\s'\\\";>]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+        "charset\\s*=\\s*['\\\"]?([^\\s'\\\";>]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+    )]
     private static partial Regex CharsetRegex();
 }

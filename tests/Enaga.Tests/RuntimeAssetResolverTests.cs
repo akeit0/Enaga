@@ -15,7 +15,8 @@ public sealed class RuntimeAssetResolverTests
         try
         {
             var resolved = FileSystemAssetResolver.Instance.Resolve(
-                new RuntimeAssetRequest("assets/demo.jpg", assetBasePath));
+                new RuntimeAssetRequest("assets/demo.jpg", assetBasePath)
+            );
 
             Assert.Equal(RuntimeAssetKind.LocalPath, resolved.Kind);
             Assert.Equal(Path.Combine(assetBasePath, "assets", "demo.jpg"), resolved.LocalPath);
@@ -38,7 +39,8 @@ public sealed class RuntimeAssetResolverTests
         try
         {
             var resolved = FileSystemAssetResolver.Instance.Resolve(
-                new RuntimeAssetRequest("..\\assets\\demo.jpg", assetBasePath, entryPath));
+                new RuntimeAssetRequest("..\\assets\\demo.jpg", assetBasePath, entryPath)
+            );
 
             Assert.Equal(RuntimeAssetKind.LocalPath, resolved.Kind);
             Assert.Equal(Path.Combine(assetBasePath, "assets", "demo.jpg"), resolved.LocalPath);

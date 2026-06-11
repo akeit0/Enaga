@@ -1,6 +1,10 @@
 using System.Collections.Concurrent;
 using System.Linq;
+using Enaga.Hosting;
+using Enaga.Input;
+using Enaga.Layout;
 using Enaga.Rendering;
+using Enaga.Scene;
 using Okojo;
 using Okojo.Annotations;
 using Okojo.Hosting;
@@ -8,14 +12,18 @@ using Okojo.Node;
 using Okojo.Objects;
 using Okojo.Runtime;
 using Okojo.WebPlatform;
-using Enaga.Hosting;
-using Enaga.Layout;
-using Enaga.Scene;
-using Enaga.Input;
+
 namespace Enaga.React.OkojoRuntime;
 
 [GenerateJsGlobals]
-public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, IRenderRuntimeStateSource, IRenderWakeSource, IOverlayInputHitTestSource, IRuntimeBackendServicesSource, IDisposable
+public sealed partial class OkojoNodeReactHost
+    : ISceneFrameSource,
+        IInputSink,
+        IRenderRuntimeStateSource,
+        IRenderWakeSource,
+        IOverlayInputHitTestSource,
+        IRuntimeBackendServicesSource,
+        IDisposable
 {
     private const string DiagnosticSourceName = nameof(OkojoNodeReactHost);
     private const double WheelTargetLatchTimeoutMs = 200;
@@ -25,7 +33,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         WebTaskQueueKeys.Messages,
         WebTaskQueueKeys.Network,
         HostingTaskQueueKeys.Default,
-        WebTaskQueueKeys.Rendering
+        WebTaskQueueKeys.Rendering,
     ];
     private readonly bool debugFeaturesEnabled;
     private readonly ShaderTraceLogger shaderTrace;
@@ -42,14 +50,25 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private readonly DefaultPositionMode defaultPositionMode;
     private readonly RuntimeReloadCoordinator reloadCoordinator;
     private readonly RuntimeFileWatchService? fileWatchService;
-    private readonly SceneNodeIdentityMap<string> sceneNodeIds = new("root", StringComparer.Ordinal);
+    private readonly SceneNodeIdentityMap<string> sceneNodeIds = new(
+        "root",
+        StringComparer.Ordinal
+    );
     private readonly SceneStore sceneStore;
     private readonly object renderInvalidationGate = new();
-    private readonly Dictionary<string, NativeHoverTargetState> hoverTargets = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, NativeHoverTargetState> hoverTargets = new(
+        StringComparer.Ordinal
+    );
     private readonly Dictionary<string, NativeImageState> images = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, NativeScrollViewState> scrollViews = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, NativeTextInputState> textInputs = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, JsValue[]> memoizedGlobalFunctionArguments = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, NativeScrollViewState> scrollViews = new(
+        StringComparer.Ordinal
+    );
+    private readonly Dictionary<string, NativeTextInputState> textInputs = new(
+        StringComparer.Ordinal
+    );
+    private readonly Dictionary<string, JsValue[]> memoizedGlobalFunctionArguments = new(
+        StringComparer.Ordinal
+    );
     private LayoutCalculator? stackLayoutCalculator;
     private ReactAppPropertyAtoms? propertyAtoms;
     private readonly List<LowLevelRepaintEvent> pendingLowLevelRepaintEvents = [];
@@ -85,7 +104,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private RenderInvalidatingHostTaskScheduler? hostTaskScheduler;
     private string? focusedTextInputId;
     private readonly SceneScrollBarDragState<string> activeScrollBarDrag = new();
-    private readonly SceneWheelScrollTargetLatch<string> wheelScrollTargetLatch = new(WheelTargetLatchTimeoutMs);
+    private readonly SceneWheelScrollTargetLatch<string> wheelScrollTargetLatch = new(
+        WheelTargetLatchTimeoutMs
+    );
     private double? previousScrollAnimationElapsedMs;
     private int currentFrameViewCallCount;
 
@@ -97,18 +118,20 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         RuntimeBackendServices? backendServices = null,
         bool enableFileWatching = false,
         DefaultPositionMode defaultPositionMode = DefaultPositionMode.Relative,
-        ReactRuntimeReloadMode reloadMode = ReactRuntimeReloadMode.RebuildRuntime)
-        : this(CreateCompatibilityOptions(
-            new FileReactAppEntrySource(entryPath),
-            debugEnabled,
-            shaderTraceEnabled,
-            configureAdditionalGlobals,
-            backendServices,
-            enableFileWatching,
-            defaultPositionMode,
-            reloadMode))
-    {
-    }
+        ReactRuntimeReloadMode reloadMode = ReactRuntimeReloadMode.RebuildRuntime
+    )
+        : this(
+            CreateCompatibilityOptions(
+                new FileReactAppEntrySource(entryPath),
+                debugEnabled,
+                shaderTraceEnabled,
+                configureAdditionalGlobals,
+                backendServices,
+                enableFileWatching,
+                defaultPositionMode,
+                reloadMode
+            )
+        ) { }
 
     public OkojoNodeReactHost(
         IReactAppEntrySource entrySource,
@@ -118,32 +141,40 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         RuntimeBackendServices? backendServices = null,
         bool enableFileWatching = false,
         DefaultPositionMode defaultPositionMode = DefaultPositionMode.Relative,
-        ReactRuntimeReloadMode reloadMode = ReactRuntimeReloadMode.RebuildRuntime)
-        : this(CreateCompatibilityOptions(
-            entrySource,
-            debugEnabled,
-            shaderTraceEnabled,
-            configureAdditionalGlobals,
-            backendServices,
-            enableFileWatching,
-            defaultPositionMode,
-            reloadMode))
-    {
-    }
+        ReactRuntimeReloadMode reloadMode = ReactRuntimeReloadMode.RebuildRuntime
+    )
+        : this(
+            CreateCompatibilityOptions(
+                entrySource,
+                debugEnabled,
+                shaderTraceEnabled,
+                configureAdditionalGlobals,
+                backendServices,
+                enableFileWatching,
+                defaultPositionMode,
+                reloadMode
+            )
+        ) { }
 
     public OkojoNodeReactHost(OkojoReactHostOptions options)
     {
         sceneStore = new SceneStore(sceneNodeIds.RootId, new SceneViewport(1280, 800));
         ArgumentNullException.ThrowIfNull(options);
-        entrySource = options.EntrySource ?? throw new ArgumentNullException(nameof(options.EntrySource));
+        entrySource =
+            options.EntrySource ?? throw new ArgumentNullException(nameof(options.EntrySource));
         debugFeaturesEnabled = options.EnableDebugFeatures;
-        timeProvider = options.TimeProvider ?? throw new ArgumentNullException(nameof(options.TimeProvider));
+        timeProvider =
+            options.TimeProvider ?? throw new ArgumentNullException(nameof(options.TimeProvider));
         diagnostics = options.Diagnostics ?? RuntimeDiagnosticsSink.None;
-        assetService = new RuntimeAssetService(options.AssetResolver ?? RuntimeAssetResolver.FileSystemRelativeToEntry);
+        assetService = new RuntimeAssetService(
+            options.AssetResolver ?? RuntimeAssetResolver.FileSystemRelativeToEntry
+        );
         configureAdditionalGlobals = options.ConfigureAdditionalGlobals;
         backendServices = options.BackendServices ?? RuntimeBackendServices.Missing;
         defaultPositionMode = options.DefaultPositionMode;
-        reloadCoordinator = new RuntimeReloadCoordinator(options.Reload ?? ReactRuntimeReloadOptions.Production);
+        reloadCoordinator = new RuntimeReloadCoordinator(
+            options.Reload ?? ReactRuntimeReloadOptions.Production
+        );
         shaderTrace = new ShaderTraceLogger(diagnostics);
         inputState = new HostInputState(timeProvider);
         textInputController = new HostTextInputController(
@@ -152,11 +183,15 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             UpdateTextInputLayout,
             NotifyTextInputEvent,
             MoveFocus,
-            SetFocusedTextInput);
+            SetFocusedTextInput
+        );
         var watchPaths = ResolveWatchPaths(entrySource, reloadCoordinator.Options);
         if (reloadCoordinator.Options.EnableFileWatching && watchPaths.Length > 0)
         {
-            fileWatchService = new RuntimeFileWatchService(watchPaths, reloadCoordinator.Options.WatchPatterns);
+            fileWatchService = new RuntimeFileWatchService(
+                watchPaths,
+                reloadCoordinator.Options.WatchPatterns
+            );
             fileWatchService.Changed += OnWatchedFileChanged;
         }
         configureRuntime = options.ConfigureRuntime;
@@ -173,7 +208,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         RuntimeBackendServices? backendServices,
         bool enableFileWatching,
         DefaultPositionMode defaultPositionMode,
-        ReactRuntimeReloadMode reloadMode)
+        ReactRuntimeReloadMode reloadMode
+    )
     {
         return new OkojoReactHostOptions
         {
@@ -185,13 +221,16 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             Reload = new ReactRuntimeReloadOptions
             {
                 Mode = reloadMode,
-                EnableFileWatching = enableFileWatching
+                EnableFileWatching = enableFileWatching,
             },
-            Diagnostics = CreateCompatibilityDiagnostics(debugEnabled, shaderTraceEnabled)
+            Diagnostics = CreateCompatibilityDiagnostics(debugEnabled, shaderTraceEnabled),
         };
     }
 
-    private static IRuntimeDiagnosticsSink CreateCompatibilityDiagnostics(bool debugEnabled, bool shaderTraceEnabled)
+    private static IRuntimeDiagnosticsSink CreateCompatibilityDiagnostics(
+        bool debugEnabled,
+        bool shaderTraceEnabled
+    )
     {
         List<RuntimeDiagnosticArea> areas = [];
         if (debugEnabled)
@@ -212,19 +251,27 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             : RuntimeDiagnosticsSink.Console([.. areas]);
     }
 
-    private static string[] ResolveWatchPaths(IReactAppEntrySource entrySource, ReactRuntimeReloadOptions reloadOptions)
+    private static string[] ResolveWatchPaths(
+        IReactAppEntrySource entrySource,
+        ReactRuntimeReloadOptions reloadOptions
+    )
     {
-        var configuredPaths = reloadOptions.WatchPaths.Where(static path => !string.IsNullOrWhiteSpace(path)).ToArray();
+        var configuredPaths = reloadOptions
+            .WatchPaths.Where(static path => !string.IsNullOrWhiteSpace(path))
+            .ToArray();
         if (configuredPaths.Length > 0)
-            return configuredPaths.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            return configuredPaths
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 
-        return entrySource.EnumerateWatchPaths()
+        return entrySource
+            .EnumerateWatchPaths()
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .Select(Path.GetFullPath)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
-
 
     [JsMember]
     public int Width { get; private set; } = 1280;
@@ -289,8 +336,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     public RenderRuntimeStateSnapshot GetRenderRuntimeStateSnapshot()
     {
-        if (focusedTextInputId is { } focusedId &&
-            textInputs.TryGetValue(focusedId, out var focusedState))
+        if (
+            focusedTextInputId is { } focusedId
+            && textInputs.TryGetValue(focusedId, out var focusedState)
+        )
         {
             return new RenderRuntimeStateSnapshot(
                 focusedState.ImeOpen,
@@ -298,7 +347,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 animationEnabled,
                 shaderAnimationEnabled,
                 IsRenderInvalidated(),
-                currentFrameViewCallCount);
+                currentFrameViewCallCount
+            );
         }
 
         return new RenderRuntimeStateSnapshot(
@@ -307,7 +357,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             animationEnabled,
             shaderAnimationEnabled,
             IsRenderInvalidated(),
-            currentFrameViewCallCount);
+            currentFrameViewCallCount
+        );
     }
 
     public void Dispose()
@@ -334,7 +385,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         RenderWakeRequested?.Invoke();
     }
 
-    public bool TryInvokeGlobalFunction(string name, SceneDamageReason reason, params ReadOnlySpan<JsValue> args)
+    public bool TryInvokeGlobalFunction(
+        string name,
+        SceneDamageReason reason,
+        params ReadOnlySpan<JsValue> args
+    )
     {
         var function = TryGetGlobalFunction(name);
         if (function is null || runtime is null)
@@ -346,10 +401,16 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         return true;
     }
 
-    public bool TryInvokeGlobalFunctionWhenChanged(string name, SceneDamageReason reason, params ReadOnlySpan<JsValue> args)
+    public bool TryInvokeGlobalFunctionWhenChanged(
+        string name,
+        SceneDamageReason reason,
+        params ReadOnlySpan<JsValue> args
+    )
     {
-        if (memoizedGlobalFunctionArguments.TryGetValue(name, out var previousArgs) &&
-            JsValueArgumentMemo.AreSame(previousArgs, args))
+        if (
+            memoizedGlobalFunctionArguments.TryGetValue(name, out var previousArgs)
+            && JsValueArgumentMemo.AreSame(previousArgs, args)
+        )
         {
             return false;
         }
@@ -383,23 +444,31 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         inputState.RecordPointerMove(x, y, buttons, synthetic);
         if ((buttons & HostInputState.LeftMouseButtonMask) != 0 && UpdateActiveScrollBarDrag(x, y))
         {
-            pendingLowLevelRepaintEvents.Add(new LowLevelRepaintEvent(LowLevelRepaintEventKind.PointerMove, x, y));
+            pendingLowLevelRepaintEvents.Add(
+                new LowLevelRepaintEvent(LowLevelRepaintEventKind.PointerMove, x, y)
+            );
             return;
         }
 
         UpdateHoverState(sceneStore.Snapshot(), x, y);
-        if ((buttons & HostInputState.LeftMouseButtonMask) != 0 &&
-            focusedTextInputId is { } focusedId &&
-            textInputs.TryGetValue(focusedId, out var focusedState) &&
-            focusedState.IsSelectingWithMouse)
+        if (
+            (buttons & HostInputState.LeftMouseButtonMask) != 0
+            && focusedTextInputId is { } focusedId
+            && textInputs.TryGetValue(focusedId, out var focusedState)
+            && focusedState.IsSelectingWithMouse
+        )
         {
             var caretIndex = HitTestCaretIndex(focusedState, x, y);
             SetSelection(focusedState, focusedState.SelectionAnchorIndex, caretIndex);
             UpdateTextInputLayout(focusedState);
         }
 
-        pendingLowLevelRepaintEvents.Add(new LowLevelRepaintEvent(LowLevelRepaintEventKind.PointerMove, x, y));
-        inputState.Events.Enqueue(new HostInputEvent(HostInputEventType.Move, x, y, 0, buttons, 0, 0, synthetic));
+        pendingLowLevelRepaintEvents.Add(
+            new LowLevelRepaintEvent(LowLevelRepaintEventKind.PointerMove, x, y)
+        );
+        inputState.Events.Enqueue(
+            new HostInputEvent(HostInputEventType.Move, x, y, 0, buttons, 0, 0, synthetic)
+        );
     }
 
     public bool HitTestOverlayInput(float x, float y)
@@ -414,7 +483,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     {
         inputState.RecordPointerButtons(buttons, synthetic);
         ClearWheelScrollTarget();
-        pendingLowLevelRepaintEvents.Add(new LowLevelRepaintEvent(LowLevelRepaintEventKind.PointerDown, MouseX, MouseY));
+        pendingLowLevelRepaintEvents.Add(
+            new LowLevelRepaintEvent(LowLevelRepaintEventKind.PointerDown, MouseX, MouseY)
+        );
         if (button == 0 && TryBeginScrollBarDrag(MouseX, MouseY))
             return;
 
@@ -437,19 +508,34 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             UpdateTextInputLayout(focusedState);
         }
 
-        inputState.Events.Enqueue(new HostInputEvent(HostInputEventType.Down, MouseX, MouseY, button, buttons, 0, 0, synthetic));
+        inputState.Events.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.Down,
+                MouseX,
+                MouseY,
+                button,
+                buttons,
+                0,
+                0,
+                synthetic
+            )
+        );
     }
 
     public void PointerUp(int button, int buttons, bool synthetic)
     {
         inputState.RecordPointerButtons(buttons, synthetic);
-        pendingLowLevelRepaintEvents.Add(new LowLevelRepaintEvent(LowLevelRepaintEventKind.PointerUp, MouseX, MouseY));
+        pendingLowLevelRepaintEvents.Add(
+            new LowLevelRepaintEvent(LowLevelRepaintEventKind.PointerUp, MouseX, MouseY)
+        );
         if (button == 0 && EndActiveScrollBarDrag())
             return;
 
-        if (button == 0 &&
-            focusedTextInputId is { } focusedId &&
-            textInputs.TryGetValue(focusedId, out var focusedState))
+        if (
+            button == 0
+            && focusedTextInputId is { } focusedId
+            && textInputs.TryGetValue(focusedId, out var focusedState)
+        )
         {
             if (focusedState.IsSelectingWithMouse)
             {
@@ -461,28 +547,72 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             focusedState.IsSelectingWithMouse = false;
         }
 
-        inputState.Events.Enqueue(new HostInputEvent(HostInputEventType.Up, MouseX, MouseY, button, buttons, 0, 0, synthetic));
+        inputState.Events.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.Up,
+                MouseX,
+                MouseY,
+                button,
+                buttons,
+                0,
+                0,
+                synthetic
+            )
+        );
     }
 
     public void Wheel(float deltaX, float deltaY, bool synthetic, int modifiers = 0)
     {
         inputState.RecordWheel(deltaX, deltaY, synthetic);
-        pendingLowLevelRepaintEvents.Add(new LowLevelRepaintEvent(LowLevelRepaintEventKind.Wheel, MouseX, MouseY));
+        pendingLowLevelRepaintEvents.Add(
+            new LowLevelRepaintEvent(LowLevelRepaintEventKind.Wheel, MouseX, MouseY)
+        );
         ApplyScrollWheel(deltaX, deltaY, inputState.ElapsedMs);
-        inputState.Events.Enqueue(new HostInputEvent(HostInputEventType.Wheel, MouseX, MouseY, 0, MouseButtons, deltaX, deltaY, synthetic));
+        inputState.Events.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.Wheel,
+                MouseX,
+                MouseY,
+                0,
+                MouseButtons,
+                deltaX,
+                deltaY,
+                synthetic
+            )
+        );
     }
 
     public void KeyDown(string key, int modifiers, bool repeat, bool synthetic)
     {
         inputState.RecordKey(key, modifiers, repeat, synthetic);
-        pendingLowLevelRepaintEvents.Add(new LowLevelRepaintEvent(LowLevelRepaintEventKind.KeyDown));
+        pendingLowLevelRepaintEvents.Add(
+            new LowLevelRepaintEvent(LowLevelRepaintEventKind.KeyDown)
+        );
         if (!repeat)
         {
-            inputState.HeldKeys[key] = new HostKeyRepeatState(GetInputElapsedMs() + HostInputState.InitialKeyRepeatDelayMs, modifiers, HostInputState.InitialKeyRepeatIntervalMs);
+            inputState.HeldKeys[key] = new HostKeyRepeatState(
+                GetInputElapsedMs() + HostInputState.InitialKeyRepeatDelayMs,
+                modifiers,
+                HostInputState.InitialKeyRepeatIntervalMs
+            );
             inputState.ActivePrintableRepeat = TryCreatePrintableRepeatState(key, modifiers);
         }
         HandleFocusedTextInputKey(key, modifiers);
-        inputState.Events.Enqueue(new HostInputEvent(HostInputEventType.KeyDown, MouseX, MouseY, 0, MouseButtons, 0, 0, synthetic, Key: key, Modifiers: modifiers, Repeat: repeat));
+        inputState.Events.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.KeyDown,
+                MouseX,
+                MouseY,
+                0,
+                MouseButtons,
+                0,
+                0,
+                synthetic,
+                Key: key,
+                Modifiers: modifiers,
+                Repeat: repeat
+            )
+        );
     }
 
     public void KeyUp(string key, int modifiers, bool synthetic)
@@ -490,9 +620,25 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         inputState.RecordKey(key, modifiers, repeat: false, synthetic);
         pendingLowLevelRepaintEvents.Add(new LowLevelRepaintEvent(LowLevelRepaintEventKind.KeyUp));
         inputState.HeldKeys.Remove(key);
-        if (inputState.ActivePrintableRepeat is { Key: var repeatKey } && string.Equals(repeatKey, key, StringComparison.Ordinal))
+        if (
+            inputState.ActivePrintableRepeat is { Key: var repeatKey }
+            && string.Equals(repeatKey, key, StringComparison.Ordinal)
+        )
             inputState.ActivePrintableRepeat = null;
-        inputState.Events.Enqueue(new HostInputEvent(HostInputEventType.KeyUp, MouseX, MouseY, 0, MouseButtons, 0, 0, synthetic, Key: key, Modifiers: modifiers));
+        inputState.Events.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.KeyUp,
+                MouseX,
+                MouseY,
+                0,
+                MouseButtons,
+                0,
+                0,
+                synthetic,
+                Key: key,
+                Modifiers: modifiers
+            )
+        );
     }
 
     public void TextInput(string text, bool synthetic)
@@ -500,20 +646,39 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (string.IsNullOrEmpty(text))
             return;
 
-        if (!synthetic &&
-            inputState.ActivePrintableRepeat is { } printableRepeat &&
-            string.Equals(printableRepeat.Text, text, StringComparison.Ordinal))
+        if (
+            !synthetic
+            && inputState.ActivePrintableRepeat is { } printableRepeat
+            && string.Equals(printableRepeat.Text, text, StringComparison.Ordinal)
+        )
         {
             if (!printableRepeat.NativeInputAccepted)
-                inputState.ActivePrintableRepeat = printableRepeat with { NativeInputAccepted = true };
+                inputState.ActivePrintableRepeat = printableRepeat with
+                {
+                    NativeInputAccepted = true,
+                };
             else
                 return;
         }
 
         inputState.RecordTextInput(text, synthetic);
-        pendingLowLevelRepaintEvents.Add(new LowLevelRepaintEvent(LowLevelRepaintEventKind.TextInput));
+        pendingLowLevelRepaintEvents.Add(
+            new LowLevelRepaintEvent(LowLevelRepaintEventKind.TextInput)
+        );
         ApplyFocusedTextInputText(text);
-        inputState.Events.Enqueue(new HostInputEvent(HostInputEventType.TextInput, MouseX, MouseY, 0, MouseButtons, 0, 0, synthetic, Text: text));
+        inputState.Events.Enqueue(
+            new HostInputEvent(
+                HostInputEventType.TextInput,
+                MouseX,
+                MouseY,
+                0,
+                MouseButtons,
+                0,
+                0,
+                synthetic,
+                Text: text
+            )
+        );
     }
 
     public SceneFrameResult RenderFrame(int width, int height, TimeSpan elapsed)
@@ -532,7 +697,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         {
             if (runtime is null || !reloadCoordinator.ShouldWaitForStabilization(DateTime.UtcNow))
             {
-                if (runtime is null || reloadCoordinator.Options.Mode == ReactRuntimeReloadMode.RebuildRuntime)
+                if (
+                    runtime is null
+                    || reloadCoordinator.Options.Mode == ReactRuntimeReloadMode.RebuildRuntime
+                )
                     ReloadRuntime();
                 else if (reloadCoordinator.Options.Mode == ReactRuntimeReloadMode.FastRefresh)
                     ReloadFastRefresh();
@@ -548,7 +716,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 sceneStore.Snapshot(),
                 Width,
                 Height,
-                ConsumeFrameDamageReasons(out _));
+                ConsumeFrameDamageReasons(out _)
+            );
         }
 
         PumpHeldKeys(GetInputElapsedMs());
@@ -568,15 +737,29 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 shaderTrace.RecordShaderOnly(shaderDirtyRects, shaderAnimationEnabled);
                 if (shaderDirtyRects.Length > 0)
                 {
-                    shaderTrace.FlushIfDue(currentElapsedMs, FrameCount, shaderAnimationEnabled, IsRenderInvalidated());
-                    return new SceneFrameResult(currentCommit, shaderDirtyRects, SceneDamageReason.Animation);
+                    shaderTrace.FlushIfDue(
+                        currentElapsedMs,
+                        FrameCount,
+                        shaderAnimationEnabled,
+                        IsRenderInvalidated()
+                    );
+                    return new SceneFrameResult(
+                        currentCommit,
+                        shaderDirtyRects,
+                        SceneDamageReason.Animation
+                    );
                 }
             }
 
             if (!animationEnabled)
             {
                 shaderTrace.RecordNoDamage(shaderAnimationEnabled);
-                shaderTrace.FlushIfDue(currentElapsedMs, FrameCount, shaderAnimationEnabled, IsRenderInvalidated());
+                shaderTrace.FlushIfDue(
+                    currentElapsedMs,
+                    FrameCount,
+                    shaderAnimationEnabled,
+                    IsRenderInvalidated()
+                );
                 return SceneFrameResult.NoDamage(currentCommit);
             }
         }
@@ -587,10 +770,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         try
         {
             if (loggedRenderFrames < 5)
-                Log(RuntimeDiagnosticArea.Rendering, $"render frame #{FrameCount} elapsed={elapsed.TotalMilliseconds:F1}ms callback={(renderFrameFunction is null ? "missing" : "ok")}");
-            Invoke(renderFrameFunction,
-                elapsed.TotalMilliseconds,
-                JsValue.FromInt32(FrameCount));
+                Log(
+                    RuntimeDiagnosticArea.Rendering,
+                    $"render frame #{FrameCount} elapsed={elapsed.TotalMilliseconds:F1}ms callback={(renderFrameFunction is null ? "missing" : "ok")}"
+                );
+            Invoke(renderFrameFunction, elapsed.TotalMilliseconds, JsValue.FromInt32(FrameCount));
             PumpRuntimeJobs();
             PruneInactiveTextInputs();
             PruneInactiveScrollViews();
@@ -609,11 +793,17 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
         loggedRenderFrames++;
         FrameCount++;
-        shaderTrace.FlushIfDue(currentElapsedMs, FrameCount, shaderAnimationEnabled, IsRenderInvalidated());
+        shaderTrace.FlushIfDue(
+            currentElapsedMs,
+            FrameCount,
+            shaderAnimationEnabled,
+            IsRenderInvalidated()
+        );
         return new SceneFrameResult(
             SyncScrollViewLayoutFromCommit(sceneStore.Snapshot()),
             [],
-            damageReasons);
+            damageReasons
+        );
     }
 
     private void ResetScene(string backgroundColor = "#08111f")
@@ -621,7 +811,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (loggedResets < 5)
             Log(RuntimeDiagnosticArea.SceneCommit, $"resetScene background={backgroundColor}");
         sceneStore.Reset(sceneNodeIds.RootId, new SceneViewport(Width, Height));
-        sceneStore.SetLayout(sceneNodeIds.RootId, new SceneLayoutBox(SceneNodeKind.View, 0, 0, Width, Height, backgroundColor));
+        sceneStore.SetLayout(
+            sceneNodeIds.RootId,
+            new SceneLayoutBox(SceneNodeKind.View, 0, 0, Width, Height, backgroundColor)
+        );
         hoverTargetGeneration++;
         imageGeneration++;
         scrollViewGeneration++;
@@ -652,14 +845,18 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float top,
         float width,
         float height,
-        JsObject? style)
+        JsObject? style
+    )
     {
         currentFrameViewCallCount++;
         var hostStyle = ReadStyle(style);
         var layoutPadding = ResolveLayoutPadding(hostStyle, 0);
         UpdateHoverTarget(id, hostStyle);
         if (loggedViews < 8)
-            Log(RuntimeDiagnosticArea.SceneCommit, $"view id={id} parent={parentId} x={left} y={top} w={width} h={height}");
+            Log(
+                RuntimeDiagnosticArea.SceneCommit,
+                $"view id={id} parent={parentId} x={left} y={top} w={width} h={height}"
+            );
         sceneStore.UpsertNode(
             ToSceneNodeId(id),
             SceneNodeKind.View,
@@ -683,7 +880,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 PaddingBottom: layoutPadding.Bottom,
                 BackgroundGradient: hostStyle.BackgroundGradient,
                 BackgroundShader: hostStyle.BackgroundShader,
-                BackgroundShadows: hostStyle.BackgroundShadows));
+                BackgroundShadows: hostStyle.BackgroundShadows
+            )
+        );
         loggedViews++;
     }
 
@@ -696,7 +895,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float height,
         JsObject? style,
         float contentWidth,
-        float contentHeight)
+        float contentHeight
+    )
     {
         var hostStyle = ReadStyle(style);
         var layoutPadding = ResolveLayoutPadding(hostStyle, 0);
@@ -747,13 +947,17 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float width,
         float height,
         string content,
-        JsObject? style)
+        JsObject? style
+    )
     {
         var hasExplicitHeight = GetNullableFloatProperty(style, propertyAtoms!.Height).HasValue;
         var hostStyle = ReadStyle(style);
         UpdateHoverTarget(id, hostStyle);
         if (loggedTexts < 8)
-            Log(RuntimeDiagnosticArea.SceneCommit, $"text id={id} parent={parentId} content={content}");
+            Log(
+                RuntimeDiagnosticArea.SceneCommit,
+                $"text id={id} parent={parentId} content={content}"
+            );
         var textStyle = CreateSceneTextStyle(hostStyle);
         var resolvedHeight = hasExplicitHeight
             ? height
@@ -770,7 +974,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 width,
                 resolvedHeight,
                 TextContent: content,
-                TextStyle: textStyle));
+                TextStyle: textStyle
+            )
+        );
         loggedTexts++;
     }
 
@@ -799,12 +1005,15 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float height,
         string source,
         string? placeholderSource,
-        JsObject? style)
+        JsObject? style
+    )
     {
         var hostStyle = ReadStyle(style);
         UpdateHoverTarget(id, hostStyle);
         var resolvedSource = ResolveAssetPath(source);
-        var resolvedPlaceholderSource = string.IsNullOrWhiteSpace(placeholderSource) ? null : ResolveAssetPath(placeholderSource);
+        var resolvedPlaceholderSource = string.IsNullOrWhiteSpace(placeholderSource)
+            ? null
+            : ResolveAssetPath(placeholderSource);
         sceneStore.UpsertNode(
             ToSceneNodeId(id),
             SceneNodeKind.Image,
@@ -823,7 +1032,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 hostStyle.BoxSizing,
                 ImageSource: resolvedSource,
                 ImagePlaceholderSource: resolvedPlaceholderSource,
-                ImageFit: hostStyle.ImageFit));
+                ImageFit: hostStyle.ImageFit
+            )
+        );
 
         var state = GetOrCreateImageState(id);
         state.RequestedSource = source;
@@ -835,7 +1046,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             state.LoadState = NativeImageLoadState.None;
         }
         var nextPlaceholderSource = resolvedPlaceholderSource ?? string.Empty;
-        if (!string.Equals(state.PlaceholderSource, nextPlaceholderSource, StringComparison.Ordinal))
+        if (
+            !string.Equals(state.PlaceholderSource, nextPlaceholderSource, StringComparison.Ordinal)
+        )
         {
             state.PlaceholderSource = nextPlaceholderSource;
             state.PlaceholderLoadState = string.IsNullOrEmpty(nextPlaceholderSource)
@@ -853,7 +1066,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float height,
         string value,
         string placeholder,
-        JsObject? style)
+        JsObject? style
+    )
     {
         var hostStyle = ReadStyle(style);
         UpdateHoverTarget(id, hostStyle);
@@ -875,7 +1089,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         state.PaddingRight = layoutPadding.Right;
         state.PaddingBottom = layoutPadding.Bottom;
         state.Multiline = hostStyle.Multiline;
-        state.LineHeight = hostStyle.LineHeight > 0 ? hostStyle.LineHeight : Math.Max(hostStyle.FontSize + 4, hostStyle.FontSize * 1.35f);
+        state.LineHeight =
+            hostStyle.LineHeight > 0
+                ? hostStyle.LineHeight
+                : Math.Max(hostStyle.FontSize + 4, hostStyle.FontSize * 1.35f);
         state.BackgroundColor = hostStyle.BackgroundColor;
         state.BackgroundGradient = hostStyle.BackgroundGradient;
         state.BackgroundShader = hostStyle.BackgroundShader;
@@ -899,25 +1116,38 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             return HostStyle.Default;
 
         var padding = GetNullableStyleFloatProperty(style, propertyAtoms!.Padding);
-        var paddingX = GetNullableStyleFloatProperty(style, propertyAtoms.PaddingHorizontal)
-            ?? padding;
-        var paddingY = GetNullableStyleFloatProperty(style, propertyAtoms.PaddingVertical)
-            ?? padding;
-        var paddingLeft = GetNullableStyleFloatProperty(style, propertyAtoms.PaddingLeft) ?? paddingX;
+        var paddingX =
+            GetNullableStyleFloatProperty(style, propertyAtoms.PaddingHorizontal) ?? padding;
+        var paddingY =
+            GetNullableStyleFloatProperty(style, propertyAtoms.PaddingVertical) ?? padding;
+        var paddingLeft =
+            GetNullableStyleFloatProperty(style, propertyAtoms.PaddingLeft) ?? paddingX;
         var paddingTop = GetNullableStyleFloatProperty(style, propertyAtoms.PaddingTop) ?? paddingY;
-        var paddingRight = GetNullableStyleFloatProperty(style, propertyAtoms.PaddingRight) ?? paddingX;
-        var paddingBottom = GetNullableStyleFloatProperty(style, propertyAtoms.PaddingBottom) ?? paddingY;
+        var paddingRight =
+            GetNullableStyleFloatProperty(style, propertyAtoms.PaddingRight) ?? paddingX;
+        var paddingBottom =
+            GetNullableStyleFloatProperty(style, propertyAtoms.PaddingBottom) ?? paddingY;
 
         return new HostStyle(
             BackgroundColor: GetStyleStringProperty(style, propertyAtoms!.BackgroundColor),
-            BackgroundGradient: ReadGradient(TryGetStyleObjectProperty(style, propertyAtoms.BackgroundGradient)),
-            BackgroundShader: ReadRuntimeShader(TryGetStyleObjectProperty(style, propertyAtoms.BackgroundShader)),
-            BackgroundShadows: ReadShadows(GetStylePropertyOrUndefined(style, propertyAtoms.Shadow)),
+            BackgroundGradient: ReadGradient(
+                TryGetStyleObjectProperty(style, propertyAtoms.BackgroundGradient)
+            ),
+            BackgroundShader: ReadRuntimeShader(
+                TryGetStyleObjectProperty(style, propertyAtoms.BackgroundShader)
+            ),
+            BackgroundShadows: ReadShadows(
+                GetStylePropertyOrUndefined(style, propertyAtoms.Shadow)
+            ),
             BorderColor: GetStyleStringProperty(style, propertyAtoms.BorderColor),
             BorderWidth: GetStyleFloatProperty(style, propertyAtoms.BorderWidth),
             BorderRadius: GetStyleFloatProperty(style, propertyAtoms.BorderRadius),
             BoxSizing: ParseSceneBoxSizing(GetStyleStringProperty(style, propertyAtoms.BoxSizing)),
-            ClipContent: string.Equals(GetStyleStringProperty(style, propertyAtoms.Overflow), "hidden", StringComparison.Ordinal),
+            ClipContent: string.Equals(
+                GetStyleStringProperty(style, propertyAtoms.Overflow),
+                "hidden",
+                StringComparison.Ordinal
+            ),
             FontSize: GetStyleFloatProperty(style, propertyAtoms.FontSize, 16),
             Color: GetStyleStringProperty(style, propertyAtoms.Color),
             FontFamily: GetStyleStringProperty(style, propertyAtoms.FontFamily),
@@ -932,25 +1162,37 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             LineHeight: GetStyleFloatProperty(style, propertyAtoms.LineHeight),
             ActiveBorderColor: GetStyleStringProperty(style, propertyAtoms.ActiveBorderColor),
             PlaceholderColor: GetStyleStringProperty(style, propertyAtoms.PlaceholderColor),
-            CompositionUnderlineColor: GetStyleStringProperty(style, propertyAtoms.CompositionUnderlineColor),
-            CompositionSelectionUnderlineColor: GetStyleStringProperty(style, propertyAtoms.CompositionSelectionUnderlineColor),
+            CompositionUnderlineColor: GetStyleStringProperty(
+                style,
+                propertyAtoms.CompositionUnderlineColor
+            ),
+            CompositionSelectionUnderlineColor: GetStyleStringProperty(
+                style,
+                propertyAtoms.CompositionSelectionUnderlineColor
+            ),
             ImageFit: GetStyleStringProperty(style, propertyAtoms.Fit),
             Hoverable: GetStyleBoolProperty(style, propertyAtoms.Hoverable),
             Tooltip: NormalizeTooltip(GetStyleStringProperty(style, propertyAtoms.Tooltip)),
             ContentWidth: GetNullableStyleFloatProperty(style, propertyAtoms.ContentWidth),
             ContentHeight: GetNullableStyleFloatProperty(style, propertyAtoms.ContentHeight),
             ScrollX: GetStyleFloatProperty(style, propertyAtoms.ScrollX),
-            ScrollY: GetStyleFloatProperty(style, propertyAtoms.ScrollY));
+            ScrollY: GetStyleFloatProperty(style, propertyAtoms.ScrollY)
+        );
     }
 
-    private static ResolvedPadding ResolveLayoutPadding(HostStyle hostStyle, float defaultX, float? defaultY = null)
+    private static ResolvedPadding ResolveLayoutPadding(
+        HostStyle hostStyle,
+        float defaultX,
+        float? defaultY = null
+    )
     {
         var resolvedDefaultY = defaultY ?? defaultX;
         var borderWidth = Math.Max(0, hostStyle.BorderWidth);
         var left = (hostStyle.PaddingLeft ?? defaultX) + borderWidth;
         var top = (hostStyle.PaddingTop ?? resolvedDefaultY) + borderWidth;
         var right = (hostStyle.PaddingRight ?? (hostStyle.PaddingLeft ?? defaultX)) + borderWidth;
-        var bottom = (hostStyle.PaddingBottom ?? (hostStyle.PaddingTop ?? resolvedDefaultY)) + borderWidth;
+        var bottom =
+            (hostStyle.PaddingBottom ?? (hostStyle.PaddingTop ?? resolvedDefaultY)) + borderWidth;
         return new ResolvedPadding(left, top, right, bottom);
     }
 
@@ -966,7 +1208,12 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             : SceneBoxSizing.ContentBox;
     }
 
-    private readonly record struct ResolvedPadding(float Left, float Top, float Right, float Bottom);
+    private readonly record struct ResolvedPadding(
+        float Left,
+        float Top,
+        float Right,
+        float Bottom
+    );
 
     private static JsValue GetProperty(JsObject obj, int atom)
     {
@@ -975,7 +1222,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private static JsObject? TryGetObjectProperty(JsObject? obj, int atom)
     {
-        if (obj is null || !obj.TryGetPropertyByAtom(atom, out var value) || !value.TryGetObject(out var nested))
+        if (
+            obj is null
+            || !obj.TryGetPropertyByAtom(atom, out var value)
+            || !value.TryGetObject(out var nested)
+        )
             return null;
 
         return nested;
@@ -983,7 +1234,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private static string? GetStringProperty(JsObject? obj, int atom)
     {
-        if (obj is null || !obj.TryGetPropertyByAtom(atom, out var value) || value.IsNullOrUndefined)
+        if (
+            obj is null
+            || !obj.TryGetPropertyByAtom(atom, out var value)
+            || value.IsNullOrUndefined
+        )
             return null;
 
         return value.TryGetString(out var result) ? result : null;
@@ -1034,7 +1289,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             var values = denseStyle.AsReadOnlySpan();
             for (var index = values.Length - 1; index >= 0; index--)
             {
-                if (values[index].TryGetObject(out var entry) && TryGetStyleProperty(entry, atom, out value))
+                if (
+                    values[index].TryGetObject(out var entry)
+                    && TryGetStyleProperty(entry, atom, out value)
+                )
                     return true;
             }
 
@@ -1046,13 +1304,17 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private static JsObject? TryGetStyleObjectProperty(JsObject? style, int atom)
     {
-        return GetStylePropertyOrUndefined(style, atom).TryGetObject(out var nested) ? nested : null;
+        return GetStylePropertyOrUndefined(style, atom).TryGetObject(out var nested)
+            ? nested
+            : null;
     }
 
     private static string? GetStyleStringProperty(JsObject? style, int atom)
     {
         var value = GetStylePropertyOrUndefined(style, atom);
-        return value.IsNullOrUndefined ? null : value.TryGetString(out var result) ? result : null;
+        return value.IsNullOrUndefined ? null
+            : value.TryGetString(out var result) ? result
+            : null;
     }
 
     private static float? GetNullableStyleFloatProperty(JsObject? style, int atom)
@@ -1091,7 +1353,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             return null;
 
         return new SceneGradient(
-            string.Equals(GetStringProperty(gradient, propertyAtoms.Type), "radial", StringComparison.Ordinal)
+            string.Equals(
+                GetStringProperty(gradient, propertyAtoms.Type),
+                "radial",
+                StringComparison.Ordinal
+            )
                 ? SceneGradientKind.Radial
                 : SceneGradientKind.Linear,
             colors,
@@ -1102,12 +1368,17 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             GetFloatProperty(gradient, propertyAtoms.EndY, 1),
             GetFloatProperty(gradient, propertyAtoms.CenterX, 0.5f),
             GetFloatProperty(gradient, propertyAtoms.CenterY, 0.5f),
-            GetFloatProperty(gradient, propertyAtoms.Radius, 0.5f));
+            GetFloatProperty(gradient, propertyAtoms.Radius, 0.5f)
+        );
     }
 
     private static string[]? ReadStringArray(JsObject? obj, int atom)
     {
-        if (obj is null || !obj.TryGetPropertyByAtom(atom, out var value) || !value.TryGetObject(out var array))
+        if (
+            obj is null
+            || !obj.TryGetPropertyByAtom(atom, out var value)
+            || !value.TryGetObject(out var array)
+        )
             return null;
 
         if (!TryGetArrayLength(array, out var length) || length < 2)
@@ -1116,7 +1387,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         var values = new string[length];
         for (var index = 0; index < length; index++)
         {
-            if (!array.TryGetElement((uint)index, out var item) || !item.TryGetString(out var element))
+            if (
+                !array.TryGetElement((uint)index, out var item)
+                || !item.TryGetString(out var element)
+            )
                 return null;
 
             values[index] = element;
@@ -1127,7 +1401,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private static float[]? ReadFloatArray(JsObject? obj, int atom)
     {
-        if (obj is null || !obj.TryGetPropertyByAtom(atom, out var value) || !value.TryGetObject(out var array))
+        if (
+            obj is null
+            || !obj.TryGetPropertyByAtom(atom, out var value)
+            || !value.TryGetObject(out var array)
+        )
             return null;
 
         return ReadFloatArray(array);
@@ -1153,7 +1431,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private static bool TryGetArrayLength(JsObject array, out int length)
     {
         length = 0;
-        if (!array.TryGetPropertyByAtom(AtomTable.IdLength, out var lengthValue) || !lengthValue.IsNumber)
+        if (
+            !array.TryGetPropertyByAtom(AtomTable.IdLength, out var lengthValue)
+            || !lengthValue.IsNumber
+        )
             return false;
 
         length = lengthValue.IsInt32 ? lengthValue.Int32Value : (int)lengthValue.NumberValue;
@@ -1170,7 +1451,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             GetStringProperty(shader, propertyAtoms.SourceId),
             source,
             GetBoolProperty(shader, propertyAtoms.HostTime),
-            ReadUniforms(TryGetObjectProperty(shader, propertyAtoms.Uniforms)));
+            ReadUniforms(TryGetObjectProperty(shader, propertyAtoms.Uniforms))
+        );
     }
 
     private SceneRuntimeShaderUniform[]? ReadUniforms(JsObject? uniforms)
@@ -1202,13 +1484,29 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (value.IsNullOrUndefined)
             return null;
         if (value.TryGetString(out var str))
-            return new SceneRuntimeShaderUniform(name, SceneRuntimeShaderUniformKind.Color, ColorValue: str);
+            return new SceneRuntimeShaderUniform(
+                name,
+                SceneRuntimeShaderUniformKind.Color,
+                ColorValue: str
+            );
         if (value.IsNumber)
             return value.IsInt32
-                ? new SceneRuntimeShaderUniform(name, SceneRuntimeShaderUniformKind.Int, IntValue: value.Int32Value)
-                : new SceneRuntimeShaderUniform(name, SceneRuntimeShaderUniformKind.Float, FloatValue: (float)value.NumberValue);
+                ? new SceneRuntimeShaderUniform(
+                    name,
+                    SceneRuntimeShaderUniformKind.Int,
+                    IntValue: value.Int32Value
+                )
+                : new SceneRuntimeShaderUniform(
+                    name,
+                    SceneRuntimeShaderUniformKind.Float,
+                    FloatValue: (float)value.NumberValue
+                );
         if (value.TryGetObject(out var array) && TryGetArrayLength(array, out _))
-            return new SceneRuntimeShaderUniform(name, SceneRuntimeShaderUniformKind.FloatArray, FloatArrayValue: ReadFloatArray(array));
+            return new SceneRuntimeShaderUniform(
+                name,
+                SceneRuntimeShaderUniformKind.FloatArray,
+                FloatArrayValue: ReadFloatArray(array)
+            );
         return null;
     }
 
@@ -1225,7 +1523,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         {
             for (var index = 0; index < length; index++)
             {
-                if (!shadowObject.TryGetElement((uint)index, out var item) || !item.TryGetObject(out var entry))
+                if (
+                    !shadowObject.TryGetElement((uint)index, out var item)
+                    || !item.TryGetObject(out var entry)
+                )
                     continue;
 
                 shadows.Add(ReadShadow(entry));
@@ -1246,7 +1547,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             GetFloatProperty(shadow, propertyAtoms.OffsetX),
             GetFloatProperty(shadow, propertyAtoms.OffsetY, 8),
             GetFloatProperty(shadow, propertyAtoms.Blur, 18),
-            GetFloatProperty(shadow, propertyAtoms.Spread));
+            GetFloatProperty(shadow, propertyAtoms.Spread)
+        );
     }
 
     private bool TryGetDynamicProperty(JsObject? obj, string name, out JsValue value)
@@ -1257,7 +1559,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (AtomTable.TryGetArrayIndexFromCanonicalString(name, out var index))
             return obj.TryGetElement(index, out value);
 
-        return obj.TryGetPropertyByAtom(runtime!.MainRealm.Agent.Atoms.InternNoCheck(name), out value);
+        return obj.TryGetPropertyByAtom(
+            runtime!.MainRealm.Agent.Atoms.InternNoCheck(name),
+            out value
+        );
     }
 
     [JsGlobalFunction("nativeHostLog")]
@@ -1269,7 +1574,12 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     }
 
     [JsGlobalFunction("nativeCreateHostNode")]
-    private JsObject NativeCreateHostNode(string type, string runtimeId, string? publicId, JsValue propsValue)
+    private JsObject NativeCreateHostNode(
+        string type,
+        string runtimeId,
+        string? publicId,
+        JsValue propsValue
+    )
     {
         if (runtime is null || propertyAtoms is null)
             throw new InvalidOperationException("Native runtime is not initialized.");
@@ -1280,7 +1590,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             runtimeId,
             publicId,
             propsValue,
-            text: null);
+            text: null
+        );
     }
 
     [JsGlobalFunction("nativeCreateTextNode")]
@@ -1295,7 +1606,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             runtimeId,
             publicId: null,
             JsValue.Undefined,
-            text);
+            text
+        );
     }
 
     [JsGlobalFunction("nativeMarkFullSceneFlush")]
@@ -1305,12 +1617,17 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     }
 
     [JsGlobalFunction("nativeResetAfterCommit")]
-    private void NativeResetAfterCommit(JsValue rootChildrenValue, string backgroundColor = "#08111f")
+    private void NativeResetAfterCommit(
+        JsValue rootChildrenValue,
+        string backgroundColor = "#08111f"
+    )
     {
-        if (runtime is null ||
-            propertyAtoms is null ||
-            stackLayoutCalculator is null ||
-            !rootChildrenValue.TryGetObject(out var rootChildren))
+        if (
+            runtime is null
+            || propertyAtoms is null
+            || stackLayoutCalculator is null
+            || !rootChildrenValue.TryGetObject(out var rootChildren)
+        )
         {
             MarkFullSceneFlush();
             return;
@@ -1320,12 +1637,19 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     }
 
     [JsGlobalFunction("nativeCommitHostUpdate")]
-    private void NativeCommitHostUpdate(JsValue instanceValue, JsValue propsValue, string? publicId, bool layoutAffected)
+    private void NativeCommitHostUpdate(
+        JsValue instanceValue,
+        JsValue propsValue,
+        string? publicId,
+        bool layoutAffected
+    )
     {
-        if (runtime is null ||
-            propertyAtoms is null ||
-            stackLayoutCalculator is null ||
-            !instanceValue.TryGetObject(out var instance))
+        if (
+            runtime is null
+            || propertyAtoms is null
+            || stackLayoutCalculator is null
+            || !instanceValue.TryGetObject(out var instance)
+        )
         {
             MarkFullSceneFlush();
             return;
@@ -1335,7 +1659,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     }
 
     [JsGlobalFunction("nativeHasLayoutAffectingHostPropChange")]
-    private bool NativeHasLayoutAffectingHostPropChange(JsValue oldPropsValue, JsValue newPropsValue)
+    private bool NativeHasLayoutAffectingHostPropChange(
+        JsValue oldPropsValue,
+        JsValue newPropsValue
+    )
     {
         if (runtime is null || propertyAtoms is null)
             return true;
@@ -1346,10 +1673,12 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     [JsGlobalFunction("nativeCommitTextUpdate")]
     private void NativeCommitTextUpdate(JsValue textInstanceValue, string oldText, string newText)
     {
-        if (runtime is null ||
-            propertyAtoms is null ||
-            stackLayoutCalculator is null ||
-            !textInstanceValue.TryGetObject(out var textInstance))
+        if (
+            runtime is null
+            || propertyAtoms is null
+            || stackLayoutCalculator is null
+            || !textInstanceValue.TryGetObject(out var textInstance)
+        )
         {
             MarkFullSceneFlush();
             return;
@@ -1361,9 +1690,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     [JsGlobalFunction("nativeSetNodeHidden")]
     private void NativeSetNodeHidden(JsValue instanceValue, bool hidden)
     {
-        if (runtime is null ||
-            propertyAtoms is null ||
-            !instanceValue.TryGetObject(out var instance))
+        if (
+            runtime is null
+            || propertyAtoms is null
+            || !instanceValue.TryGetObject(out var instance)
+        )
         {
             MarkFullSceneFlush();
             return;
@@ -1375,10 +1706,12 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     [JsGlobalFunction("nativeAppendChild")]
     private bool NativeAppendChild(JsValue parentValue, JsValue childValue)
     {
-        if (runtime is null ||
-            propertyAtoms is null ||
-            !parentValue.TryGetObject(out var parent) ||
-            !childValue.TryGetObject(out var child))
+        if (
+            runtime is null
+            || propertyAtoms is null
+            || !parentValue.TryGetObject(out var parent)
+            || !childValue.TryGetObject(out var child)
+        )
         {
             return false;
         }
@@ -1387,13 +1720,19 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     }
 
     [JsGlobalFunction("nativeInsertChildBefore")]
-    private bool NativeInsertChildBefore(JsValue parentValue, JsValue childValue, JsValue beforeChildValue)
+    private bool NativeInsertChildBefore(
+        JsValue parentValue,
+        JsValue childValue,
+        JsValue beforeChildValue
+    )
     {
-        if (runtime is null ||
-            propertyAtoms is null ||
-            !parentValue.TryGetObject(out var parent) ||
-            !childValue.TryGetObject(out var child) ||
-            !beforeChildValue.TryGetObject(out var beforeChild))
+        if (
+            runtime is null
+            || propertyAtoms is null
+            || !parentValue.TryGetObject(out var parent)
+            || !childValue.TryGetObject(out var child)
+            || !beforeChildValue.TryGetObject(out var beforeChild)
+        )
         {
             return false;
         }
@@ -1404,10 +1743,12 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     [JsGlobalFunction("nativeRemoveChild")]
     private bool NativeRemoveChild(JsValue parentValue, JsValue childValue)
     {
-        if (runtime is null ||
-            propertyAtoms is null ||
-            !parentValue.TryGetObject(out var parent) ||
-            !childValue.TryGetObject(out var child))
+        if (
+            runtime is null
+            || propertyAtoms is null
+            || !parentValue.TryGetObject(out var parent)
+            || !childValue.TryGetObject(out var child)
+        )
         {
             return false;
         }
@@ -1418,9 +1759,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     [JsGlobalFunction("nativeClearChildren")]
     private void NativeClearChildren(JsValue parentValue)
     {
-        if (runtime is null ||
-            propertyAtoms is null ||
-            !parentValue.TryGetObject(out var parent))
+        if (runtime is null || propertyAtoms is null || !parentValue.TryGetObject(out var parent))
         {
             MarkFullSceneFlush();
             return;
@@ -1444,30 +1783,36 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float parentWidth,
         float parentHeight,
         float parentOffsetLeft,
-        float parentOffsetTop)
+        float parentOffsetTop
+    )
     {
         if (propertyAtoms is null)
         {
             return new NativeResolvedContainerLayout(
                 new NativeLayoutInsets(0, 0, 0, 0),
                 new NativeLayoutSize(0, 0),
-                new NativeLayoutOffset(parentOffsetLeft, parentOffsetTop));
+                new NativeLayoutOffset(parentOffsetLeft, parentOffsetTop)
+            );
         }
 
         var style = styleValue.TryGetObject(out var styleObject) ? styleObject : null;
-        var resolved = ResolveContainerLayout(style, Math.Max(0, parentWidth), Math.Max(0, parentHeight), parentOffsetLeft, parentOffsetTop);
+        var resolved = ResolveContainerLayout(
+            style,
+            Math.Max(0, parentWidth),
+            Math.Max(0, parentHeight),
+            parentOffsetLeft,
+            parentOffsetTop
+        );
         return new NativeResolvedContainerLayout(
             new NativeLayoutInsets(
                 resolved.PaddingLeft,
                 resolved.PaddingTop,
                 resolved.PaddingRight,
-                resolved.PaddingBottom),
-            new NativeLayoutSize(
-                resolved.ContentWidth,
-                resolved.ContentHeight),
-            new NativeLayoutOffset(
-                resolved.ContentLeft,
-                resolved.ContentTop));
+                resolved.PaddingBottom
+            ),
+            new NativeLayoutSize(resolved.ContentWidth, resolved.ContentHeight),
+            new NativeLayoutOffset(resolved.ContentLeft, resolved.ContentTop)
+        );
     }
 
     private ResolvedContainerLayoutData ResolveContainerLayout(
@@ -1475,9 +1820,12 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float parentWidth,
         float parentHeight,
         float parentOffsetLeft,
-        float parentOffsetTop)
+        float parentOffsetTop
+    )
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var padding = ResolveContextPaddingInsets(style, atoms);
         var margin = ResolveMarginInsets(style, atoms);
         var frame = ResolveContextFrameMetrics(style, atoms, parentWidth, parentHeight, margin);
@@ -1493,22 +1841,29 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             parentOffsetLeft + frame.Left + padding.Left,
             parentOffsetTop + frame.Top + padding.Top,
             Math.Max(0, frame.Width - padding.Left - padding.Right),
-            Math.Max(0, frame.Height - padding.Top - padding.Bottom));
+            Math.Max(0, frame.Height - padding.Top - padding.Bottom)
+        );
     }
 
-    private static EdgeInsets ResolveContextPaddingInsets(JsObject? style, ReactAppPropertyAtoms atoms)
+    private static EdgeInsets ResolveContextPaddingInsets(
+        JsObject? style,
+        ReactAppPropertyAtoms atoms
+    )
     {
-        var resolvedPaddingX = GetNullableStyleFloatProperty(style, atoms.PaddingHorizontal)
+        var resolvedPaddingX =
+            GetNullableStyleFloatProperty(style, atoms.PaddingHorizontal)
             ?? GetNullableStyleFloatProperty(style, atoms.Padding)
             ?? 0;
-        var resolvedPaddingY = GetNullableStyleFloatProperty(style, atoms.PaddingVertical)
+        var resolvedPaddingY =
+            GetNullableStyleFloatProperty(style, atoms.PaddingVertical)
             ?? GetNullableStyleFloatProperty(style, atoms.Padding)
             ?? 0;
         return new EdgeInsets(
             GetNullableStyleFloatProperty(style, atoms.PaddingLeft) ?? resolvedPaddingX,
             GetNullableStyleFloatProperty(style, atoms.PaddingTop) ?? resolvedPaddingY,
             GetNullableStyleFloatProperty(style, atoms.PaddingRight) ?? resolvedPaddingX,
-            GetNullableStyleFloatProperty(style, atoms.PaddingBottom) ?? resolvedPaddingY);
+            GetNullableStyleFloatProperty(style, atoms.PaddingBottom) ?? resolvedPaddingY
+        );
     }
 
     private static LayoutFrameData ResolveContextFrameMetrics(
@@ -1516,7 +1871,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         ReactAppPropertyAtoms atoms,
         float parentWidth,
         float parentHeight,
-        EdgeInsets margin)
+        EdgeInsets margin
+    )
     {
         return ResolveFrameMetrics(
             new HostFrameProps(
@@ -1532,12 +1888,14 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 LayoutValue.Unset,
                 PositionMode.Relative,
                 CrossAlignment.Auto,
-                LayoutValueUnitFlags.None),
+                LayoutValueUnitFlags.None
+            ),
             parentWidth,
             parentHeight,
             fallbackWidth: 0,
             fallbackHeight: 0,
-            margin);
+            margin
+        );
     }
 
     private void DrainInputQueue()
@@ -1549,47 +1907,61 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 switch (inputEvent.Type)
                 {
                     case HostInputEventType.Move:
-                        Invoke(pointerMoveFunction,
+                        Invoke(
+                            pointerMoveFunction,
                             (double)inputEvent.X,
                             (double)inputEvent.Y,
                             JsValue.FromInt32(inputEvent.Buttons),
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.Down:
-                        Invoke(pointerDownFunction,
+                        Invoke(
+                            pointerDownFunction,
                             JsValue.FromInt32(inputEvent.Button),
                             JsValue.FromInt32(inputEvent.Buttons),
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.Up:
-                        Invoke(pointerUpFunction,
+                        Invoke(
+                            pointerUpFunction,
                             JsValue.FromInt32(inputEvent.Button),
                             JsValue.FromInt32(inputEvent.Buttons),
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.Wheel:
-                        Invoke(wheelFunction,
+                        Invoke(
+                            wheelFunction,
                             (double)inputEvent.DeltaX,
                             (double)inputEvent.DeltaY,
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.KeyDown:
-                        Invoke(keyDownFunction,
+                        Invoke(
+                            keyDownFunction,
                             inputEvent.Key ?? string.Empty,
                             JsValue.FromInt32(inputEvent.Modifiers),
                             inputEvent.Repeat,
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.KeyUp:
-                        Invoke(keyUpFunction,
+                        Invoke(
+                            keyUpFunction,
                             inputEvent.Key ?? string.Empty,
                             JsValue.FromInt32(inputEvent.Modifiers),
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                     case HostInputEventType.TextInput:
-                        Invoke(textInputFunction,
+                        Invoke(
+                            textInputFunction,
                             inputEvent.Text ?? string.Empty,
-                            inputEvent.Synthetic);
+                            inputEvent.Synthetic
+                        );
                         break;
                 }
 
@@ -1613,11 +1985,14 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             if (elapsedMs < state.NextRepeatAtMs)
                 continue;
 
-            var nextInterval = Math.Max(HostInputState.MinimumKeyRepeatIntervalMs, state.IntervalMs * HostInputState.KeyRepeatAccelerationFactor);
+            var nextInterval = Math.Max(
+                HostInputState.MinimumKeyRepeatIntervalMs,
+                state.IntervalMs * HostInputState.KeyRepeatAccelerationFactor
+            );
             inputState.HeldKeys[key] = state with
             {
                 NextRepeatAtMs = elapsedMs + nextInterval,
-                IntervalMs = nextInterval
+                IntervalMs = nextInterval,
             };
 
             if (IsRepeatableKey(key))
@@ -1627,8 +2002,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 continue;
             }
 
-            if (inputState.ActivePrintableRepeat is { Key: var printableKey, Text: var repeatedText, NativeInputAccepted: true } &&
-                string.Equals(printableKey, key, StringComparison.Ordinal))
+            if (
+                inputState.ActivePrintableRepeat
+                    is { Key: var printableKey, Text: var repeatedText, NativeInputAccepted: true }
+                && string.Equals(printableKey, key, StringComparison.Ordinal)
+            )
                 TextInput(repeatedText, synthetic: true);
         }
     }
@@ -1648,13 +2026,25 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private bool TryGetRepeatableTextInput(string key, int modifiers, out string text)
     {
         text = string.Empty;
-        if (focusedTextInputId is null || !textInputs.TryGetValue(focusedTextInputId, out var state))
+        if (
+            focusedTextInputId is null
+            || !textInputs.TryGetValue(focusedTextInputId, out var state)
+        )
             return false;
 
         if (state.ImeOpen || state.CompositionText.Length > 0)
             return false;
 
-        if ((modifiers & (HostInputState.ControlModifier | HostInputState.AltModifier | HostInputState.MetaModifier)) != 0)
+        if (
+            (
+                modifiers
+                & (
+                    HostInputState.ControlModifier
+                    | HostInputState.AltModifier
+                    | HostInputState.MetaModifier
+                )
+            ) != 0
+        )
             return false;
 
         var shifted = (modifiers & HostInputState.ShiftModifier) != 0;
@@ -1664,8 +2054,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             return true;
         }
 
-        if (TryMapRepeatableDigitKey(key, shifted, out text) ||
-            TryMapRepeatablePunctuationKey(key, shifted, out text))
+        if (
+            TryMapRepeatableDigitKey(key, shifted, out text)
+            || TryMapRepeatablePunctuationKey(key, shifted, out text)
+        )
             return true;
 
         return false;
@@ -1695,7 +2087,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             "Keypad7" => "7",
             "Keypad8" => "8",
             "Keypad9" => "9",
-            _ => string.Empty
+            _ => string.Empty,
         };
 
         return text.Length > 0;
@@ -1725,7 +2117,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             "KeypadSubtract" => "-",
             "KeypadMultiply" => "*",
             "KeypadDivide" => "/",
-            _ => string.Empty
+            _ => string.Empty,
         };
 
         return text.Length > 0;
@@ -1779,10 +2171,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (textInputs.TryGetValue(id, out var existing))
             return existing;
 
-        var created = new NativeTextInputState(id)
-        {
-            ZOrder = ++nextTextInputZOrder
-        };
+        var created = new NativeTextInputState(id) { ZOrder = ++nextTextInputZOrder };
         textInputs[id] = created;
         return created;
     }
@@ -1792,10 +2181,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (scrollViews.TryGetValue(id, out var existing))
             return existing;
 
-        var created = new NativeScrollViewState(id)
-        {
-            ZOrder = ++nextScrollViewZOrder
-        };
+        var created = new NativeScrollViewState(id) { ZOrder = ++nextScrollViewZOrder };
         scrollViews[id] = created;
         return created;
     }
@@ -1815,10 +2201,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (hoverTargets.TryGetValue(id, out var existing))
             return existing;
 
-        var created = new NativeHoverTargetState(id)
-        {
-            ZOrder = ++nextHoverTargetZOrder
-        };
+        var created = new NativeHoverTargetState(id) { ZOrder = ++nextHoverTargetZOrder };
         hoverTargets[id] = created;
         return created;
     }
@@ -1843,14 +2226,20 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         var targetDepth = -1;
         foreach (var state in textInputs.Values)
         {
-            if (!TryGetNodeVisibleScreenBounds(state.Id, out var bounds) ||
-                x < bounds.Left ||
-                y < bounds.Top ||
-                x > bounds.Right ||
-                y > bounds.Bottom)
+            if (
+                !TryGetNodeVisibleScreenBounds(state.Id, out var bounds)
+                || x < bounds.Left
+                || y < bounds.Top
+                || x > bounds.Right
+                || y > bounds.Bottom
+            )
                 continue;
 
-            if (target is null || bounds.Depth > targetDepth || (bounds.Depth == targetDepth && state.ZOrder > target.ZOrder))
+            if (
+                target is null
+                || bounds.Depth > targetDepth
+                || (bounds.Depth == targetDepth && state.ZOrder > target.ZOrder)
+            )
             {
                 target = state;
                 targetDepth = bounds.Depth;
@@ -1869,14 +2258,24 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         SceneScreenBounds bestScrollableBounds = default;
         foreach (var state in scrollViews.Values)
         {
-            if (!TryGetNodeVisibleScreenBounds(state.Id, out var bounds) ||
-                x < bounds.Left ||
-                y < bounds.Top ||
-                x > bounds.Right ||
-                y > bounds.Bottom)
+            if (
+                !TryGetNodeVisibleScreenBounds(state.Id, out var bounds)
+                || x < bounds.Left
+                || y < bounds.Top
+                || x > bounds.Right
+                || y > bounds.Bottom
+            )
                 continue;
 
-            if (bestMatch is null || SceneScreenBounds.IsHigherPriority(bounds, state.ZOrder, bestMatchBounds, bestMatch.ZOrder))
+            if (
+                bestMatch is null
+                || SceneScreenBounds.IsHigherPriority(
+                    bounds,
+                    state.ZOrder,
+                    bestMatchBounds,
+                    bestMatch.ZOrder
+                )
+            )
             {
                 bestMatch = state;
                 bestMatchBounds = bounds;
@@ -1885,7 +2284,15 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             if (!CanScrollBy(state, deltaX, deltaY))
                 continue;
 
-            if (bestScrollableMatch is null || SceneScreenBounds.IsHigherPriority(bounds, state.ZOrder, bestScrollableBounds, bestScrollableMatch.ZOrder))
+            if (
+                bestScrollableMatch is null
+                || SceneScreenBounds.IsHigherPriority(
+                    bounds,
+                    state.ZOrder,
+                    bestScrollableBounds,
+                    bestScrollableMatch.ZOrder
+                )
+            )
             {
                 bestScrollableMatch = state;
                 bestScrollableBounds = bounds;
@@ -1904,20 +2311,42 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float targetGrabOffset = 0;
         foreach (var state in scrollViews.Values)
         {
-            if (!TryGetScrollViewScreenBox(commit, state, out var screenBox, out var bounds) ||
-                !TryGetNodeVisibleScreenBounds(commit, ToSceneNodeId(state.Id), out var visibleBounds) ||
-                x < visibleBounds.Left ||
-                y < visibleBounds.Top ||
-                x > visibleBounds.Right ||
-                y > visibleBounds.Bottom)
+            if (
+                !TryGetScrollViewScreenBox(commit, state, out var screenBox, out var bounds)
+                || !TryGetNodeVisibleScreenBounds(
+                    commit,
+                    ToSceneNodeId(state.Id),
+                    out var visibleBounds
+                )
+                || x < visibleBounds.Left
+                || y < visibleBounds.Top
+                || x > visibleBounds.Right
+                || y > visibleBounds.Bottom
+            )
             {
                 continue;
             }
 
-            if (!SceneScrollBarDragController.TryHitThumb(screenBox, x, y, out var hitAxis, out var grabOffset))
+            if (
+                !SceneScrollBarDragController.TryHitThumb(
+                    screenBox,
+                    x,
+                    y,
+                    out var hitAxis,
+                    out var grabOffset
+                )
+            )
                 continue;
 
-            if (target is null || SceneScreenBounds.IsHigherPriority(bounds, state.ZOrder, targetBounds, target.ZOrder))
+            if (
+                target is null
+                || SceneScreenBounds.IsHigherPriority(
+                    bounds,
+                    state.ZOrder,
+                    targetBounds,
+                    target.ZOrder
+                )
+            )
             {
                 target = state;
                 targetBounds = bounds;
@@ -1935,8 +2364,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private bool UpdateActiveScrollBarDrag(float pointerX, float pointerY)
     {
-        if (!activeScrollBarDrag.HasScrollViewId ||
-            !scrollViews.TryGetValue(activeScrollBarDrag.ScrollViewId, out var state))
+        if (
+            !activeScrollBarDrag.HasScrollViewId
+            || !scrollViews.TryGetValue(activeScrollBarDrag.ScrollViewId, out var state)
+        )
         {
             return false;
         }
@@ -1948,7 +2379,15 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             return false;
         }
 
-        if (!SceneScrollBarDragController.TryUpdate(activeScrollBarDrag, screenBox, state, pointerX, pointerY))
+        if (
+            !SceneScrollBarDragController.TryUpdate(
+                activeScrollBarDrag,
+                screenBox,
+                state,
+                pointerX,
+                pointerY
+            )
+        )
         {
             ClearActiveScrollBarDrag();
             return false;
@@ -1973,7 +2412,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (focusedTextInputId == id)
             return;
 
-        if (focusedTextInputId is { } previousId && textInputs.TryGetValue(previousId, out var previous))
+        if (
+            focusedTextInputId is { } previousId
+            && textInputs.TryGetValue(previousId, out var previous)
+        )
         {
             previous.IsFocused = false;
             previous.IsSelectingWithMouse = false;
@@ -2036,20 +2478,35 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         return TryResolveHoverTarget(commit, x, y, out _) is not null;
     }
 
-    private NativeHoverTargetState? TryResolveHoverTarget(SceneLayoutCommit commit, float x, float y, out SceneScreenBounds targetBounds)
+    private NativeHoverTargetState? TryResolveHoverTarget(
+        SceneLayoutCommit commit,
+        float x,
+        float y,
+        out SceneScreenBounds targetBounds
+    )
     {
         NativeHoverTargetState? target = null;
         targetBounds = default;
         foreach (var state in hoverTargets.Values)
         {
-            if (!TryGetNodeVisibleScreenBounds(commit, ToSceneNodeId(state.Id), out var bounds) ||
-                x < bounds.Left ||
-                y < bounds.Top ||
-                x > bounds.Right ||
-                y > bounds.Bottom)
+            if (
+                !TryGetNodeVisibleScreenBounds(commit, ToSceneNodeId(state.Id), out var bounds)
+                || x < bounds.Left
+                || y < bounds.Top
+                || x > bounds.Right
+                || y > bounds.Bottom
+            )
                 continue;
 
-            if (target is null || SceneScreenBounds.IsHigherPriority(bounds, state.ZOrder, targetBounds, target.ZOrder))
+            if (
+                target is null
+                || SceneScreenBounds.IsHigherPriority(
+                    bounds,
+                    state.ZOrder,
+                    targetBounds,
+                    target.ZOrder
+                )
+            )
             {
                 target = state;
                 targetBounds = bounds;
@@ -2077,7 +2534,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         HoverTargetHeight = 0;
     }
 
-    private (float Left, float Top, float Width, float Height) MeasureTooltip(string text, SceneScreenBounds bounds)
+    private (float Left, float Top, float Width, float Height) MeasureTooltip(
+        string text,
+        SceneScreenBounds bounds
+    )
     {
         const float fontSize = 13;
         const float paddingX = 10;
@@ -2085,19 +2545,35 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         const float edgeMargin = 8;
         const float pointerGap = 10;
 
-        var textWidth = backendServices.Text.MeasureTextWidth(text, new SceneTextStyle(fontSize, Font: new SceneFont(fontSize, Weight: 500)));
-        var width = MathF.Min(MathF.Max(32f, textWidth + paddingX * 2), MathF.Max(32f, Width - edgeMargin * 2));
+        var textWidth = backendServices.Text.MeasureTextWidth(
+            text,
+            new SceneTextStyle(fontSize, Font: new SceneFont(fontSize, Weight: 500))
+        );
+        var width = MathF.Min(
+            MathF.Max(32f, textWidth + paddingX * 2),
+            MathF.Max(32f, Width - edgeMargin * 2)
+        );
         var height = fontSize + paddingY * 2;
-        var left = Math.Clamp(bounds.Left + (bounds.Right - bounds.Left - width) * 0.5f, edgeMargin, MathF.Max(edgeMargin, Width - width - edgeMargin));
+        var left = Math.Clamp(
+            bounds.Left + (bounds.Right - bounds.Left - width) * 0.5f,
+            edgeMargin,
+            MathF.Max(edgeMargin, Width - width - edgeMargin)
+        );
         var top = bounds.Top - height - pointerGap;
         if (top < edgeMargin)
-            top = MathF.Min(MathF.Max(edgeMargin, bounds.Bottom + pointerGap), MathF.Max(edgeMargin, Height - height - edgeMargin));
+            top = MathF.Min(
+                MathF.Max(edgeMargin, bounds.Bottom + pointerGap),
+                MathF.Max(edgeMargin, Height - height - edgeMargin)
+            );
         return (left, top, width, height);
     }
 
     private void ApplyFocusedTextInputText(string text)
     {
-        if (focusedTextInputId is null || !textInputs.TryGetValue(focusedTextInputId, out var state))
+        if (
+            focusedTextInputId is null
+            || !textInputs.TryGetValue(focusedTextInputId, out var state)
+        )
             return;
 
         textInputController.ApplyTextInput(state, text);
@@ -2105,7 +2581,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private void HandleFocusedTextInputKey(string key, int modifiers)
     {
-        if (focusedTextInputId is null || !textInputs.TryGetValue(focusedTextInputId, out var state))
+        if (
+            focusedTextInputId is null
+            || !textInputs.TryGetValue(focusedTextInputId, out var state)
+        )
             return;
 
         textInputController.HandleKey(state, key, modifiers);
@@ -2113,9 +2592,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private void UpdateTextInputLayout(NativeTextInputState state)
     {
-        InvalidateRender(state.CompositionText.Length > 0 || state.ImeOpen
-            ? SceneDamageReason.Composition
-            : SceneDamageReason.TextInput);
+        InvalidateRender(
+            state.CompositionText.Length > 0 || state.ImeOpen
+                ? SceneDamageReason.Composition
+                : SceneDamageReason.TextInput
+        );
         var borderColor = state.IsFocused
             ? state.ActiveBorderColor ?? state.BorderColor ?? "#60a5fa"
             : state.BorderColor ?? "#334155";
@@ -2160,7 +2641,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 CompositionUnderlineColor: state.CompositionUnderlineColor,
                 CompositionSelectionUnderlineColor: state.CompositionSelectionUnderlineColor,
                 ImeOpen: state.IsFocused && state.ImeOpen,
-                ImeIndicator: state.IsFocused ? state.ImeIndicator : null));
+                ImeIndicator: state.IsFocused ? state.ImeIndicator : null
+            )
+        );
     }
 
     private void UpdateScrollViewLayout(NativeScrollViewState state, bool invalidateRender = true)
@@ -2172,11 +2655,12 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             SceneNodeKind.ScrollView,
             ToSceneNodeId(state.ParentId),
             state.Id,
-            CreateScrollViewLayoutBox(state));
+            CreateScrollViewLayoutBox(state)
+        );
     }
 
-    private static SceneLayoutBox CreateScrollViewLayoutBox(NativeScrollViewState state)
-        => new(
+    private static SceneLayoutBox CreateScrollViewLayoutBox(NativeScrollViewState state) =>
+        new(
             SceneNodeKind.ScrollView,
             state.Left,
             state.Top,
@@ -2200,30 +2684,54 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             HorizontalScrollEnabled: state.HorizontalScrollEnabled,
             BackgroundGradient: state.BackgroundGradient,
             BackgroundShader: state.BackgroundShader,
-            BackgroundShadows: state.BackgroundShadows);
+            BackgroundShadows: state.BackgroundShadows
+        );
 
     private SceneLayoutCommit SyncScrollViewLayoutFromCommit(SceneLayoutCommit commit)
     {
         var layoutChanged = false;
         foreach (var state in scrollViews.Values)
         {
-            if (!commit.Layout.TryGetValue(ToSceneNodeId(state.Id), out var box) || box.NodeKind != SceneNodeKind.ScrollView)
+            if (
+                !commit.Layout.TryGetValue(ToSceneNodeId(state.Id), out var box)
+                || box.NodeKind != SceneNodeKind.ScrollView
+            )
                 continue;
 
             var nextContentWidth = state.HorizontalScrollEnabled
                 ? Math.Max(state.Width, box.ContentWidth)
                 : state.Width;
             var nextContentHeight = Math.Max(state.Height, box.ContentHeight);
-            var nextScrollX = SceneScrollMetrics.ClampScrollX(state.ScrollX, state.Width, nextContentWidth, state.HorizontalScrollEnabled);
-            var nextScrollY = SceneScrollMetrics.ClampScrollY(state.ScrollY, state.Height, nextContentHeight);
-            var nextTargetScrollX = SceneScrollMetrics.ClampScrollX(state.TargetScrollX, state.Width, nextContentWidth, state.HorizontalScrollEnabled);
-            var nextTargetScrollY = SceneScrollMetrics.ClampScrollY(state.TargetScrollY, state.Height, nextContentHeight);
-            if (Math.Abs(state.ContentWidth - nextContentWidth) <= 0.001f &&
-                Math.Abs(state.ContentHeight - nextContentHeight) <= 0.001f &&
-                Math.Abs(state.ScrollX - nextScrollX) <= 0.001f &&
-                Math.Abs(state.ScrollY - nextScrollY) <= 0.001f &&
-                Math.Abs(state.TargetScrollX - nextTargetScrollX) <= 0.001f &&
-                Math.Abs(state.TargetScrollY - nextTargetScrollY) <= 0.001f)
+            var nextScrollX = SceneScrollMetrics.ClampScrollX(
+                state.ScrollX,
+                state.Width,
+                nextContentWidth,
+                state.HorizontalScrollEnabled
+            );
+            var nextScrollY = SceneScrollMetrics.ClampScrollY(
+                state.ScrollY,
+                state.Height,
+                nextContentHeight
+            );
+            var nextTargetScrollX = SceneScrollMetrics.ClampScrollX(
+                state.TargetScrollX,
+                state.Width,
+                nextContentWidth,
+                state.HorizontalScrollEnabled
+            );
+            var nextTargetScrollY = SceneScrollMetrics.ClampScrollY(
+                state.TargetScrollY,
+                state.Height,
+                nextContentHeight
+            );
+            if (
+                Math.Abs(state.ContentWidth - nextContentWidth) <= 0.001f
+                && Math.Abs(state.ContentHeight - nextContentHeight) <= 0.001f
+                && Math.Abs(state.ScrollX - nextScrollX) <= 0.001f
+                && Math.Abs(state.ScrollY - nextScrollY) <= 0.001f
+                && Math.Abs(state.TargetScrollX - nextTargetScrollX) <= 0.001f
+                && Math.Abs(state.TargetScrollY - nextTargetScrollY) <= 0.001f
+            )
             {
                 continue;
             }
@@ -2241,7 +2749,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         return layoutChanged ? sceneStore.Snapshot() : commit;
     }
 
-    private void MoveSelectionCaret(NativeTextInputState state, int caretIndex, bool extendSelection)
+    private void MoveSelectionCaret(
+        NativeTextInputState state,
+        int caretIndex,
+        bool extendSelection
+    )
     {
         textInputController.MoveSelectionCaret(state, caretIndex, extendSelection);
     }
@@ -2268,29 +2780,38 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             state.Color,
             TextAlign: state.TextAlign,
             WrapText: state.Multiline,
-            Font: new SceneFont(state.FontSize, state.FontFamily, state.FontWeight));
+            Font: new SceneFont(state.FontSize, state.FontFamily, state.FontWeight)
+        );
     }
 
-    private static SceneTextStyle CreateSceneTextStyle(HostStyle style)
-        => new(
+    private static SceneTextStyle CreateSceneTextStyle(HostStyle style) =>
+        new(
             style.FontSize,
             style.Color,
             TextAlign: ParseTextAlign(style.TextAlign),
             WrapText: style.WrapText,
-            Font: new SceneFont(style.FontSize, style.FontFamily, style.FontWeight));
+            Font: new SceneFont(style.FontSize, style.FontFamily, style.FontWeight)
+        );
 
     private string ResolveAssetPath(string source)
     {
         var request = new RuntimeAssetRequest(
             source,
             entrySource.AssetBasePath,
-            IsExplicitRelativeAssetPath(source) ? entrySource.DisplayPath : null);
+            IsExplicitRelativeAssetPath(source) ? entrySource.DisplayPath : null
+        );
         var resolved = assetService.Resolve(request);
         var materializedPath = assetService.Materialize(resolved);
         if (resolved.IsResolved)
-            Log(RuntimeDiagnosticArea.Assets, $"resolved asset '{source}' against '{entrySource.AssetBasePath}' -> '{materializedPath}' ({resolved.Kind})");
+            Log(
+                RuntimeDiagnosticArea.Assets,
+                $"resolved asset '{source}' against '{entrySource.AssetBasePath}' -> '{materializedPath}' ({resolved.Kind})"
+            );
         else
-            Log(RuntimeDiagnosticArea.Assets, $"asset '{source}' was unresolved against '{entrySource.AssetBasePath}', using '{materializedPath}'");
+            Log(
+                RuntimeDiagnosticArea.Assets,
+                $"asset '{source}' was unresolved against '{entrySource.AssetBasePath}', using '{materializedPath}'"
+            );
         return materializedPath;
     }
 
@@ -2299,10 +2820,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (string.IsNullOrWhiteSpace(source))
             return false;
 
-        return source.StartsWith(".\\", StringComparison.Ordinal) ||
-               source.StartsWith("./", StringComparison.Ordinal) ||
-               source.StartsWith("..\\", StringComparison.Ordinal) ||
-               source.StartsWith("../", StringComparison.Ordinal);
+        return source.StartsWith(".\\", StringComparison.Ordinal)
+            || source.StartsWith("./", StringComparison.Ordinal)
+            || source.StartsWith("..\\", StringComparison.Ordinal)
+            || source.StartsWith("../", StringComparison.Ordinal);
     }
 
     private int HitTestCaretIndex(NativeTextInputState state, float pointerX, float pointerY)
@@ -2323,7 +2844,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             state.LineHeight,
             Math.Max(0, state.Width - state.PaddingLeft - state.PaddingRight),
             localX,
-            localY);
+            localY
+        );
     }
 
     private void NotifyTextInputEvent(NativeTextInputState state, string kind)
@@ -2340,7 +2862,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             kind,
             state.Text,
             JsValue.FromInt32(state.CaretIndex),
-            state.IsFocused);
+            state.IsFocused
+        );
         runtime.MainRealm.PumpJobs();
     }
 
@@ -2355,13 +2878,20 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             {
                 if (!string.IsNullOrEmpty(state.PlaceholderSource))
                 {
-                    var placeholderResult = backendServices.Images.ResolveImage(state.PlaceholderSource);
+                    var placeholderResult = backendServices.Images.ResolveImage(
+                        state.PlaceholderSource
+                    );
                     var nextPlaceholderState = MapImageLoadState(placeholderResult.State);
                     if (state.PlaceholderLoadState != nextPlaceholderState)
                     {
                         state.PlaceholderLoadState = nextPlaceholderState;
                         if (nextPlaceholderState == NativeImageLoadState.Failed)
-                            LogImageLoadFailure("placeholder", state.RequestedPlaceholderSource, state.PlaceholderSource, placeholderResult);
+                            LogImageLoadFailure(
+                                "placeholder",
+                                state.RequestedPlaceholderSource,
+                                state.PlaceholderSource,
+                                placeholderResult
+                            );
                         InvalidateRender(SceneDamageReason.ImageReady);
                     }
                 }
@@ -2376,7 +2906,12 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             else if (nextState == NativeImageLoadState.Failed)
             {
                 LogImageLoadFailure("image", state.RequestedSource, state.Source, result);
-                NotifyImageEvent(state, "error", state.RequestedSource, result.Error ?? "Image loading failed.");
+                NotifyImageEvent(
+                    state,
+                    "error",
+                    state.RequestedSource,
+                    result.Error ?? "Image loading failed."
+                );
             }
         }
     }
@@ -2388,36 +2923,57 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             RuntimeImageResolveState.Pending => NativeImageLoadState.Pending,
             RuntimeImageResolveState.Ready => NativeImageLoadState.Loaded,
             RuntimeImageResolveState.Failed => NativeImageLoadState.Failed,
-            _ => NativeImageLoadState.Pending
+            _ => NativeImageLoadState.Pending,
         };
     }
 
-    private void NotifyImageEvent(NativeImageState state, string kind, string source, string? detail)
+    private void NotifyImageEvent(
+        NativeImageState state,
+        string kind,
+        string source,
+        string? detail
+    )
     {
         if (imageEventFunction is null || runtime is null)
             return;
 
-        Invoke(
-            imageEventFunction,
-            state.Id,
-            kind,
-            source,
-            detail ?? string.Empty);
+        Invoke(imageEventFunction, state.Id, kind, source, detail ?? string.Empty);
         runtime.MainRealm.PumpJobs();
     }
 
-    private void LogImageLoadFailure(string kind, string requestedSource, string resolvedSource, RuntimeImageResolveResult result)
+    private void LogImageLoadFailure(
+        string kind,
+        string requestedSource,
+        string resolvedSource,
+        RuntimeImageResolveResult result
+    )
     {
-        var resolvedPath = string.IsNullOrWhiteSpace(result.LocalPath) ? resolvedSource : result.LocalPath;
+        var resolvedPath = string.IsNullOrWhiteSpace(result.LocalPath)
+            ? resolvedSource
+            : result.LocalPath;
         var detail = result.Error ?? "Image loading failed.";
-        var message = $"{kind} load failed: requested='{requestedSource}', resolved='{resolvedPath}', detail='{detail}'";
+        var message =
+            $"{kind} load failed: requested='{requestedSource}', resolved='{resolvedPath}', detail='{detail}'";
         Console.Error.WriteLine($"[{DiagnosticSourceName}:image-error] {message}");
         Log(RuntimeDiagnosticArea.Assets, message);
     }
 
     private static bool IsRepeatableKey(string key)
     {
-        return key is "Backspace" or "BackSpace" or "Delete" or "Left" or "Right" or "Up" or "Down" or "ArrowLeft" or "ArrowRight" or "ArrowUp" or "ArrowDown" or "Home" or "End";
+        return key
+            is "Backspace"
+                or "BackSpace"
+                or "Delete"
+                or "Left"
+                or "Right"
+                or "Up"
+                or "Down"
+                or "ArrowLeft"
+                or "ArrowRight"
+                or "ArrowUp"
+                or "ArrowDown"
+                or "Home"
+                or "End";
     }
 
     private bool IsDoubleClick(string id, float x, float y)
@@ -2436,21 +2992,35 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (state is null)
             return;
 
-        if (SceneSmoothScrollController.ApplyWheelTarget(state, CreateScrollViewLayoutBox(state), deltaX, deltaY))
+        if (
+            SceneSmoothScrollController.ApplyWheelTarget(
+                state,
+                CreateScrollViewLayoutBox(state),
+                deltaX,
+                deltaY
+            )
+        )
         {
             InvalidateRender(SceneDamageReason.Scroll);
             RenderWakeRequested?.Invoke();
         }
     }
 
-    private NativeScrollViewState? ResolveWheelScrollView(float x, float y, float deltaX, float deltaY, double elapsedMs)
+    private NativeScrollViewState? ResolveWheelScrollView(
+        float x,
+        float y,
+        float deltaX,
+        float deltaY,
+        double elapsedMs
+    )
     {
-        var id = wheelScrollTargetLatch.TryUseActive(elapsedMs, out var activeId) &&
-                 scrollViews.ContainsKey(activeId)
-            ? activeId
+        var id =
+            wheelScrollTargetLatch.TryUseActive(elapsedMs, out var activeId)
+            && scrollViews.ContainsKey(activeId)
+                ? activeId
             : FindScrollViewAt(x, y, deltaX, deltaY)?.Id is { } foundId
                 ? wheelScrollTargetLatch.SetActive(foundId)
-                : wheelScrollTargetLatch.ClearActiveTarget();
+            : wheelScrollTargetLatch.ClearActiveTarget();
         return id is not null && scrollViews.TryGetValue(id, out var state) ? state : null;
     }
 
@@ -2464,11 +3034,17 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (textInputs.Count == 0)
             return false;
 
-        var ordered = textInputs.Values
-            .Select(state =>
+        var ordered = textInputs
+            .Values.Select(state =>
             {
                 if (!TryGetNodeScreenBounds(state.Id, out var bounds))
-                    bounds = new SceneScreenBounds(state.Left, state.Top, state.Left + state.Width, state.Top + state.Height, 0);
+                    bounds = new SceneScreenBounds(
+                        state.Left,
+                        state.Top,
+                        state.Left + state.Width,
+                        state.Top + state.Height,
+                        0
+                    );
                 return (State: state, Bounds: bounds);
             })
             .OrderBy(entry => entry.Bounds.Top)
@@ -2478,10 +3054,14 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (ordered.Length == 0)
             return false;
 
-        var currentIndex = Array.FindIndex(ordered, entry => string.Equals(entry.State.Id, focusedTextInputId, StringComparison.Ordinal));
-        var nextIndex = currentIndex < 0
-            ? (forward ? 0 : ordered.Length - 1)
-            : (currentIndex + (forward ? 1 : -1) + ordered.Length) % ordered.Length;
+        var currentIndex = Array.FindIndex(
+            ordered,
+            entry => string.Equals(entry.State.Id, focusedTextInputId, StringComparison.Ordinal)
+        );
+        var nextIndex =
+            currentIndex < 0
+                ? (forward ? 0 : ordered.Length - 1)
+                : (currentIndex + (forward ? 1 : -1) + ordered.Length) % ordered.Length;
         SetFocusedTextInput(ordered[nextIndex].State.Id);
         return true;
     }
@@ -2493,7 +3073,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
         foreach (var scrollViewId in GetAncestorScrollViewIds(state.Id))
         {
-            if (!scrollViews.TryGetValue(scrollViewId, out var scrollState) || !TryGetNodeScreenBounds(scrollViewId, out var scrollBounds))
+            if (
+                !scrollViews.TryGetValue(scrollViewId, out var scrollState)
+                || !TryGetNodeScreenBounds(scrollViewId, out var scrollBounds)
+            )
                 continue;
 
             var delta = 0f;
@@ -2524,7 +3107,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             state.ContentHeight,
             state.HorizontalScrollEnabled,
             deltaX,
-            deltaY);
+            deltaY
+        );
     }
 
     private IEnumerable<string> GetAncestorScrollViewIds(string nodeId)
@@ -2552,26 +3136,33 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private bool TryGetNodeScreenBounds(string nodeId, out SceneScreenBounds bounds)
     {
         var commit = sceneStore.Snapshot();
-        return SceneScreenGeometry.TryGetNodeScreenBounds(commit, ToSceneNodeId(nodeId), out bounds);
+        return SceneScreenGeometry.TryGetNodeScreenBounds(
+            commit,
+            ToSceneNodeId(nodeId),
+            out bounds
+        );
     }
 
-    private bool TryGetScrollViewScreenBox(SceneLayoutCommit commit, NativeScrollViewState state, out SceneLayoutBox box, out SceneScreenBounds bounds)
+    private bool TryGetScrollViewScreenBox(
+        SceneLayoutCommit commit,
+        NativeScrollViewState state,
+        out SceneLayoutBox box,
+        out SceneScreenBounds bounds
+    )
     {
         box = default!;
         bounds = default;
         var sceneNodeId = ToSceneNodeId(state.Id);
-        if (!commit.Layout.TryGetValue(sceneNodeId, out var layoutBox) ||
-            layoutBox.NodeKind != SceneNodeKind.ScrollView ||
-            !SceneScreenGeometry.TryGetNodeScreenBounds(commit, sceneNodeId, out bounds))
+        if (
+            !commit.Layout.TryGetValue(sceneNodeId, out var layoutBox)
+            || layoutBox.NodeKind != SceneNodeKind.ScrollView
+            || !SceneScreenGeometry.TryGetNodeScreenBounds(commit, sceneNodeId, out bounds)
+        )
         {
             return false;
         }
 
-        box = layoutBox with
-        {
-            AbsLeft = bounds.Left,
-            AbsTop = bounds.Top
-        };
+        box = layoutBox with { AbsLeft = bounds.Left, AbsTop = bounds.Top };
         return true;
     }
 
@@ -2583,7 +3174,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 (int)MathF.Round(screenBounds.Left),
                 (int)MathF.Round(screenBounds.Top),
                 (int)MathF.Round(screenBounds.Right - screenBounds.Left),
-                (int)MathF.Round(screenBounds.Bottom - screenBounds.Top));
+                (int)MathF.Round(screenBounds.Bottom - screenBounds.Top)
+            );
             return true;
         }
 
@@ -2603,27 +3195,55 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         return TryGetNodeVisibleScreenBounds(commit, ToSceneNodeId(nodeId), out bounds);
     }
 
-    private static bool TryGetNodeVisibleScreenBounds(SceneLayoutCommit commit, SceneNodeId nodeId, out SceneScreenBounds bounds)
+    private static bool TryGetNodeVisibleScreenBounds(
+        SceneLayoutCommit commit,
+        SceneNodeId nodeId,
+        out SceneScreenBounds bounds
+    )
     {
         bounds = default;
         if (!SceneScreenGeometry.TryGetNodeScreenBounds(commit, nodeId, out var screenBounds))
             return false;
 
-        var clipped = IntersectWithClippingAncestorViewports(commit, nodeId, screenBounds.Left, screenBounds.Top, screenBounds.Right, screenBounds.Bottom);
+        var clipped = IntersectWithClippingAncestorViewports(
+            commit,
+            nodeId,
+            screenBounds.Left,
+            screenBounds.Top,
+            screenBounds.Right,
+            screenBounds.Bottom
+        );
         if (clipped is null)
             return false;
 
-        bounds = new SceneScreenBounds(clipped.Value.Left, clipped.Value.Top, clipped.Value.Right, clipped.Value.Bottom, screenBounds.Depth);
+        bounds = new SceneScreenBounds(
+            clipped.Value.Left,
+            clipped.Value.Top,
+            clipped.Value.Right,
+            clipped.Value.Bottom,
+            screenBounds.Depth
+        );
         return bounds.Right > bounds.Left && bounds.Bottom > bounds.Top;
     }
 
-    private static bool TryGetNodeVisibleScreenRect(SceneLayoutCommit commit, SceneNodeId nodeId, out SceneDamageRect bounds)
+    private static bool TryGetNodeVisibleScreenRect(
+        SceneLayoutCommit commit,
+        SceneNodeId nodeId,
+        out SceneDamageRect bounds
+    )
     {
         bounds = default;
         if (!SceneScreenGeometry.TryGetNodeScreenBounds(commit, nodeId, out var screenBounds))
             return false;
 
-        var clipped = IntersectWithClippingAncestorViewports(commit, nodeId, screenBounds.Left, screenBounds.Top, screenBounds.Right, screenBounds.Bottom);
+        var clipped = IntersectWithClippingAncestorViewports(
+            commit,
+            nodeId,
+            screenBounds.Left,
+            screenBounds.Top,
+            screenBounds.Right,
+            screenBounds.Bottom
+        );
         if (clipped is null)
             return false;
 
@@ -2631,7 +3251,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             (int)Math.Floor(clipped.Value.Left),
             (int)Math.Floor(clipped.Value.Top),
             (int)Math.Ceiling(clipped.Value.Right - clipped.Value.Left),
-            (int)Math.Ceiling(clipped.Value.Bottom - clipped.Value.Top));
+            (int)Math.Ceiling(clipped.Value.Bottom - clipped.Value.Top)
+        );
         return bounds.Width > 0 && bounds.Height > 0;
     }
 
@@ -2641,8 +3262,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         var currentId = nodeId;
         while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
         {
-            if (commit.Layout.TryGetValue(parentId, out var parentBox) &&
-                parentBox.NodeKind == SceneNodeKind.ScrollView)
+            if (
+                commit.Layout.TryGetValue(parentId, out var parentBox)
+                && parentBox.NodeKind == SceneNodeKind.ScrollView
+            )
             {
                 offsetY += parentBox.ScrollY;
             }
@@ -2659,8 +3282,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         var currentId = nodeId;
         while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
         {
-            if (commit.Layout.TryGetValue(parentId, out var parentBox) &&
-                parentBox.NodeKind == SceneNodeKind.ScrollView)
+            if (
+                commit.Layout.TryGetValue(parentId, out var parentBox)
+                && parentBox.NodeKind == SceneNodeKind.ScrollView
+            )
             {
                 offsetX += parentBox.ScrollX;
             }
@@ -2677,19 +3302,23 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float left,
         float top,
         float right,
-        float bottom)
+        float bottom
+    )
     {
         VisibleScreenRect? result = VisibleScreenRect.Intersect(
             new VisibleScreenRect(left, top, right, bottom),
-            new VisibleScreenRect(0, 0, commit.Viewport.Width, commit.Viewport.Height));
+            new VisibleScreenRect(0, 0, commit.Viewport.Width, commit.Viewport.Height)
+        );
         if (result is null)
             return null;
 
         var currentId = nodeId;
         while (commit.Nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
         {
-            if (commit.Layout.TryGetValue(parentId, out var parentBox) &&
-                (parentBox.NodeKind == SceneNodeKind.ScrollView || parentBox.ClipContent))
+            if (
+                commit.Layout.TryGetValue(parentId, out var parentBox)
+                && (parentBox.NodeKind == SceneNodeKind.ScrollView || parentBox.ClipContent)
+            )
             {
                 var ancestorOffsetX = GetAncestorScrollOffsetX(commit, parentId);
                 var ancestorOffsetY = GetAncestorScrollOffsetY(commit, parentId);
@@ -2697,7 +3326,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                     parentBox.AbsLeft - ancestorOffsetX,
                     parentBox.AbsTop - ancestorOffsetY,
                     parentBox.AbsLeft + parentBox.Width - ancestorOffsetX,
-                    parentBox.AbsTop + parentBox.Height - ancestorOffsetY);
+                    parentBox.AbsTop + parentBox.Height - ancestorOffsetY
+                );
                 result = VisibleScreenRect.Intersect(result.Value, clipRect);
                 if (result is null)
                     return null;
@@ -2709,12 +3339,19 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         return result;
     }
 
-    private SceneNodeId ToSceneNodeId(string id)
-        => sceneNodeIds.GetOrCreate(id);
+    private SceneNodeId ToSceneNodeId(string id) => sceneNodeIds.GetOrCreate(id);
 
-    private readonly record struct VisibleScreenRect(float Left, float Top, float Right, float Bottom)
+    private readonly record struct VisibleScreenRect(
+        float Left,
+        float Top,
+        float Right,
+        float Bottom
+    )
     {
-        public static VisibleScreenRect? Intersect(VisibleScreenRect first, VisibleScreenRect second)
+        public static VisibleScreenRect? Intersect(
+            VisibleScreenRect first,
+            VisibleScreenRect second
+        )
         {
             var left = Math.Max(first.Left, second.Left);
             var top = Math.Max(first.Top, second.Top);
@@ -2728,10 +3365,28 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
     private static void ClampScrollOffset(NativeScrollViewState state)
     {
-        state.ScrollX = SceneScrollMetrics.ClampScrollX(state.ScrollX, state.Width, state.ContentWidth, state.HorizontalScrollEnabled);
-        state.ScrollY = SceneScrollMetrics.ClampScrollY(state.ScrollY, state.Height, state.ContentHeight);
-        state.TargetScrollX = SceneScrollMetrics.ClampScrollX(state.TargetScrollX, state.Width, state.ContentWidth, state.HorizontalScrollEnabled);
-        state.TargetScrollY = SceneScrollMetrics.ClampScrollY(state.TargetScrollY, state.Height, state.ContentHeight);
+        state.ScrollX = SceneScrollMetrics.ClampScrollX(
+            state.ScrollX,
+            state.Width,
+            state.ContentWidth,
+            state.HorizontalScrollEnabled
+        );
+        state.ScrollY = SceneScrollMetrics.ClampScrollY(
+            state.ScrollY,
+            state.Height,
+            state.ContentHeight
+        );
+        state.TargetScrollX = SceneScrollMetrics.ClampScrollX(
+            state.TargetScrollX,
+            state.Width,
+            state.ContentWidth,
+            state.HorizontalScrollEnabled
+        );
+        state.TargetScrollY = SceneScrollMetrics.ClampScrollY(
+            state.TargetScrollY,
+            state.Height,
+            state.ContentHeight
+        );
     }
 
     private double ResolveScrollAnimationDeltaSeconds(double elapsedMs)
@@ -2755,8 +3410,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
             var previousScrollY = state.ScrollY;
             var isAnimating = SceneSmoothScrollController.Advance(state, box, deltaSeconds);
             var stateChanged =
-                Math.Abs(previousScrollX - state.ScrollX) > 0.001f ||
-                Math.Abs(previousScrollY - state.ScrollY) > 0.001f;
+                Math.Abs(previousScrollX - state.ScrollX) > 0.001f
+                || Math.Abs(previousScrollY - state.ScrollY) > 0.001f;
             if (!stateChanged && !isAnimating)
                 continue;
 
@@ -2786,7 +3441,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private void OnWatchedFileChanged(object? _, string changedPath)
     {
         RequestRuntimeReload(changedPath);
-        Log(RuntimeDiagnosticArea.Reload, $"watched file changed; scheduling reload for {changedPath}");
+        Log(
+            RuntimeDiagnosticArea.Reload,
+            $"watched file changed; scheduling reload for {changedPath}"
+        );
     }
 
     private void ReloadRuntime()
@@ -2797,16 +3455,22 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         runtime?.Dispose();
         hostTaskScheduler?.Dispose();
         hostTaskScheduler = new RenderInvalidatingHostTaskScheduler(OnHostTaskQueued, timeProvider);
-        var builder = NodeRuntime.CreateBuilder()
+        var builder = NodeRuntime
+            .CreateBuilder()
             .UseHostTaskScheduler(hostTaskScheduler)
-            .ConfigureRuntime(builder => { builder.UseGlobals(InstallHostGlobals); configureRuntime?.Invoke(builder); });
+            .ConfigureRuntime(builder =>
+            {
+                builder.UseGlobals(InstallHostGlobals);
+                configureRuntime?.Invoke(builder);
+            });
         if (configureTerminal is not null)
             builder = builder.ConfigureTerminal(configureTerminal);
-        runtime = builder
-            .Build();
+        runtime = builder.Build();
         hostPump = new HostPump(runtime.Runtime.MainAgent);
         runtime.MainRealm.Global["process"].AsObject()["env"].AsObject()["NODE_ENV"] =
-            reloadCoordinator.Options.Mode == ReactRuntimeReloadMode.FastRefresh ? "development" : "production";
+            reloadCoordinator.Options.Mode == ReactRuntimeReloadMode.FastRefresh
+                ? "development"
+                : "production";
         propertyAtoms = new ReactAppPropertyAtoms(runtime.MainRealm.Agent.Atoms);
         stackLayoutCalculator = new LayoutCalculator(backendServices.Text);
         sceneStore.Reset(sceneNodeIds.RootId, new SceneViewport(Width, Height));
@@ -2891,7 +3555,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
 
                 var invalidation = runtime.Runtime.MainAgent.Modules.Invalidate(
                     resolvedChangedId,
-                    JsAgent.JsAgentModuleApi.ModuleInvalidationScope.Importers);
+                    JsAgent.JsAgentModuleApi.ModuleInvalidationScope.Importers
+                );
                 removedCount += invalidation.RemovedCount;
                 invalidatedModuleIds.UnionWith(invalidation.ResolvedIds);
             }
@@ -2901,12 +3566,16 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 var resolvedEntryId = runtime.Runtime.MainAgent.Modules.Resolve(runtimeEntryPath);
                 var invalidation = runtime.Runtime.MainAgent.Modules.Invalidate(
                     resolvedEntryId,
-                    JsAgent.JsAgentModuleApi.ModuleInvalidationScope.Importers);
+                    JsAgent.JsAgentModuleApi.ModuleInvalidationScope.Importers
+                );
                 removedCount += invalidation.RemovedCount;
                 invalidatedModuleIds.UnionWith(invalidation.ResolvedIds);
             }
 
-            Log(RuntimeDiagnosticArea.ModuleInvalidation, $"fast refresh invalidated {removedCount} cache entries across {invalidatedModuleIds.Count} module(s)");
+            Log(
+                RuntimeDiagnosticArea.ModuleInvalidation,
+                $"fast refresh invalidated {removedCount} cache entries across {invalidatedModuleIds.Count} module(s)"
+            );
             _ = runtime.RunMainModule(runtimeEntryPath);
             ApplyLoadedModuleCallbacks();
             PumpRuntimeJobs();
@@ -2965,7 +3634,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         imageEventFunction = TryGetGlobalFunction("__nativeImageEvent");
         textInputEventFunction = TryGetGlobalFunction("__nativeTextInputEvent");
         textInputFunction = TryGetGlobalFunction("__nativeTextInput");
-        Log(RuntimeDiagnosticArea.RuntimeLifecycle, $"callbacks render={(renderFrameFunction is not null)} move={(pointerMoveFunction is not null)} down={(pointerDownFunction is not null)} up={(pointerUpFunction is not null)} wheel={(wheelFunction is not null)} key={(keyDownFunction is not null)} keyup={(keyUpFunction is not null)} text={(textInputFunction is not null)} textinputevent={(textInputEventFunction is not null)} imageevent={(imageEventFunction is not null)}");
+        Log(
+            RuntimeDiagnosticArea.RuntimeLifecycle,
+            $"callbacks render={(renderFrameFunction is not null)} move={(pointerMoveFunction is not null)} down={(pointerDownFunction is not null)} up={(pointerUpFunction is not null)} wheel={(wheelFunction is not null)} key={(keyDownFunction is not null)} keyup={(keyUpFunction is not null)} text={(textInputFunction is not null)} textinputevent={(textInputEventFunction is not null)} imageevent={(imageEventFunction is not null)}"
+        );
     }
 
     private JsFunction? TryGetGlobalFunction(string name)
@@ -2973,9 +3645,10 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         if (runtime is null)
             return null;
 
-        return runtime.MainRealm.Global.TryGetValue(name, out var value) &&
-               value.TryGetObject(out var obj) &&
-               obj is JsFunction function
+        return
+            runtime.MainRealm.Global.TryGetValue(name, out var value)
+            && value.TryGetObject(out var obj)
+            && obj is JsFunction function
             ? function
             : null;
     }
@@ -3018,7 +3691,11 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         lock (renderInvalidationGate)
         {
             consumedInvalidationVersion = renderInvalidationVersion;
-            return SceneDamageReasonState.Consume(ref pendingDamageReasons, animationEnabled, shaderAnimationEnabled);
+            return SceneDamageReasonState.Consume(
+                ref pendingDamageReasons,
+                animationEnabled,
+                shaderAnimationEnabled
+            );
         }
     }
 
@@ -3054,7 +3731,9 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
     private void EnsureDebugInputEnabled()
     {
         if (!debugFeaturesEnabled)
-            throw new InvalidOperationException("Synthetic mouse input is available only in --react-debug mode.");
+            throw new InvalidOperationException(
+                "Synthetic mouse input is available only in --react-debug mode."
+            );
     }
 
     private static SceneTextAlign ParseTextAlign(string? value)
@@ -3075,9 +3754,7 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
                 dirtyRects.Add(rect);
         }
 
-        return dirtyRects.Count == 0
-            ? []
-            : [.. dirtyRects];
+        return dirtyRects.Count == 0 ? [] : [.. dirtyRects];
     }
 
     private sealed record HostStyle(
@@ -3112,7 +3789,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float? ContentWidth = null,
         float? ContentHeight = null,
         float ScrollX = 0,
-        float ScrollY = 0)
+        float ScrollY = 0
+    )
     {
         public static HostStyle Default { get; } = new();
     }
@@ -3129,8 +3807,8 @@ public sealed partial class OkojoNodeReactHost : ISceneFrameSource, IInputSink, 
         float ContentLeft,
         float ContentTop,
         float ContentWidth,
-        float ContentHeight);
-
+        float ContentHeight
+    );
 }
 
 [GenerateJsObject]
@@ -3195,7 +3873,8 @@ public sealed partial class NativeResolvedContainerLayout
     public NativeResolvedContainerLayout(
         NativeLayoutInsets padding,
         NativeLayoutSize contentFrame,
-        NativeLayoutOffset contentOffset)
+        NativeLayoutOffset contentOffset
+    )
     {
         Padding = padding;
         ContentFrame = contentFrame;

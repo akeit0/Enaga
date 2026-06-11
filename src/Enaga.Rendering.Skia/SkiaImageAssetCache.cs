@@ -2,32 +2,40 @@ using System.Collections.Concurrent;
 
 namespace Enaga.Rendering.Skia;
 
-
 internal enum SkiaImageAssetState
 {
     Pending,
     Ready,
-    Failed
+    Failed,
 }
 
 internal readonly record struct SkiaImageAssetResolveResult(
     SkiaImageAssetState State,
     SkiaImageAsset? Asset = null,
-    string? Error = null);
+    string? Error = null
+);
 
 internal static class SkiaImageAssetCache
 {
-    private static readonly ConcurrentDictionary<string, CacheEntry> Entries = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, CacheEntry> Entries = new(
+        StringComparer.Ordinal
+    );
 
     public static event Action? AssetChanged;
 
     public static SkiaImageAssetResolveResult Resolve(string? localPath)
     {
         if (string.IsNullOrWhiteSpace(localPath))
-            return new SkiaImageAssetResolveResult(SkiaImageAssetState.Failed, Error: "Image path is empty.");
+            return new SkiaImageAssetResolveResult(
+                SkiaImageAssetState.Failed,
+                Error: "Image path is empty."
+            );
 
         if (!File.Exists(localPath))
-            return new SkiaImageAssetResolveResult(SkiaImageAssetState.Failed, Error: $"Image file was not found: {localPath}");
+            return new SkiaImageAssetResolveResult(
+                SkiaImageAssetState.Failed,
+                Error: $"Image file was not found: {localPath}"
+            );
 
         var lastWriteTicksUtc = File.GetLastWriteTimeUtc(localPath).Ticks;
         var entry = Entries.GetOrAdd(localPath, _ => new CacheEntry(localPath));
@@ -47,7 +55,10 @@ internal static class SkiaImageAssetCache
                 return new SkiaImageAssetResolveResult(SkiaImageAssetState.Ready, entry.Asset);
 
             if (entry.State == SkiaImageAssetState.Failed)
-                return new SkiaImageAssetResolveResult(SkiaImageAssetState.Failed, Error: entry.Error);
+                return new SkiaImageAssetResolveResult(
+                    SkiaImageAssetState.Failed,
+                    Error: entry.Error
+                );
 
             StartLoadIfNeeded(entry, lastWriteTicksUtc);
             return new SkiaImageAssetResolveResult(SkiaImageAssetState.Pending);
@@ -61,7 +72,11 @@ internal static class SkiaImageAssetCache
 
         entry.LoadTask = Task.Run(() =>
         {
-            var loaded = SkiaImageAssetLoader.TryLoadFromPath(entry.LocalPath, out var asset, out var error);
+            var loaded = SkiaImageAssetLoader.TryLoadFromPath(
+                entry.LocalPath,
+                out var asset,
+                out var error
+            );
             var notify = false;
 
             lock (entry.Sync)

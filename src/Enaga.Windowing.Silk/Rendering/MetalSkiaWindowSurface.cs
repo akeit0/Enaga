@@ -30,7 +30,9 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
     public MetalSkiaWindowSurface(IWindow window, TimeProvider? timeProvider = null)
     {
         if (!OperatingSystem.IsMacOS())
-            throw new PlatformNotSupportedException("The Metal Skia backend is only supported on macOS.");
+            throw new PlatformNotSupportedException(
+                "The Metal Skia backend is only supported on macOS."
+            );
 
         this.window = window;
         this.timeProvider = timeProvider ?? TimeProvider.System;
@@ -40,7 +42,10 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
     {
         get
         {
-            return contentSurface?.Canvas ?? throw new InvalidOperationException("Metal Skia content surface is not initialized.");
+            return contentSurface?.Canvas
+                ?? throw new InvalidOperationException(
+                    "Metal Skia content surface is not initialized."
+                );
         }
     }
 
@@ -54,7 +59,9 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
     {
         var nsWindow = window.Native?.Cocoa ?? 0;
         if (nsWindow == 0)
-            throw new InvalidOperationException("Unable to resolve the native Cocoa window for Metal rendering.");
+            throw new InvalidOperationException(
+                "Unable to resolve the native Cocoa window for Metal rendering."
+            );
 
         device = ObjectiveC.MTLCreateSystemDefaultDevice();
         if (device == 0)
@@ -69,8 +76,11 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
             DeviceHandle = device,
             QueueHandle = commandQueue,
         };
-        context = GRContext.CreateMetal(backendContext)
-            ?? throw new InvalidOperationException("Unable to create a Metal-backed Skia GRContext.");
+        context =
+            GRContext.CreateMetal(backendContext)
+            ?? throw new InvalidOperationException(
+                "Unable to create a Metal-backed Skia GRContext."
+            );
 
         AttachMetalLayer(nsWindow);
         Resize(size);
@@ -84,8 +94,16 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
         ReleaseContentSurface();
         if (metalLayer != 0)
         {
-            ObjectiveC.Void_objc_msgSend_Double(metalLayer, ObjectiveC.Selectors.SetContentsScale, GetContentScale());
-            ObjectiveC.Void_objc_msgSend_CGSize(metalLayer, ObjectiveC.Selectors.SetDrawableSize, new CGSize(width, height));
+            ObjectiveC.Void_objc_msgSend_Double(
+                metalLayer,
+                ObjectiveC.Selectors.SetContentsScale,
+                GetContentScale()
+            );
+            ObjectiveC.Void_objc_msgSend_CGSize(
+                metalLayer,
+                ObjectiveC.Selectors.SetDrawableSize,
+                new CGSize(width, height)
+            );
         }
 
         RecreateContentSurface();
@@ -109,10 +127,17 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
         drawableSurface.Canvas.Flush();
         context?.Flush(submit: true, synchronous: false);
 
-        var commandBuffer = ObjectiveC.IntPtr_objc_msgSend(commandQueue, ObjectiveC.Selectors.CommandBuffer);
+        var commandBuffer = ObjectiveC.IntPtr_objc_msgSend(
+            commandQueue,
+            ObjectiveC.Selectors.CommandBuffer
+        );
         if (commandBuffer != 0)
         {
-            ObjectiveC.Void_objc_msgSend_IntPtr(commandBuffer, ObjectiveC.Selectors.PresentDrawable, currentDrawable);
+            ObjectiveC.Void_objc_msgSend_IntPtr(
+                commandBuffer,
+                ObjectiveC.Selectors.PresentDrawable,
+                currentDrawable
+            );
             ObjectiveC.Void_objc_msgSend(commandBuffer, ObjectiveC.Selectors.Commit);
         }
         else
@@ -128,7 +153,8 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
             dirtyRects.Length,
             false,
             width,
-            height);
+            height
+        );
     }
 
     public void Dispose()
@@ -149,22 +175,42 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
 
     private void AttachMetalLayer(nint nsWindow)
     {
-        var contentView = ObjectiveC.IntPtr_objc_msgSend(nsWindow, ObjectiveC.Selectors.ContentView);
+        var contentView = ObjectiveC.IntPtr_objc_msgSend(
+            nsWindow,
+            ObjectiveC.Selectors.ContentView
+        );
         if (contentView == 0)
-            throw new InvalidOperationException("Unable to resolve the Cocoa content view for Metal rendering.");
+            throw new InvalidOperationException(
+                "Unable to resolve the Cocoa content view for Metal rendering."
+            );
 
         var layerClass = ObjectiveC.objc_getClass("CAMetalLayer");
         if (layerClass == 0)
             throw new InvalidOperationException("Unable to resolve CAMetalLayer.");
 
-        metalLayer = ObjectiveC.IntPtr_objc_msgSend(ObjectiveC.IntPtr_objc_msgSend(layerClass, ObjectiveC.Selectors.Alloc), ObjectiveC.Selectors.Init);
+        metalLayer = ObjectiveC.IntPtr_objc_msgSend(
+            ObjectiveC.IntPtr_objc_msgSend(layerClass, ObjectiveC.Selectors.Alloc),
+            ObjectiveC.Selectors.Init
+        );
         if (metalLayer == 0)
             throw new InvalidOperationException("Unable to create a CAMetalLayer.");
 
         ObjectiveC.Void_objc_msgSend_IntPtr(metalLayer, ObjectiveC.Selectors.SetDevice, device);
-        ObjectiveC.Void_objc_msgSend_UInt64(metalLayer, ObjectiveC.Selectors.SetPixelFormat, MTLPixelFormatBGRA8Unorm);
-        ObjectiveC.Void_objc_msgSend_Bool(metalLayer, ObjectiveC.Selectors.SetFramebufferOnly, false);
-        ObjectiveC.Void_objc_msgSend_Double(metalLayer, ObjectiveC.Selectors.SetContentsScale, GetContentScale());
+        ObjectiveC.Void_objc_msgSend_UInt64(
+            metalLayer,
+            ObjectiveC.Selectors.SetPixelFormat,
+            MTLPixelFormatBGRA8Unorm
+        );
+        ObjectiveC.Void_objc_msgSend_Bool(
+            metalLayer,
+            ObjectiveC.Selectors.SetFramebufferOnly,
+            false
+        );
+        ObjectiveC.Void_objc_msgSend_Double(
+            metalLayer,
+            ObjectiveC.Selectors.SetContentsScale,
+            GetContentScale()
+        );
         ObjectiveC.Void_objc_msgSend_Bool(contentView, ObjectiveC.Selectors.SetWantsLayer, true);
         ObjectiveC.Void_objc_msgSend_IntPtr(contentView, ObjectiveC.Selectors.SetLayer, metalLayer);
     }
@@ -184,26 +230,40 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
             MTLPixelFormatBGRA8Unorm,
             (ulong)width,
             (ulong)height,
-            false);
+            false
+        );
         if (descriptor == 0)
             throw new InvalidOperationException("Unable to create a Metal texture descriptor.");
 
         ObjectiveC.Void_objc_msgSend_UInt64(
             descriptor,
             ObjectiveC.Selectors.SetUsage,
-            MTLTextureUsageShaderRead | MTLTextureUsageRenderTarget);
+            MTLTextureUsageShaderRead | MTLTextureUsageRenderTarget
+        );
 
-        contentTexture = ObjectiveC.IntPtr_objc_msgSend_IntPtr(device, ObjectiveC.Selectors.NewTextureWithDescriptor, descriptor);
+        contentTexture = ObjectiveC.IntPtr_objc_msgSend_IntPtr(
+            device,
+            ObjectiveC.Selectors.NewTextureWithDescriptor,
+            descriptor
+        );
         if (contentTexture == 0)
             throw new InvalidOperationException("Unable to create the Metal content texture.");
 
-        contentBackendRenderTarget = new GRBackendRenderTarget(width, height, new GRMtlTextureInfo(contentTexture));
-        contentSurface = SKSurface.Create(
-            context,
-            contentBackendRenderTarget,
-            GRSurfaceOrigin.TopLeft,
-            SKColorType.Bgra8888)
-            ?? throw new InvalidOperationException("Unable to create a Metal-backed Skia content surface.");
+        contentBackendRenderTarget = new GRBackendRenderTarget(
+            width,
+            height,
+            new GRMtlTextureInfo(contentTexture)
+        );
+        contentSurface =
+            SKSurface.Create(
+                context,
+                contentBackendRenderTarget,
+                GRSurfaceOrigin.TopLeft,
+                SKColorType.Bgra8888
+            )
+            ?? throw new InvalidOperationException(
+                "Unable to create a Metal-backed Skia content surface."
+            );
         contentSurface.Canvas.Clear(SKColors.Transparent);
     }
 
@@ -215,7 +275,10 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
         if (context is null || metalLayer == 0)
             throw new InvalidOperationException("Metal Skia surface is not initialized.");
 
-        currentDrawable = ObjectiveC.IntPtr_objc_msgSend(metalLayer, ObjectiveC.Selectors.NextDrawable);
+        currentDrawable = ObjectiveC.IntPtr_objc_msgSend(
+            metalLayer,
+            ObjectiveC.Selectors.NextDrawable
+        );
         if (currentDrawable == 0)
             throw new InvalidOperationException("Unable to acquire a CAMetalDrawable.");
 
@@ -223,13 +286,21 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
         if (texture == 0)
             throw new InvalidOperationException("Unable to acquire the drawable Metal texture.");
 
-        drawableBackendRenderTarget = new GRBackendRenderTarget(width, height, new GRMtlTextureInfo(texture));
-        drawableSurface = SKSurface.Create(
-            context,
-            drawableBackendRenderTarget,
-            GRSurfaceOrigin.TopLeft,
-            SKColorType.Bgra8888)
-            ?? throw new InvalidOperationException("Unable to create a Metal-backed Skia drawable surface.");
+        drawableBackendRenderTarget = new GRBackendRenderTarget(
+            width,
+            height,
+            new GRMtlTextureInfo(texture)
+        );
+        drawableSurface =
+            SKSurface.Create(
+                context,
+                drawableBackendRenderTarget,
+                GRSurfaceOrigin.TopLeft,
+                SKColorType.Bgra8888
+            )
+            ?? throw new InvalidOperationException(
+                "Unable to create a Metal-backed Skia drawable surface."
+            );
     }
 
     private void ReleaseDrawableSurface()
@@ -275,7 +346,9 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
         public static extern nint MTLCreateSystemDefaultDevice();
 
         [DllImport(ObjCLibrary)]
-        public static extern nint sel_registerName([MarshalAs(UnmanagedType.LPUTF8Str)] string name);
+        public static extern nint sel_registerName(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string name
+        );
 
         [DllImport(ObjCLibrary)]
         public static extern nint objc_getClass([MarshalAs(UnmanagedType.LPUTF8Str)] string name);
@@ -284,28 +357,59 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
         public static extern nint IntPtr_objc_msgSend(nint receiver, nint selector);
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern nint IntPtr_objc_msgSend_IntPtr(nint receiver, nint selector, nint value);
+        public static extern nint IntPtr_objc_msgSend_IntPtr(
+            nint receiver,
+            nint selector,
+            nint value
+        );
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern nint IntPtr_objc_msgSend_UInt64_UInt64_UInt64_Bool(nint receiver, nint selector, ulong value1, ulong value2, ulong value3, [MarshalAs(UnmanagedType.Bool)] bool value4);
+        public static extern nint IntPtr_objc_msgSend_UInt64_UInt64_UInt64_Bool(
+            nint receiver,
+            nint selector,
+            ulong value1,
+            ulong value2,
+            ulong value3,
+            [MarshalAs(UnmanagedType.Bool)] bool value4
+        );
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
         public static extern void Void_objc_msgSend(nint receiver, nint selector);
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern void Void_objc_msgSend_IntPtr(nint receiver, nint selector, nint value);
+        public static extern void Void_objc_msgSend_IntPtr(
+            nint receiver,
+            nint selector,
+            nint value
+        );
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern void Void_objc_msgSend_Bool(nint receiver, nint selector, [MarshalAs(UnmanagedType.Bool)] bool value);
+        public static extern void Void_objc_msgSend_Bool(
+            nint receiver,
+            nint selector,
+            [MarshalAs(UnmanagedType.Bool)] bool value
+        );
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern void Void_objc_msgSend_UInt64(nint receiver, nint selector, ulong value);
+        public static extern void Void_objc_msgSend_UInt64(
+            nint receiver,
+            nint selector,
+            ulong value
+        );
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern void Void_objc_msgSend_Double(nint receiver, nint selector, double value);
+        public static extern void Void_objc_msgSend_Double(
+            nint receiver,
+            nint selector,
+            double value
+        );
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern void Void_objc_msgSend_CGSize(nint receiver, nint selector, CGSize value);
+        public static extern void Void_objc_msgSend_CGSize(
+            nint receiver,
+            nint selector,
+            CGSize value
+        );
 
         public static class Selectors
         {
@@ -322,12 +426,18 @@ internal sealed class MetalSkiaWindowSurface : ISkiaWindowSurface
             public static readonly nint PresentDrawable = sel_registerName("presentDrawable:");
             public static readonly nint SetDevice = sel_registerName("setDevice:");
             public static readonly nint SetPixelFormat = sel_registerName("setPixelFormat:");
-            public static readonly nint SetFramebufferOnly = sel_registerName("setFramebufferOnly:");
+            public static readonly nint SetFramebufferOnly = sel_registerName(
+                "setFramebufferOnly:"
+            );
             public static readonly nint SetContentsScale = sel_registerName("setContentsScale:");
             public static readonly nint SetDrawableSize = sel_registerName("setDrawableSize:");
-            public static readonly nint Texture2DDescriptorWithPixelFormat = sel_registerName("texture2DDescriptorWithPixelFormat:width:height:mipmapped:");
+            public static readonly nint Texture2DDescriptorWithPixelFormat = sel_registerName(
+                "texture2DDescriptorWithPixelFormat:width:height:mipmapped:"
+            );
             public static readonly nint SetUsage = sel_registerName("setUsage:");
-            public static readonly nint NewTextureWithDescriptor = sel_registerName("newTextureWithDescriptor:");
+            public static readonly nint NewTextureWithDescriptor = sel_registerName(
+                "newTextureWithDescriptor:"
+            );
             public static readonly nint NextDrawable = sel_registerName("nextDrawable");
             public static readonly nint Texture = sel_registerName("texture");
         }

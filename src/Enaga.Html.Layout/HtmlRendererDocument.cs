@@ -1,6 +1,6 @@
+using Enaga.Html.Dom;
 using Enaga.Layout;
 using Enaga.Rendering;
-using Enaga.Html.Dom;
 
 namespace Enaga.Html;
 
@@ -15,7 +15,11 @@ public sealed class HtmlDocument
         this.BasePath = BasePath;
     }
 
-    public HtmlDocument(HtmlDomDocument DomDocument, string? StyleSheet = null, string? BasePath = null)
+    public HtmlDocument(
+        HtmlDomDocument DomDocument,
+        string? StyleSheet = null,
+        string? BasePath = null
+    )
     {
         this.DomDocument = DomDocument ?? throw new ArgumentNullException(nameof(DomDocument));
         this.StyleSheet = StyleSheet;
@@ -40,4 +44,5 @@ public sealed record HtmlOptions(
     string DefaultTextColor = "#111827",
     string? DefaultBackgroundColor = "#ffffff",
     LayoutEngineConfig? LayoutConfig = null,
-    TimeProvider? TimeProvider = null);
+    TimeProvider? TimeProvider = null
+);

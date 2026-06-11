@@ -7,7 +7,8 @@ public sealed class HtmlTextInputController(
     IRuntimeTextServices textServices,
     Action requestUpdate,
     Func<bool, bool> moveFocus,
-    Action<SceneNodeId?> setFocus)
+    Action<SceneNodeId?> setFocus
+)
 {
     private const int ShiftModifier = 1;
     private const int ControlModifier = 2;
@@ -98,7 +99,8 @@ public sealed class HtmlTextInputController(
             requestUpdate();
     }
 
-    public bool HasSelection(HtmlTextInputState state) => HtmlTextInputStateLogic.HasSelection(state);
+    public bool HasSelection(HtmlTextInputState state) =>
+        HtmlTextInputStateLogic.HasSelection(state);
 
     public void MoveSelectionCaret(HtmlTextInputState state, int caretIndex, bool extendSelection)
     {
@@ -106,17 +108,20 @@ public sealed class HtmlTextInputController(
             SetSelection(state, state.SelectionAnchorIndex, caretIndex);
         else
         {
-            state.CaretIndex = textServices.SnapCaretIndex(state.Text, Math.Clamp(caretIndex, 0, state.Text.Length));
+            state.CaretIndex = textServices.SnapCaretIndex(
+                state.Text,
+                Math.Clamp(caretIndex, 0, state.Text.Length)
+            );
             state.PreferredCaretX = null;
             ClearSelection(state);
         }
     }
 
-    public void ClearSelection(HtmlTextInputState state)
-        => HtmlTextInputStateLogic.ClearSelection(state);
+    public void ClearSelection(HtmlTextInputState state) =>
+        HtmlTextInputStateLogic.ClearSelection(state);
 
-    public void SetSelection(HtmlTextInputState state, int anchorIndex, int caretIndex)
-        => HtmlTextInputStateLogic.SetSelection(state, textServices, anchorIndex, caretIndex);
+    public void SetSelection(HtmlTextInputState state, int anchorIndex, int caretIndex) =>
+        HtmlTextInputStateLogic.SetSelection(state, textServices, anchorIndex, caretIndex);
 
     public void SelectAll(HtmlTextInputState state)
     {
@@ -143,12 +148,18 @@ public sealed class HtmlTextInputController(
             return;
         }
 
-        var snappedCaret = textServices.SnapCaretIndex(state.Text, Math.Clamp(caretIndex, 0, state.Text.Length));
+        var snappedCaret = textServices.SnapCaretIndex(
+            state.Text,
+            Math.Clamp(caretIndex, 0, state.Text.Length)
+        );
         var start = snappedCaret;
         var end = snappedCaret;
 
         if (start == state.Text.Length)
-            start = end = textServices.SnapCaretIndex(state.Text, Math.Max(0, state.Text.Length - 1));
+            start = end = textServices.SnapCaretIndex(
+                state.Text,
+                Math.Max(0, state.Text.Length - 1)
+            );
 
         while (start > 0 && IsWordCharacter(state.Text[start - 1]))
             start = textServices.SnapCaretIndex(state.Text, start - 1);
@@ -159,13 +170,19 @@ public sealed class HtmlTextInputController(
         SetSelection(state, start, end);
     }
 
-    private void MoveHorizontal(HtmlTextInputState state, int direction, bool extendSelection, bool wordJump)
+    private void MoveHorizontal(
+        HtmlTextInputState state,
+        int direction,
+        bool extendSelection,
+        bool wordJump
+    )
     {
         if (!extendSelection && HasSelection(state))
         {
-            var collapsed = direction < 0
-                ? Math.Min(state.SelectionStart, state.SelectionEnd)
-                : Math.Max(state.SelectionStart, state.SelectionEnd);
+            var collapsed =
+                direction < 0
+                    ? Math.Min(state.SelectionStart, state.SelectionEnd)
+                    : Math.Max(state.SelectionStart, state.SelectionEnd);
             MoveSelectionCaret(state, collapsed, false);
             return;
         }
@@ -216,8 +233,26 @@ public sealed class HtmlTextInputController(
     {
         var textStyle = CreateTextInputTextStyle(state);
         var textWidth = Math.Max(0, state.Width - state.PaddingLeft - state.PaddingRight);
-        var preferredX = state.PreferredCaretX ?? textServices.GetCaretPosition(textStyle, state.Text, state.LineHeight, textWidth, state.CaretIndex).X;
-        var caretIndex = textServices.MoveCaretVertical(textStyle, state.Text, state.LineHeight, textWidth, state.CaretIndex, lineDelta, preferredX);
+        var preferredX =
+            state.PreferredCaretX
+            ?? textServices
+                .GetCaretPosition(
+                    textStyle,
+                    state.Text,
+                    state.LineHeight,
+                    textWidth,
+                    state.CaretIndex
+                )
+                .X;
+        var caretIndex = textServices.MoveCaretVertical(
+            textStyle,
+            state.Text,
+            state.LineHeight,
+            textWidth,
+            state.CaretIndex,
+            lineDelta,
+            preferredX
+        );
         state.PreferredCaretX = preferredX;
         MoveSelectionCaret(state, caretIndex, extendSelection);
     }
@@ -230,7 +265,8 @@ public sealed class HtmlTextInputController(
             state.LineHeight,
             Math.Max(0, state.Width - state.PaddingLeft - state.PaddingRight),
             state.CaretIndex,
-            toEnd);
+            toEnd
+        );
     }
 
     private string? GetSelectedText(HtmlTextInputState state)
@@ -285,9 +321,15 @@ public sealed class HtmlTextInputController(
         return index;
     }
 
-    private static bool IsWordCharacter(char c)
-        => char.IsLetterOrDigit(c) || c == '_';
+    private static bool IsWordCharacter(char c) => char.IsLetterOrDigit(c) || c == '_';
 
-    private static SceneTextStyle CreateTextInputTextStyle(HtmlTextInputState state)
-        => new(state.FontSize, state.Color, state.FontFamily, state.FontWeight, state.TextAlign, state.Multiline);
+    private static SceneTextStyle CreateTextInputTextStyle(HtmlTextInputState state) =>
+        new(
+            state.FontSize,
+            state.Color,
+            state.FontFamily,
+            state.FontWeight,
+            state.TextAlign,
+            state.Multiline
+        );
 }

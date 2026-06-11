@@ -1,10 +1,11 @@
-using Okojo.Objects;
 using Enaga.Layout;
 using Enaga.Rendering;
 using Enaga.Scene;
-using Okojo.Node;
-using Okojo.Runtime;
 using Okojo;
+using Okojo.Node;
+using Okojo.Objects;
+using Okojo.Runtime;
+
 namespace Enaga.React.OkojoRuntime;
 
 public sealed partial class OkojoNodeReactHost
@@ -56,7 +57,8 @@ public sealed partial class OkojoNodeReactHost
         runtime?.Dispose();
         hostTaskScheduler?.Dispose();
         hostTaskScheduler = new RenderInvalidatingHostTaskScheduler(OnHostTaskQueued, timeProvider);
-        runtime = NodeRuntime.CreateBuilder()
+        runtime = NodeRuntime
+            .CreateBuilder()
             .UseHostTaskScheduler(hostTaskScheduler)
             .ConfigureRuntime(builder => builder.UseGlobals(InstallHostGlobals))
             .Build();
@@ -67,13 +69,20 @@ public sealed partial class OkojoNodeReactHost
         sceneStore.Reset(sceneNodeIds.RootId, new SceneViewport(Width, Height));
     }
 
-    internal JsRealm BenchmarkRealm
-        => runtime?.MainRealm ?? throw new InvalidOperationException("Benchmark runtime is not initialized.");
+    internal JsRealm BenchmarkRealm =>
+        runtime?.MainRealm
+        ?? throw new InvalidOperationException("Benchmark runtime is not initialized.");
 
-    internal ReactAppPropertyAtoms BenchmarkPropertyAtoms
-        => propertyAtoms ?? throw new InvalidOperationException("Benchmark property atoms are not initialized.");
+    internal ReactAppPropertyAtoms BenchmarkPropertyAtoms =>
+        propertyAtoms
+        ?? throw new InvalidOperationException("Benchmark property atoms are not initialized.");
 
-    internal JsObject BenchmarkCreateHostNode(string type, string runtimeId, JsObject? props = null, string? publicId = null)
+    internal JsObject BenchmarkCreateHostNode(
+        string type,
+        string runtimeId,
+        JsObject? props = null,
+        string? publicId = null
+    )
     {
         return CreateHostInstanceObject(
             ResolveHostNodeKind(type),
@@ -81,7 +90,8 @@ public sealed partial class OkojoNodeReactHost
             runtimeId,
             publicId,
             props is null ? JsValue.Undefined : JsValue.FromObject(props),
-            text: null);
+            text: null
+        );
     }
 
     internal JsObject BenchmarkCreateTextNode(string runtimeId, string text)
@@ -92,10 +102,12 @@ public sealed partial class OkojoNodeReactHost
             runtimeId,
             publicId: null,
             JsValue.Undefined,
-            text);
+            text
+        );
     }
 
-    internal bool BenchmarkAppendChild(JsObject parent, JsObject child) => AppendChildNode(parent, child);
+    internal bool BenchmarkAppendChild(JsObject parent, JsObject child) =>
+        AppendChildNode(parent, child);
 
     internal void BenchmarkCommitHostUpdate(JsObject instance, JsObject props, bool layoutAffected)
     {
@@ -104,7 +116,10 @@ public sealed partial class OkojoNodeReactHost
 
     internal void BenchmarkMarkFullSceneFlush() => MarkFullSceneFlush();
 
-    internal void BenchmarkResetAfterCommit(JsArray rootChildren, string backgroundColor = "#08111f")
+    internal void BenchmarkResetAfterCommit(
+        JsArray rootChildren,
+        string backgroundColor = "#08111f"
+    )
     {
         ResetAfterCommit(rootChildren, backgroundColor);
     }
@@ -117,12 +132,18 @@ public sealed partial class OkojoNodeReactHost
     }
 }
 
-internal sealed class BenchmarkSceneSnapshot(SceneLayoutCommit commit, SceneNodeIdentityMap<string> sceneNodeIds)
+internal sealed class BenchmarkSceneSnapshot(
+    SceneLayoutCommit commit,
+    SceneNodeIdentityMap<string> sceneNodeIds
+)
 {
     public BenchmarkSceneLayout Layout { get; } = new(commit, sceneNodeIds);
 }
 
-internal sealed class BenchmarkSceneLayout(SceneLayoutCommit commit, SceneNodeIdentityMap<string> sceneNodeIds)
+internal sealed class BenchmarkSceneLayout(
+    SceneLayoutCommit commit,
+    SceneNodeIdentityMap<string> sceneNodeIds
+)
 {
     public int Count => commit.Layout.Count;
 
@@ -131,7 +152,9 @@ internal sealed class BenchmarkSceneLayout(SceneLayoutCommit commit, SceneNodeId
         get
         {
             if (!sceneNodeIds.TryGet(runtimeId, out var sceneNodeId))
-                throw new KeyNotFoundException($"No scene node id has been allocated for runtime id '{runtimeId}'.");
+                throw new KeyNotFoundException(
+                    $"No scene node id has been allocated for runtime id '{runtimeId}'."
+                );
 
             return commit.Layout[sceneNodeId];
         }

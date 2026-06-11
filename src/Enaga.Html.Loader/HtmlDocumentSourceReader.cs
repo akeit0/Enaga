@@ -1,6 +1,6 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Globalization;
 
 namespace Enaga.Html.Loader;
 
@@ -8,61 +8,85 @@ public static partial class HtmlDocumentLoader
 {
     private static readonly HttpClient SharedHttpClient = CreateHttpClient();
     private const int MaxCookieGateRetryCount = 1;
-    private const string DefaultAcceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+    private const string DefaultAcceptHeader =
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
     private static async Task<LoadedTextSource> ReadTextSourceAsync(
         string source,
         LoadedTextSource? relativeTo,
         HttpClient httpClient,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         if (string.IsNullOrWhiteSpace(source))
             throw new ArgumentException("Document source must not be empty.", nameof(source));
 
         if (TryResolveHttpUri(source, relativeTo?.BaseUri, out var httpUri))
-            return await ReadHttpTextSourceAsync(httpUri, httpClient, cancellationToken).ConfigureAwait(false);
+            return await ReadHttpTextSourceAsync(httpUri, httpClient, cancellationToken)
+                .ConfigureAwait(false);
 
         var path = ResolveLocalPath(source, relativeTo);
         var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
         var text = DecodeText(bytes, null);
         var fullPath = Path.GetFullPath(path);
-        return new LoadedTextSource(
-            text,
-            Path.GetDirectoryName(fullPath),
-            new Uri(fullPath));
+        return new LoadedTextSource(text, Path.GetDirectoryName(fullPath), new Uri(fullPath));
     }
 
-    private static async Task<LoadedTextSource> ReadHttpTextSourceAsync(Uri uri, HttpClient httpClient, CancellationToken cancellationToken)
-        => await ReadHttpTextSourceAsync(uri, httpClient, referer: null, cookieGateRetryCount: 0, cancellationToken).ConfigureAwait(false);
+    private static async Task<LoadedTextSource> ReadHttpTextSourceAsync(
+        Uri uri,
+        HttpClient httpClient,
+        CancellationToken cancellationToken
+    ) =>
+        await ReadHttpTextSourceAsync(
+                uri,
+                httpClient,
+                referer: null,
+                cookieGateRetryCount: 0,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
 
     private static async Task<LoadedTextSource> ReadHttpTextSourceAsync(
         Uri uri,
         HttpClient httpClient,
         Uri? referer,
         int cookieGateRetryCount,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         using var request = CreateHttpRequest(uri, referer);
-        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        using var response = await httpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+        var bytes = await response
+            .Content.ReadAsByteArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
         var finalUri = response.RequestMessage?.RequestUri ?? uri;
-        var declaredEncoding = TryGetCharset(response.Content.Headers.ContentType) ?? TryGetDeclaredEncoding(DecodeWithBomOrUtf8(bytes));
+        var declaredEncoding =
+            TryGetCharset(response.Content.Headers.ContentType)
+            ?? TryGetDeclaredEncoding(DecodeWithBomOrUtf8(bytes));
         var text = DecodeText(bytes, declaredEncoding);
 
-        if (cookieGateRetryCount < MaxCookieGateRetryCount &&
-            HasSetCookieHeader(response) &&
-            TryResolveCookieGateLink(text, finalUri, out var cookieGateUri))
+        if (
+            cookieGateRetryCount < MaxCookieGateRetryCount
+            && HasSetCookieHeader(response)
+            && TryResolveCookieGateLink(text, finalUri, out var cookieGateUri)
+        )
         {
-            return await ReadHttpTextSourceAsync(cookieGateUri, httpClient, finalUri, cookieGateRetryCount + 1, cancellationToken).ConfigureAwait(false);
+            return await ReadHttpTextSourceAsync(
+                    cookieGateUri,
+                    httpClient,
+                    finalUri,
+                    cookieGateRetryCount + 1,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
         }
 
         var baseUri = GetBaseUri(finalUri);
-        return new LoadedTextSource(
-            text,
-            baseUri.ToString(),
-            baseUri);
+        return new LoadedTextSource(text, baseUri.ToString(), baseUri);
     }
 
     public static HttpClient CreateHttpClient(HtmlDocumentHttpClientOptions? options = null)
@@ -71,9 +95,12 @@ public static partial class HtmlDocumentLoader
         var handler = new SocketsHttpHandler
         {
             AllowAutoRedirect = true,
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
+            AutomaticDecompression =
+                DecompressionMethods.GZip
+                | DecompressionMethods.Deflate
+                | DecompressionMethods.Brotli,
             CookieContainer = new CookieContainer(),
-            UseCookies = true
+            UseCookies = true,
         };
         var client = new HttpClient(handler);
         client.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
@@ -83,17 +110,20 @@ public static partial class HtmlDocumentLoader
         return client;
     }
 
-    public static HtmlDocumentHttpClientOptions CreateDefaultHttpClientOptions()
-        => new(
+    public static HtmlDocumentHttpClientOptions CreateDefaultHttpClientOptions() =>
+        new(
             "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Enaga.Html.Loader/1.0 Safari/537.36",
             DefaultAcceptHeader,
-            CreateDefaultAcceptLanguage());
+            CreateDefaultAcceptLanguage()
+        );
 
     private static string CreateDefaultAcceptLanguage()
     {
         var culture = CultureInfo.CurrentUICulture;
         var cultureName = string.IsNullOrWhiteSpace(culture.Name) ? "en-US" : culture.Name;
-        var parentName = string.IsNullOrWhiteSpace(culture.Parent.Name) ? null : culture.Parent.Name;
+        var parentName = string.IsNullOrWhiteSpace(culture.Parent.Name)
+            ? null
+            : culture.Parent.Name;
 
         if (string.Equals(cultureName, "en-US", StringComparison.OrdinalIgnoreCase))
             return "en-US,en;q=0.8";
@@ -112,8 +142,8 @@ public static partial class HtmlDocumentLoader
         return request;
     }
 
-    private static bool HasSetCookieHeader(HttpResponseMessage response)
-        => response.Headers.TryGetValues("Set-Cookie", out _);
+    private static bool HasSetCookieHeader(HttpResponseMessage response) =>
+        response.Headers.TryGetValues("Set-Cookie", out _);
 
     private static string ResolveLocalPath(string source, LoadedTextSource? relativeTo)
     {
@@ -129,7 +159,9 @@ public static partial class HtmlDocumentLoader
             return Path.GetFullPath(source);
 
         if (TryCreateAbsoluteUri(relativeTo.BasePath, out var baseUri) && !baseUri.IsFile)
-            throw new NotSupportedException($"Relative local path '{source}' cannot be resolved against remote document '{relativeTo.BasePath}'.");
+            throw new NotSupportedException(
+                $"Relative local path '{source}' cannot be resolved against remote document '{relativeTo.BasePath}'."
+            );
 
         return Path.GetFullPath(Path.Combine(relativeTo.BasePath, source));
     }
@@ -150,9 +182,11 @@ public static partial class HtmlDocumentLoader
             return true;
         }
 
-        if (baseUri is null ||
-            (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps) ||
-            !Uri.TryCreate(baseUri, stripped, out var resolvedUri))
+        if (
+            baseUri is null
+            || (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps)
+            || !Uri.TryCreate(baseUri, stripped, out var resolvedUri)
+        )
         {
             return false;
         }
@@ -161,13 +195,11 @@ public static partial class HtmlDocumentLoader
         return true;
     }
 
-    private static bool TryCreateAbsoluteUri(string source, out Uri uri)
-        => Uri.TryCreate(source, UriKind.Absolute, out uri!);
+    private static bool TryCreateAbsoluteUri(string source, out Uri uri) =>
+        Uri.TryCreate(source, UriKind.Absolute, out uri!);
 
-    private static Uri GetBaseUri(Uri uri)
-        => uri.AbsolutePath.EndsWith("/", StringComparison.Ordinal)
-            ? uri
-            : new Uri(uri, ".");
+    private static Uri GetBaseUri(Uri uri) =>
+        uri.AbsolutePath.EndsWith("/", StringComparison.Ordinal) ? uri : new Uri(uri, ".");
 
     private static string? TryGetCharset(MediaTypeHeaderValue? contentType)
     {
@@ -181,7 +213,9 @@ public static partial class HtmlDocumentLoader
 public sealed record HtmlDocumentHttpClientOptions(
     string UserAgent,
     string Accept,
-    string? AcceptLanguage)
+    string? AcceptLanguage
+)
 {
-    public static HtmlDocumentHttpClientOptions Default => HtmlDocumentLoader.CreateDefaultHttpClientOptions();
+    public static HtmlDocumentHttpClientOptions Default =>
+        HtmlDocumentLoader.CreateDefaultHttpClientOptions();
 }

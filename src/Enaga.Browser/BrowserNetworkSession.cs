@@ -17,23 +17,30 @@ internal sealed class BrowserNetworkSession : IDisposable
 
     public BrowserRequestProfile RequestProfile => requestFactory.RequestProfile;
 
-    public HttpRequestMessage CreateRequest(HttpMethod method, Uri uri, BrowserHttpRequestOptions options)
-        => requestFactory.CreateRequest(method, uri, options);
+    public HttpRequestMessage CreateRequest(
+        HttpMethod method,
+        Uri uri,
+        BrowserHttpRequestOptions options
+    ) => requestFactory.CreateRequest(method, uri, options);
 
-    public void ApplyDefaultHeaders(HttpRequestMessage request, BrowserHttpRequestOptions options)
-        => requestFactory.ApplyDefaultHeaders(request, options);
+    public void ApplyDefaultHeaders(
+        HttpRequestMessage request,
+        BrowserHttpRequestOptions options
+    ) => requestFactory.ApplyDefaultHeaders(request, options);
 
-    public void Dispose()
-        => HttpClient.Dispose();
+    public void Dispose() => HttpClient.Dispose();
 
     private static HttpClient CreateHttpClient()
     {
         var handler = new SocketsHttpHandler
         {
             AllowAutoRedirect = true,
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
+            AutomaticDecompression =
+                DecompressionMethods.GZip
+                | DecompressionMethods.Deflate
+                | DecompressionMethods.Brotli,
             CookieContainer = new CookieContainer(),
-            UseCookies = true
+            UseCookies = true,
         };
         return new HttpClient(handler);
     }

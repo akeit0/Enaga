@@ -13,7 +13,13 @@ public sealed class SceneSmoothScrollControllerTests
         var state = new TestScrollState();
         var box = CreateScrollBox();
 
-        var changed = SceneSmoothScrollController.ApplyWheelTarget(state, box, 0, -10, wheelScrollFactor: 20);
+        var changed = SceneSmoothScrollController.ApplyWheelTarget(
+            state,
+            box,
+            0,
+            -10,
+            wheelScrollFactor: 20
+        );
 
         Assert.True(changed);
         Assert.Equal(0, state.ScrollY);
@@ -38,8 +44,8 @@ public sealed class SceneSmoothScrollControllerTests
         Assert.Equal(100, state.ScrollY);
     }
 
-    private static SceneLayoutBox CreateScrollBox()
-        => new(
+    private static SceneLayoutBox CreateScrollBox() =>
+        new(
             SceneNodeKind.ScrollView,
             0,
             0,
@@ -47,7 +53,8 @@ public sealed class SceneSmoothScrollControllerTests
             100,
             ScrollY: 0,
             IsScrollContainer: true,
-            ContentHeight: 300);
+            ContentHeight: 300
+        );
 
     private sealed class TestScrollState : ISceneScrollOffsetState
     {

@@ -16,7 +16,12 @@ public interface ITextInputClient
     TextSelection Selection { get; set; }
 
     void SetPreeditText(string? preeditText, int? cursorPosition);
-    void SetPreeditText(string? preeditText, int? cursorPosition, int selectionStart, int selectionLength)
+    void SetPreeditText(
+        string? preeditText,
+        int? cursorPosition,
+        int selectionStart,
+        int selectionLength
+    )
     {
         SetPreeditText(preeditText, cursorPosition);
     }

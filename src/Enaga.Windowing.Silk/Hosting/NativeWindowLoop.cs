@@ -24,12 +24,14 @@ internal sealed class NativeWindowLoop : IDisposable
         double activeFramesPerSecond,
         Func<bool> hasImmediateWork,
         ManualResetEventSlim wakeSignal,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null
+    )
     {
         this.window = window ?? throw new ArgumentNullException(nameof(window));
         this.glfwApi = glfwApi;
         this.activeFramesPerSecond = activeFramesPerSecond;
-        this.hasImmediateWork = hasImmediateWork ?? throw new ArgumentNullException(nameof(hasImmediateWork));
+        this.hasImmediateWork =
+            hasImmediateWork ?? throw new ArgumentNullException(nameof(hasImmediateWork));
         this.wakeSignal = wakeSignal ?? throw new ArgumentNullException(nameof(wakeSignal));
         this.timeProvider = timeProvider ?? TimeProvider.System;
         startTimestamp = this.timeProvider.GetTimestamp();
@@ -81,7 +83,9 @@ internal sealed class NativeWindowLoop : IDisposable
         {
             var framesPerSecond = appliedFramesPerSecond ?? activeFramesPerSecond;
             var renderPaused = framesPerSecond <= 0;
-            var frameIntervalMs = renderPaused ? double.PositiveInfinity : 1000d / Math.Max(1, framesPerSecond);
+            var frameIntervalMs = renderPaused
+                ? double.PositiveInfinity
+                : 1000d / Math.Max(1, framesPerSecond);
             var nowMs = ElapsedMs;
             var remainingMs = Math.Max(0, GetNextFrameDueMs() - nowMs);
             if (remainingMs > 0.05)
@@ -122,9 +126,7 @@ internal sealed class NativeWindowLoop : IDisposable
         window.Reset();
     }
 
-    public void Dispose()
-    {
-    }
+    public void Dispose() { }
 
     private void ProcessEvents(bool resetWakeSignal)
     {
@@ -146,8 +148,10 @@ internal sealed class NativeWindowLoop : IDisposable
     private void ApplyRenderCadence(double framesPerSecond)
     {
         var targetFramesPerSecond = framesPerSecond <= 0 ? 0 : Math.Max(1, framesPerSecond);
-        if (appliedFramesPerSecond is { } applied &&
-            Math.Abs(applied - targetFramesPerSecond) < 0.001)
+        if (
+            appliedFramesPerSecond is { } applied
+            && Math.Abs(applied - targetFramesPerSecond) < 0.001
+        )
         {
             return;
         }
@@ -199,7 +203,9 @@ internal sealed class NativeWindowLoop : IDisposable
             const uint periodMs = 2;
             var result = WinMM.TimeBeginPeriod(periodMs);
             if (result != 0)
-                throw new InvalidOperationException($"timeBeginPeriod({periodMs}) failed with MMRESULT={result}.");
+                throw new InvalidOperationException(
+                    $"timeBeginPeriod({periodMs}) failed with MMRESULT={result}."
+                );
 
             return new TimerResolutionScope(periodMs);
         }
@@ -212,7 +218,9 @@ internal sealed class NativeWindowLoop : IDisposable
             disposed = true;
             var result = WinMM.TimeEndPeriod(periodMs);
             if (result != 0)
-                throw new InvalidOperationException($"timeEndPeriod({periodMs}) failed with MMRESULT={result}.");
+                throw new InvalidOperationException(
+                    $"timeEndPeriod({periodMs}) failed with MMRESULT={result}."
+                );
         }
     }
 

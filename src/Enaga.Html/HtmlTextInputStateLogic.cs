@@ -4,7 +4,11 @@ namespace Enaga.Html;
 
 public static class HtmlTextInputStateLogic
 {
-    public static void ApplyExternalValue(HtmlTextInputState state, IRuntimeTextServices textServices, string value)
+    public static void ApplyExternalValue(
+        HtmlTextInputState state,
+        IRuntimeTextServices textServices,
+        string value
+    )
     {
         value ??= string.Empty;
 
@@ -30,9 +34,18 @@ public static class HtmlTextInputStateLogic
         }
 
         state.Text = value;
-        state.CaretIndex = textServices.SnapCaretIndex(state.Text, Math.Min(state.CaretIndex, state.Text.Length));
-        state.SelectionStart = textServices.SnapCaretIndex(state.Text, Math.Min(state.SelectionStart, state.Text.Length));
-        state.SelectionEnd = textServices.SnapCaretIndex(state.Text, Math.Min(state.SelectionEnd, state.Text.Length));
+        state.CaretIndex = textServices.SnapCaretIndex(
+            state.Text,
+            Math.Min(state.CaretIndex, state.Text.Length)
+        );
+        state.SelectionStart = textServices.SnapCaretIndex(
+            state.Text,
+            Math.Min(state.SelectionStart, state.Text.Length)
+        );
+        state.SelectionEnd = textServices.SnapCaretIndex(
+            state.Text,
+            Math.Min(state.SelectionEnd, state.Text.Length)
+        );
         state.PreferredCaretX = null;
         EndComposition(state, textServices);
         if (!state.IsFocused)
@@ -59,7 +72,13 @@ public static class HtmlTextInputStateLogic
         state.CompositionSelectionLength = 0;
     }
 
-    public static void UpdateComposition(HtmlTextInputState state, string? text, int cursorPosition, int selectionStart, int selectionLength)
+    public static void UpdateComposition(
+        HtmlTextInputState state,
+        string? text,
+        int cursorPosition,
+        int selectionStart,
+        int selectionLength
+    )
     {
         state.IsTextCompositionActive = true;
         if (state.CompositionText.Length == 0 && !string.IsNullOrEmpty(text) && HasSelection(state))
@@ -73,8 +92,16 @@ public static class HtmlTextInputStateLogic
 
         state.CompositionText = text ?? string.Empty;
         state.CompositionCursorOffset = Math.Clamp(cursorPosition, 0, state.CompositionText.Length);
-        state.CompositionSelectionStart = Math.Clamp(selectionStart, 0, state.CompositionText.Length);
-        state.CompositionSelectionLength = Math.Clamp(selectionLength, 0, state.CompositionText.Length - state.CompositionSelectionStart);
+        state.CompositionSelectionStart = Math.Clamp(
+            selectionStart,
+            0,
+            state.CompositionText.Length
+        );
+        state.CompositionSelectionLength = Math.Clamp(
+            selectionLength,
+            0,
+            state.CompositionText.Length - state.CompositionSelectionStart
+        );
     }
 
     public static void PrepareCompositionCommit(HtmlTextInputState state)
@@ -84,12 +111,17 @@ public static class HtmlTextInputStateLogic
 
     public static void EndComposition(HtmlTextInputState state, IRuntimeTextServices textServices)
     {
-        if (!state.PendingCompositionCommit &&
-            state.CompositionReplacedSelection &&
-            state.CompositionRestoreText is { } restoreText)
+        if (
+            !state.PendingCompositionCommit
+            && state.CompositionReplacedSelection
+            && state.CompositionRestoreText is { } restoreText
+        )
         {
             state.Text = restoreText;
-            state.CaretIndex = textServices.SnapCaretIndex(restoreText, Math.Clamp(state.CompositionStartIndex, 0, restoreText.Length));
+            state.CaretIndex = textServices.SnapCaretIndex(
+                restoreText,
+                Math.Clamp(state.CompositionStartIndex, 0, restoreText.Length)
+            );
             state.PreferredCaretX = null;
             ClearSelection(state);
             state.PendingHostText = null;
@@ -105,7 +137,11 @@ public static class HtmlTextInputStateLogic
         state.CompositionSelectionLength = 0;
     }
 
-    public static void ApplyTextInput(HtmlTextInputState state, IRuntimeTextServices textServices, string text)
+    public static void ApplyTextInput(
+        HtmlTextInputState state,
+        IRuntimeTextServices textServices,
+        string text
+    )
     {
         var useCompositionAnchor = state.PendingCompositionCommit;
         if (useCompositionAnchor && !state.CompositionReplacedSelection && HasSelection(state))
@@ -131,8 +167,8 @@ public static class HtmlTextInputStateLogic
         state.PendingHostText = state.Text;
     }
 
-    public static bool HasSelection(HtmlTextInputState state)
-        => state.SelectionStart != state.SelectionEnd;
+    public static bool HasSelection(HtmlTextInputState state) =>
+        state.SelectionStart != state.SelectionEnd;
 
     public static void ClearSelection(HtmlTextInputState state)
     {
@@ -141,10 +177,21 @@ public static class HtmlTextInputStateLogic
         state.SelectionEnd = state.CaretIndex;
     }
 
-    public static void SetSelection(HtmlTextInputState state, IRuntimeTextServices textServices, int anchorIndex, int caretIndex)
+    public static void SetSelection(
+        HtmlTextInputState state,
+        IRuntimeTextServices textServices,
+        int anchorIndex,
+        int caretIndex
+    )
     {
-        var clampedAnchor = textServices.SnapCaretIndex(state.Text, Math.Clamp(anchorIndex, 0, state.Text.Length));
-        var clampedCaret = textServices.SnapCaretIndex(state.Text, Math.Clamp(caretIndex, 0, state.Text.Length));
+        var clampedAnchor = textServices.SnapCaretIndex(
+            state.Text,
+            Math.Clamp(anchorIndex, 0, state.Text.Length)
+        );
+        var clampedCaret = textServices.SnapCaretIndex(
+            state.Text,
+            Math.Clamp(caretIndex, 0, state.Text.Length)
+        );
         state.SelectionAnchorIndex = clampedAnchor;
         state.CaretIndex = clampedCaret;
         state.SelectionStart = Math.Min(clampedAnchor, clampedCaret);
@@ -168,6 +215,9 @@ public static class HtmlTextInputStateLogic
         return true;
     }
 
-    private static int AdjustCaretIndexForInsertedText(int caretIndex, int insertIndex, int insertedLength)
-        => caretIndex >= insertIndex ? caretIndex + insertedLength : caretIndex;
+    private static int AdjustCaretIndexForInsertedText(
+        int caretIndex,
+        int insertIndex,
+        int insertedLength
+    ) => caretIndex >= insertIndex ? caretIndex + insertedLength : caretIndex;
 }

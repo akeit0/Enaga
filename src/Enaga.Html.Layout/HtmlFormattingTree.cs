@@ -18,7 +18,7 @@ internal enum HtmlFormattingNodeKind : byte
     Replaced,
     Absolute,
     Fixed,
-    ScrollContainer
+    ScrollContainer,
 }
 
 internal sealed record HtmlFormattingNode(
@@ -28,7 +28,8 @@ internal sealed record HtmlFormattingNode(
     HtmlFormattingNodeId? ParentId,
     IReadOnlyList<HtmlFormattingNodeId> Children,
     uint StyleVersion,
-    uint LayoutVersion);
+    uint LayoutVersion
+);
 
 internal sealed class HtmlFormattingTree
 {
@@ -61,11 +62,11 @@ internal sealed class HtmlFormattingTree
 
     public IReadOnlyDictionary<HtmlFormattingNodeId, HtmlFormattingNode> Nodes => nodes;
 
-    public bool TryGetNode(HtmlFormattingNodeId id, out HtmlFormattingNode node)
-        => nodes.TryGetValue(id, out node!);
+    public bool TryGetNode(HtmlFormattingNodeId id, out HtmlFormattingNode node) =>
+        nodes.TryGetValue(id, out node!);
 
-    public IReadOnlyList<HtmlFormattingNodeId> GetNodesForSource(HtmlNodeId sourceNodeId)
-        => nodesBySource.TryGetValue(sourceNodeId, out var sourceNodes) ? sourceNodes : [];
+    public IReadOnlyList<HtmlFormattingNodeId> GetNodesForSource(HtmlNodeId sourceNodeId) =>
+        nodesBySource.TryGetValue(sourceNodeId, out var sourceNodes) ? sourceNodes : [];
 }
 
 internal readonly record struct HtmlFragmentId(int Value);
@@ -81,7 +82,7 @@ internal enum HtmlFragmentKind : byte
     ListMarker,
     ScrollBar,
     Absolute,
-    Fixed
+    Fixed,
 }
 
 internal enum HtmlGeneratedFragmentRole : byte
@@ -90,7 +91,7 @@ internal enum HtmlGeneratedFragmentRole : byte
     VerticalScrollBarGutter,
     VerticalScrollBarThumb,
     HorizontalScrollBarGutter,
-    HorizontalScrollBarThumb
+    HorizontalScrollBarThumb,
 }
 
 internal readonly record struct HtmlLayoutRect(float Left, float Top, float Width, float Height)
@@ -148,7 +149,8 @@ internal sealed record HtmlFragment(
     uint PaintVersion,
     Enaga.Scene.SceneNodeId SceneNodeId = default,
     HtmlSceneNodeId SourceSceneNodeId = default,
-    HtmlGeneratedFragmentRole GeneratedRole = HtmlGeneratedFragmentRole.None);
+    HtmlGeneratedFragmentRole GeneratedRole = HtmlGeneratedFragmentRole.None
+);
 
 internal sealed class HtmlFragmentTree
 {
@@ -164,22 +166,27 @@ internal sealed class HtmlFragmentTree
 
     public HtmlFragmentId RootId { get; }
 
-    public IReadOnlyDictionary<HtmlFragmentId, HtmlFragment> Fragments => fragments ??= BuildFragmentsById();
+    public IReadOnlyDictionary<HtmlFragmentId, HtmlFragment> Fragments =>
+        fragments ??= BuildFragmentsById();
 
     public IReadOnlyList<HtmlFragment> OrderedFragments => orderedFragments;
 
-    public bool TryGetFragment(HtmlFragmentId id, out HtmlFragment fragment)
-        => (fragments ??= BuildFragmentsById()).TryGetValue(id, out fragment!);
+    public bool TryGetFragment(HtmlFragmentId id, out HtmlFragment fragment) =>
+        (fragments ??= BuildFragmentsById()).TryGetValue(id, out fragment!);
 
     public IReadOnlyList<HtmlFragmentId> GetFragmentsForSource(HtmlFormattingNodeId sourceNodeId)
     {
         fragmentsBySource ??= BuildFragmentsBySource();
-        return fragmentsBySource.TryGetValue(sourceNodeId, out var sourceFragments) ? sourceFragments : [];
+        return fragmentsBySource.TryGetValue(sourceNodeId, out var sourceFragments)
+            ? sourceFragments
+            : [];
     }
 
     private Dictionary<HtmlFormattingNodeId, List<HtmlFragmentId>> BuildFragmentsBySource()
     {
-        var bySource = new Dictionary<HtmlFormattingNodeId, List<HtmlFragmentId>>(orderedFragments.Count);
+        var bySource = new Dictionary<HtmlFormattingNodeId, List<HtmlFragmentId>>(
+            orderedFragments.Count
+        );
         for (var index = 0; index < orderedFragments.Count; index++)
         {
             var fragment = orderedFragments[index];

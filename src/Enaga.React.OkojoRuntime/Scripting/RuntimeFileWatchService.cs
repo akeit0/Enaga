@@ -4,11 +4,17 @@ internal sealed class RuntimeFileWatchService : IDisposable
 {
     private readonly List<FileSystemWatcher> watchers = [];
 
-    public RuntimeFileWatchService(IEnumerable<string> watchPaths, IEnumerable<string>? watchPatterns = null)
+    public RuntimeFileWatchService(
+        IEnumerable<string> watchPaths,
+        IEnumerable<string>? watchPatterns = null
+    )
     {
         ArgumentNullException.ThrowIfNull(watchPaths);
 
-        var patterns = watchPatterns?.Where(static pattern => !string.IsNullOrWhiteSpace(pattern)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var patterns = watchPatterns
+            ?.Where(static pattern => !string.IsNullOrWhiteSpace(pattern))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         if (patterns is null || patterns.Length == 0)
             patterns = ["*.mjs"];
 
@@ -44,7 +50,11 @@ internal sealed class RuntimeFileWatchService : IDisposable
         var watcher = new FileSystemWatcher(directory, filter)
         {
             IncludeSubdirectories = true,
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime
+            NotifyFilter =
+                NotifyFilters.LastWrite
+                | NotifyFilters.Size
+                | NotifyFilters.FileName
+                | NotifyFilters.CreationTime,
         };
         AttachHandlers(watcher);
     }
@@ -62,7 +72,11 @@ internal sealed class RuntimeFileWatchService : IDisposable
 
         var watcher = new FileSystemWatcher(directory, fileName)
         {
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime
+            NotifyFilter =
+                NotifyFilters.LastWrite
+                | NotifyFilters.Size
+                | NotifyFilters.FileName
+                | NotifyFilters.CreationTime,
         };
         AttachHandlers(watcher);
     }

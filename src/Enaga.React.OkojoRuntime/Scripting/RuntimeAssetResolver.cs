@@ -7,17 +7,19 @@ public enum RuntimeAssetKind : byte
     None = 0,
     LocalPath = 1,
     Uri = 2,
-    Stream = 3
+    Stream = 3,
 }
 
 public readonly record struct RuntimeAssetRequest(
     string Source,
     string? AssetBasePath,
-    string? ReferrerPath = null);
+    string? ReferrerPath = null
+);
 
 public sealed record RuntimeAssetReference
 {
-    public static RuntimeAssetReference Unresolved(string source) => new(source, RuntimeAssetKind.None);
+    public static RuntimeAssetReference Unresolved(string source) =>
+        new(source, RuntimeAssetKind.None);
 
     public RuntimeAssetReference(
         string source,
@@ -25,7 +27,8 @@ public sealed record RuntimeAssetReference
         string? localPath = null,
         Uri? uri = null,
         Func<Stream>? openStream = null,
-        string? contentType = null)
+        string? contentType = null
+    )
     {
         Source = source;
         Kind = kind;
@@ -57,7 +60,8 @@ public interface IRuntimeAssetResolver
 
 public static class RuntimeAssetResolver
 {
-    public static IRuntimeAssetResolver FileSystemRelativeToEntry { get; } = FileSystemAssetResolver.Instance;
+    public static IRuntimeAssetResolver FileSystemRelativeToEntry { get; } =
+        FileSystemAssetResolver.Instance;
 }
 
 public sealed class FileSystemAssetResolver : IRuntimeAssetResolver
@@ -75,13 +79,21 @@ public sealed class FileSystemAssetResolver : IRuntimeAssetResolver
                 return new RuntimeAssetReference(request.Source, RuntimeAssetKind.Uri, uri: uri);
 
             if (uri.Scheme == Uri.UriSchemeFile)
-                return new RuntimeAssetReference(request.Source, RuntimeAssetKind.LocalPath, localPath: uri.LocalPath);
+                return new RuntimeAssetReference(
+                    request.Source,
+                    RuntimeAssetKind.LocalPath,
+                    localPath: uri.LocalPath
+                );
 
             return RuntimeAssetReference.Unresolved(request.Source);
         }
 
         if (Path.IsPathRooted(request.Source))
-            return new RuntimeAssetReference(request.Source, RuntimeAssetKind.LocalPath, localPath: request.Source);
+            return new RuntimeAssetReference(
+                request.Source,
+                RuntimeAssetKind.LocalPath,
+                localPath: request.Source
+            );
 
         var assetBasePath = request.ReferrerPath ?? request.AssetBasePath;
         var assetBaseDirectory = Directory.Exists(assetBasePath)
@@ -89,8 +101,15 @@ public sealed class FileSystemAssetResolver : IRuntimeAssetResolver
             : Path.GetDirectoryName(assetBasePath);
         var resolvedPath = Path.GetFullPath(
             request.Source,
-            string.IsNullOrWhiteSpace(assetBaseDirectory) ? Environment.CurrentDirectory : assetBaseDirectory);
-        return new RuntimeAssetReference(request.Source, RuntimeAssetKind.LocalPath, localPath: resolvedPath);
+            string.IsNullOrWhiteSpace(assetBaseDirectory)
+                ? Environment.CurrentDirectory
+                : assetBaseDirectory
+        );
+        return new RuntimeAssetReference(
+            request.Source,
+            RuntimeAssetKind.LocalPath,
+            localPath: resolvedPath
+        );
     }
 }
 
@@ -115,18 +134,25 @@ public sealed class PrefixedFileAssetResolver : IRuntimeAssetResolver
         if (!request.Source.StartsWith(aliasPrefix, StringComparison.OrdinalIgnoreCase))
             return RuntimeAssetReference.Unresolved(request.Source);
 
-        var relativePath = request.Source[aliasPrefix.Length..]
+        var relativePath = request
+            .Source[aliasPrefix.Length..]
             .TrimStart('/', '\\')
             .Replace('/', Path.DirectorySeparatorChar)
             .Replace('\\', Path.DirectorySeparatorChar);
         var combinedPath = Path.GetFullPath(Path.Combine(rootPath, relativePath));
-        return new RuntimeAssetReference(request.Source, RuntimeAssetKind.LocalPath, localPath: combinedPath);
+        return new RuntimeAssetReference(
+            request.Source,
+            RuntimeAssetKind.LocalPath,
+            localPath: combinedPath
+        );
     }
 }
 
 public sealed class InMemoryAssetResolver : IRuntimeAssetResolver
 {
-    private readonly Dictionary<string, InMemoryRuntimeAsset> assets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, InMemoryRuntimeAsset> assets = new(
+        StringComparer.OrdinalIgnoreCase
+    );
 
     public void AddBytes(string source, byte[] content, string? contentType = null)
     {
@@ -139,7 +165,10 @@ public sealed class InMemoryAssetResolver : IRuntimeAssetResolver
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
         ArgumentNullException.ThrowIfNull(content);
-        assets[source] = new InMemoryRuntimeAsset(System.Text.Encoding.UTF8.GetBytes(content), contentType ?? "text/plain; charset=utf-8");
+        assets[source] = new InMemoryRuntimeAsset(
+            System.Text.Encoding.UTF8.GetBytes(content),
+            contentType ?? "text/plain; charset=utf-8"
+        );
     }
 
     public RuntimeAssetReference Resolve(RuntimeAssetRequest request)
@@ -151,7 +180,8 @@ public sealed class InMemoryAssetResolver : IRuntimeAssetResolver
             request.Source,
             RuntimeAssetKind.Stream,
             openStream: () => new MemoryStream(asset.Content, writable: false),
-            contentType: asset.ContentType);
+            contentType: asset.ContentType
+        );
     }
 
     private sealed record InMemoryRuntimeAsset(byte[] Content, string? ContentType);
@@ -163,11 +193,18 @@ public sealed class ManifestResourceAssetResolver : IRuntimeAssetResolver
     private readonly string manifestResourcePrefix;
     private readonly string? sourcePrefix;
 
-    public ManifestResourceAssetResolver(Assembly assembly, string manifestResourcePrefix, string? sourcePrefix = null)
+    public ManifestResourceAssetResolver(
+        Assembly assembly,
+        string manifestResourcePrefix,
+        string? sourcePrefix = null
+    )
     {
         this.assembly = assembly ?? throw new ArgumentNullException(nameof(assembly));
         this.manifestResourcePrefix = string.IsNullOrWhiteSpace(manifestResourcePrefix)
-            ? throw new ArgumentException("A manifest resource prefix is required.", nameof(manifestResourcePrefix))
+            ? throw new ArgumentException(
+                "A manifest resource prefix is required.",
+                nameof(manifestResourcePrefix)
+            )
             : manifestResourcePrefix;
         this.sourcePrefix = sourcePrefix;
     }
@@ -191,9 +228,7 @@ public sealed class ManifestResourceAssetResolver : IRuntimeAssetResolver
             resourceSuffix = source[sourcePrefix.Length..];
         }
 
-        resourceSuffix = resourceSuffix.TrimStart('/', '\\')
-            .Replace('/', '.')
-            .Replace('\\', '.');
+        resourceSuffix = resourceSuffix.TrimStart('/', '\\').Replace('/', '.').Replace('\\', '.');
         var resourceName = manifestResourcePrefix + resourceSuffix;
         if (!assembly.GetManifestResourceNames().Contains(resourceName, StringComparer.Ordinal))
             return RuntimeAssetReference.Unresolved(source);
@@ -201,9 +236,13 @@ public sealed class ManifestResourceAssetResolver : IRuntimeAssetResolver
         return new RuntimeAssetReference(
             source,
             RuntimeAssetKind.Stream,
-            openStream: () => assembly.GetManifestResourceStream(resourceName)
-                ?? throw new InvalidOperationException($"Manifest resource '{resourceName}' could not be opened."),
-            contentType: GuessContentType(source));
+            openStream: () =>
+                assembly.GetManifestResourceStream(resourceName)
+                ?? throw new InvalidOperationException(
+                    $"Manifest resource '{resourceName}' could not be opened."
+                ),
+            contentType: GuessContentType(source)
+        );
     }
 
     private static string? GuessContentType(string source)
@@ -216,7 +255,7 @@ public sealed class ManifestResourceAssetResolver : IRuntimeAssetResolver
             ".jpg" or ".jpeg" => "image/jpeg",
             ".json" => "application/json",
             ".txt" => "text/plain; charset=utf-8",
-            _ => null
+            _ => null,
         };
     }
 }
@@ -226,9 +265,7 @@ public sealed class CompositeAssetResolver : IRuntimeAssetResolver
     private readonly IReadOnlyList<IRuntimeAssetResolver> resolvers;
 
     public CompositeAssetResolver(params IRuntimeAssetResolver[] resolvers)
-        : this((IEnumerable<IRuntimeAssetResolver>)resolvers)
-    {
-    }
+        : this((IEnumerable<IRuntimeAssetResolver>)resolvers) { }
 
     public CompositeAssetResolver(IEnumerable<IRuntimeAssetResolver> resolvers)
     {

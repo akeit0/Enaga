@@ -15,13 +15,19 @@ internal sealed partial class HtmlComputedStyle
         public const Enaga.Layout.FlexDirection FlexDirection = Enaga.Layout.FlexDirection.Column;
         public const Enaga.Layout.FlexWrap FlexWrap = Enaga.Layout.FlexWrap.NoWrap;
         public const Enaga.Layout.LayoutDirection Direction = Enaga.Layout.LayoutDirection.Ltr;
-        public const Enaga.Layout.MainAxisJustification JustifyContent = Enaga.Layout.MainAxisJustification.Start;
+        public const Enaga.Layout.MainAxisJustification JustifyContent = Enaga
+            .Layout
+            .MainAxisJustification
+            .Start;
         public const Enaga.Layout.CrossAlignment AlignItems = Enaga.Layout.CrossAlignment.Stretch;
         public const Enaga.Layout.CrossAlignment AlignSelf = Enaga.Layout.CrossAlignment.Auto;
         public const PositionMode Position = PositionMode.Static;
         public const Enaga.Scene.SceneBoxSizing BoxSizing = Enaga.Scene.SceneBoxSizing.BorderBox;
         public const Enaga.Scene.SceneBorderStyle BorderStyle = Enaga.Scene.SceneBorderStyle.None;
-        public const Enaga.Scene.SceneBorderStyle BorderStyleSolid = Enaga.Scene.SceneBorderStyle.Solid;
+        public const Enaga.Scene.SceneBorderStyle BorderStyleSolid = Enaga
+            .Scene
+            .SceneBorderStyle
+            .Solid;
         public const HtmlFloat Float = HtmlFloat.None;
         public const HtmlClear Clear = HtmlClear.None;
 

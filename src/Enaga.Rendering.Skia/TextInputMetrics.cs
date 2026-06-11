@@ -1,10 +1,9 @@
-using Enaga.Scene;
-using SkiaSharp;
 using System.Buffers;
 using System.Globalization;
+using Enaga.Scene;
+using SkiaSharp;
 
 namespace Enaga.Rendering.Skia;
-
 
 internal sealed class TextInputMetrics : IDisposable
 {
@@ -26,22 +25,44 @@ internal sealed class TextInputMetrics : IDisposable
 
     public float MeasureCaretOffset(SKFont font, SKPaint paint, string text, int caretIndex)
     {
-        var layout = CreateLayout(CreateTextStyle(font), paint, text, lineHeight: font.Size * 1.35f);
+        var layout = CreateLayout(
+            CreateTextStyle(font),
+            paint,
+            text,
+            lineHeight: font.Size * 1.35f
+        );
         var caret = GetCaretPosition(layout, Math.Clamp(caretIndex, 0, text.Length));
         return caret.X;
     }
 
     public int HitTestCaretIndex(SKFont font, SKPaint paint, string text, float x)
     {
-        var layout = CreateLayout(CreateTextStyle(font), paint, text, lineHeight: font.Size * 1.35f);
+        var layout = CreateLayout(
+            CreateTextStyle(font),
+            paint,
+            text,
+            lineHeight: font.Size * 1.35f
+        );
         return HitTestCaretIndex(layout, x, 0);
     }
 
-    public TextLayout CreateLayout(SceneTextStyle style, SKPaint paint, string text, float lineHeight, float maxWidth = float.PositiveInfinity)
+    public TextLayout CreateLayout(
+        SceneTextStyle style,
+        SKPaint paint,
+        string text,
+        float lineHeight,
+        float maxWidth = float.PositiveInfinity
+    )
     {
         text ??= string.Empty;
         var normalizedLineHeight = lineHeight > 0 ? lineHeight : style.FontSize * 1.35f;
-        var canCache = TryCreateLayoutCacheKey(style, text, normalizedLineHeight, maxWidth, out var cacheKey);
+        var canCache = TryCreateLayoutCacheKey(
+            style,
+            text,
+            normalizedLineHeight,
+            maxWidth,
+            out var cacheKey
+        );
         if (canCache)
         {
             if (TryGetCachedLayout(cacheKey, out var cachedLayout))
@@ -55,7 +76,13 @@ internal sealed class TextInputMetrics : IDisposable
         return layout;
     }
 
-    private TextLayout CreateLayoutCore(SceneTextStyle style, SKPaint paint, string text, float normalizedLineHeight, float maxWidth)
+    private TextLayout CreateLayoutCore(
+        SceneTextStyle style,
+        SKPaint paint,
+        string text,
+        float normalizedLineHeight,
+        float maxWidth
+    )
     {
         var spans = new List<TextLineSpan>();
         var lineStart = 0;
@@ -74,7 +101,8 @@ internal sealed class TextInputMetrics : IDisposable
                 index,
                 normalizedLineHeight,
                 maxWidth,
-                endsWithNewline: index < text.Length);
+                endsWithNewline: index < text.Length
+            );
             lineStart = index + 1;
         }
 
@@ -89,7 +117,8 @@ internal sealed class TextInputMetrics : IDisposable
         string text,
         float lineHeight,
         float maxWidth,
-        out TextLayoutCacheKey cacheKey)
+        out TextLayoutCacheKey cacheKey
+    )
     {
         cacheKey = default;
         if (text.Length > layoutCacheMaxTextLength)
@@ -105,7 +134,8 @@ internal sealed class TextInputMetrics : IDisposable
             style.TextOverflowEllipsis,
             style.WrapText,
             QuantizePixel(lineHeight),
-            QuantizePixel(maxWidth));
+            QuantizePixel(maxWidth)
+        );
         return true;
     }
 
@@ -155,7 +185,12 @@ internal sealed class TextInputMetrics : IDisposable
         return new CaretPosition(lineIndex, x, lineIndex * layout.LineHeight);
     }
 
-    public int MoveCaretVertical(TextLayout layout, int caretIndex, int lineDelta, float? preferredX = null)
+    public int MoveCaretVertical(
+        TextLayout layout,
+        int caretIndex,
+        int lineDelta,
+        float? preferredX = null
+    )
     {
         if (layout.Lines.Count == 0 || lineDelta == 0)
             return Math.Clamp(caretIndex, 0, layout.TextLength);
@@ -197,7 +232,11 @@ internal sealed class TextInputMetrics : IDisposable
 
     public int HitTestCaretIndex(TextLayout layout, float x, float y)
     {
-        var lineIndex = Math.Clamp((int)Math.Floor(Math.Max(0, y) / layout.LineHeight), 0, layout.Lines.Count - 1);
+        var lineIndex = Math.Clamp(
+            (int)Math.Floor(Math.Max(0, y) / layout.LineHeight),
+            0,
+            layout.Lines.Count - 1
+        );
         var line = layout.Lines[lineIndex];
         if (line.Text.Length == 0 || x <= 0)
             return line.StartIndex;
@@ -218,7 +257,11 @@ internal sealed class TextInputMetrics : IDisposable
         return line.EndIndex;
     }
 
-    public SelectionRect[] GetSelectionRects(TextLayout layout, int selectionStart, int selectionEnd)
+    public SelectionRect[] GetSelectionRects(
+        TextLayout layout,
+        int selectionStart,
+        int selectionEnd
+    )
     {
         var start = Math.Clamp(Math.Min(selectionStart, selectionEnd), 0, layout.TextLength);
         var end = Math.Clamp(Math.Max(selectionStart, selectionEnd), 0, layout.TextLength);
@@ -234,9 +277,15 @@ internal sealed class TextInputMetrics : IDisposable
 
             var lineSelectionStart = SnapCaretIndex(layout, Math.Max(start, line.StartIndex));
             var lineSelectionEnd = SnapCaretIndex(layout, Math.Min(end, line.EndIndex));
-            var startOffset = line.CaretOffsets[GetCaretBoundaryIndex(line, lineSelectionStart - line.StartIndex)];
-            var endOffset = line.CaretOffsets[GetCaretBoundaryIndex(line, lineSelectionEnd - line.StartIndex)];
-            rects.Add(new SelectionRect(lineIndex, startOffset, endOffset, lineIndex * layout.LineHeight));
+            var startOffset = line.CaretOffsets[
+                GetCaretBoundaryIndex(line, lineSelectionStart - line.StartIndex)
+            ];
+            var endOffset = line.CaretOffsets[
+                GetCaretBoundaryIndex(line, lineSelectionEnd - line.StartIndex)
+            ];
+            rects.Add(
+                new SelectionRect(lineIndex, startOffset, endOffset, lineIndex * layout.LineHeight)
+            );
         }
 
         return [.. rects];
@@ -292,11 +341,7 @@ internal sealed class TextInputMetrics : IDisposable
 
     public SKPaint CreatePaint()
     {
-        return new SKPaint
-        {
-            IsAntialias = true,
-            Style = SKPaintStyle.Fill
-        };
+        return new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
     }
 
     public SKFont CreateFont(SceneTextStyle style)
@@ -321,7 +366,8 @@ internal sealed class TextInputMetrics : IDisposable
             QuantizePixel(font.Size),
             font.CacheIdentity,
             font.Weight,
-            font.Italic);
+            font.Italic
+        );
 
         SkiaFontCacheEntry entry;
         lock (fontCacheSync)
@@ -350,9 +396,10 @@ internal sealed class TextInputMetrics : IDisposable
 
             if (caretIndex == line.EndIndex)
             {
-                var sharedSoftWrapBoundary = !line.EndsWithNewline &&
-                                             lineIndex < layout.Lines.Count - 1 &&
-                                             layout.Lines[lineIndex + 1].StartIndex == caretIndex;
+                var sharedSoftWrapBoundary =
+                    !line.EndsWithNewline
+                    && lineIndex < layout.Lines.Count - 1
+                    && layout.Lines[lineIndex + 1].StartIndex == caretIndex;
                 if (!sharedSoftWrapBoundary)
                     return lineIndex;
             }
@@ -364,15 +411,23 @@ internal sealed class TextInputMetrics : IDisposable
     private SceneTextStyle CreateTextStyle(SKFont font)
     {
         return new SceneTextStyle(
-             font.Size,
-             Font: new SceneFont(
-                 font.Size,
-                 font.Typeface?.FamilyName,
-                 (int?)font.Typeface?.FontStyle.Weight ?? 400,
-                 font.Typeface?.FontStyle.Slant != SKFontStyleSlant.Upright));
+            font.Size,
+            Font: new SceneFont(
+                font.Size,
+                font.Typeface?.FamilyName,
+                (int?)font.Typeface?.FontStyle.Weight ?? 400,
+                font.Typeface?.FontStyle.Slant != SKFontStyleSlant.Upright
+            )
+        );
     }
 
-    private TextRunSpan[] BuildTextRuns(SceneTextStyle style, SKPaint paint, string text, int[] caretIndices, float[] caretOffsets)
+    private TextRunSpan[] BuildTextRuns(
+        SceneTextStyle style,
+        SKPaint paint,
+        string text,
+        int[] caretIndices,
+        float[] caretOffsets
+    )
     {
         if (string.IsNullOrEmpty(text) || caretIndices.Length <= 1)
             return [];
@@ -381,7 +436,14 @@ internal sealed class TextInputMetrics : IDisposable
             return BuildSingleTypefaceTextRuns(style, paint, text, caretIndices, caretOffsets);
 
         if (fontCatalog.TryResolveSingleTypefaceForText(style.Font, text, out var singleTypeface))
-            return BuildSingleTypefaceTextRuns(style, paint, text, caretIndices, caretOffsets, singleTypeface);
+            return BuildSingleTypefaceTextRuns(
+                style,
+                paint,
+                text,
+                caretIndices,
+                caretOffsets,
+                singleTypeface
+            );
 
         var rentedRuns = ArrayPool<TextRunSpan>.Shared.Rent(caretIndices.Length - 1);
         var runCount = 0;
@@ -395,7 +457,8 @@ internal sealed class TextInputMetrics : IDisposable
                 var runStart = caretIndices[runStartBoundary];
                 var typeface = fontCatalog.ResolveTypefaceForText(
                     style.Font,
-                    text.AsSpan(runStart, caretIndices[runStartBoundary + 1] - runStart));
+                    text.AsSpan(runStart, caretIndices[runStartBoundary + 1] - runStart)
+                );
                 boundaryIndex++;
 
                 while (boundaryIndex < caretIndices.Length - 1)
@@ -403,7 +466,8 @@ internal sealed class TextInputMetrics : IDisposable
                     var nextStart = caretIndices[boundaryIndex];
                     var nextTypeface = fontCatalog.ResolveTypefaceForText(
                         style.Font,
-                        text.AsSpan(nextStart, caretIndices[boundaryIndex + 1] - nextStart));
+                        text.AsSpan(nextStart, caretIndices[boundaryIndex + 1] - nextStart)
+                    );
                     if (!ReferenceEquals(typeface, nextTypeface))
                         break;
 
@@ -411,15 +475,27 @@ internal sealed class TextInputMetrics : IDisposable
                 }
 
                 using var font = SkiaFontSynthesis.CreateFont(typeface, style.Font);
-                for (var offsetIndex = 1; offsetIndex <= boundaryIndex - runStartBoundary; offsetIndex++)
+                for (
+                    var offsetIndex = 1;
+                    offsetIndex <= boundaryIndex - runStartBoundary;
+                    offsetIndex++
+                )
                 {
                     var relativeLength = caretIndices[runStartBoundary + offsetIndex] - runStart;
-                    caretOffsets[runStartBoundary + offsetIndex] = accumulatedWidth + font.MeasureText(text.AsSpan(runStart, relativeLength), paint);
+                    caretOffsets[runStartBoundary + offsetIndex] =
+                        accumulatedWidth
+                        + font.MeasureText(text.AsSpan(runStart, relativeLength), paint);
                 }
 
                 var runEnd = caretIndices[boundaryIndex];
                 var runWidth = caretOffsets[boundaryIndex] - accumulatedWidth;
-                rentedRuns[runCount++] = new TextRunSpan(runStart, runEnd, SliceText(text, runStart, runEnd - runStart), runWidth, typeface);
+                rentedRuns[runCount++] = new TextRunSpan(
+                    runStart,
+                    runEnd,
+                    SliceText(text, runStart, runEnd - runStart),
+                    runWidth,
+                    typeface
+                );
                 accumulatedWidth = caretOffsets[boundaryIndex];
             }
 
@@ -434,13 +510,33 @@ internal sealed class TextInputMetrics : IDisposable
         }
     }
 
-    private TextRunSpan[] BuildSingleTypefaceTextRuns(SceneTextStyle style, SKPaint paint, string text, int[] caretIndices, float[] caretOffsets)
+    private TextRunSpan[] BuildSingleTypefaceTextRuns(
+        SceneTextStyle style,
+        SKPaint paint,
+        string text,
+        int[] caretIndices,
+        float[] caretOffsets
+    )
     {
         var typeface = fontCatalog.ResolveTypefaceForText(style.Font, text);
-        return BuildSingleTypefaceTextRuns(style, paint, text, caretIndices, caretOffsets, typeface);
+        return BuildSingleTypefaceTextRuns(
+            style,
+            paint,
+            text,
+            caretIndices,
+            caretOffsets,
+            typeface
+        );
     }
 
-    private TextRunSpan[] BuildSingleTypefaceTextRuns(SceneTextStyle style, SKPaint paint, string text, int[] caretIndices, float[] caretOffsets, SKTypeface typeface)
+    private TextRunSpan[] BuildSingleTypefaceTextRuns(
+        SceneTextStyle style,
+        SKPaint paint,
+        string text,
+        int[] caretIndices,
+        float[] caretOffsets,
+        SKTypeface typeface
+    )
     {
         using var font = SkiaFontSynthesis.CreateFont(typeface, style.Font);
         FillSingleTypefaceCaretOffsets(font, paint, text, caretIndices, caretOffsets);
@@ -448,7 +544,13 @@ internal sealed class TextInputMetrics : IDisposable
         return [new TextRunSpan(0, text.Length, text, caretOffsets[^1], typeface)];
     }
 
-    private void FillSingleTypefaceCaretOffsets(SKFont font, SKPaint paint, string text, int[] caretIndices, float[] caretOffsets)
+    private void FillSingleTypefaceCaretOffsets(
+        SKFont font,
+        SKPaint paint,
+        string text,
+        int[] caretIndices,
+        float[] caretOffsets
+    )
     {
         if (caretIndices.Length == text.Length + 1)
         {
@@ -473,11 +575,17 @@ internal sealed class TextInputMetrics : IDisposable
             caretOffsets[index] = font.MeasureText(text.AsSpan(0, caretIndices[index]), paint);
     }
 
-    private void FillDenseAsciiCaretOffsets(SKFont font, SKPaint paint, string text, float[] caretOffsets)
+    private void FillDenseAsciiCaretOffsets(
+        SKFont font,
+        SKPaint paint,
+        string text,
+        float[] caretOffsets
+    )
     {
         caretOffsets[0] = 0;
         for (var index = 0; index < text.Length; index++)
-            caretOffsets[index + 1] = caretOffsets[index] + font.MeasureText(text.AsSpan(index, 1), paint);
+            caretOffsets[index + 1] =
+                caretOffsets[index] + font.MeasureText(text.AsSpan(index, 1), paint);
     }
 
     internal sealed record TextLayout(IReadOnlyList<TextLineSpan> Lines, float LineHeight)
@@ -485,16 +593,35 @@ internal sealed class TextInputMetrics : IDisposable
         public int TextLength => Lines.Count == 0 ? 0 : Lines[^1].EndIndex;
     }
 
-    internal sealed record TextLineSpan(int StartIndex, int EndIndex, string Text, int[] CaretIndices, float[] CaretOffsets, IReadOnlyList<TextRunSpan> Runs, bool EndsWithNewline = false)
+    internal sealed record TextLineSpan(
+        int StartIndex,
+        int EndIndex,
+        string Text,
+        int[] CaretIndices,
+        float[] CaretOffsets,
+        IReadOnlyList<TextRunSpan> Runs,
+        bool EndsWithNewline = false
+    )
     {
         public float Width => CaretOffsets.Length == 0 ? 0 : CaretOffsets[^1];
     }
 
-    internal sealed record TextRunSpan(int StartIndex, int EndIndex, string Text, float Width, SKTypeface Typeface);
+    internal sealed record TextRunSpan(
+        int StartIndex,
+        int EndIndex,
+        string Text,
+        float Width,
+        SKTypeface Typeface
+    );
 
     internal readonly record struct CaretPosition(int LineIndex, float X, float Y);
 
-    internal readonly record struct SelectionRect(int LineIndex, float Left, float Right, float Top);
+    internal readonly record struct SelectionRect(
+        int LineIndex,
+        float Left,
+        float Right,
+        float Top
+    );
 
     internal struct SkiaFontLease : IDisposable
     {
@@ -508,7 +635,8 @@ internal sealed class TextInputMetrics : IDisposable
             Monitor.Enter(entry.Sync);
         }
 
-        public SKFont Font => entry?.Font ?? throw new ObjectDisposedException(nameof(SkiaFontLease));
+        public SKFont Font =>
+            entry?.Font ?? throw new ObjectDisposedException(nameof(SkiaFontLease));
 
         public void Dispose()
         {
@@ -545,14 +673,16 @@ internal sealed class TextInputMetrics : IDisposable
         bool TextOverflowEllipsis,
         bool WrapText,
         int LineHeightQuarterPx,
-        int MaxWidthQuarterPx);
+        int MaxWidthQuarterPx
+    );
 
     private readonly record struct SkiaFontCacheKey(
         int FontVersion,
         int FontSizeQuarterPx,
         string Identity,
         int Weight,
-        bool Italic);
+        bool Italic
+    );
 
     private void TrimFontCache_NoLock()
     {
@@ -672,25 +802,38 @@ internal sealed class TextInputMetrics : IDisposable
         int absoluteEnd,
         float lineHeight,
         float maxWidth,
-        bool endsWithNewline)
+        bool endsWithNewline
+    )
     {
         if (!style.WrapText || !float.IsFinite(maxWidth) || maxWidth <= 0)
         {
-            spans.Add(CreateLineSpan(style, paint, lineText, absoluteStart, absoluteEnd, endsWithNewline));
+            spans.Add(
+                CreateLineSpan(style, paint, lineText, absoluteStart, absoluteEnd, endsWithNewline)
+            );
             return;
         }
 
         if (IsAsciiWithoutCombiningMarks(lineText))
         {
             using var asciiFont = CreateSingleTypefaceFont(style, lineText);
-            AppendDenseAsciiLineSpans(spans, lineText, absoluteStart, maxWidth, endsWithNewline, asciiFont, paint);
+            AppendDenseAsciiLineSpans(
+                spans,
+                lineText,
+                absoluteStart,
+                maxWidth,
+                endsWithNewline,
+                asciiFont,
+                paint
+            );
             return;
         }
 
         var boundaries = GetTextElementBoundaries(lineText);
         if (boundaries.Length <= 1)
         {
-            spans.Add(CreateLineSpan(style, paint, lineText, absoluteStart, absoluteEnd, endsWithNewline));
+            spans.Add(
+                CreateLineSpan(style, paint, lineText, absoluteStart, absoluteEnd, endsWithNewline)
+            );
             return;
         }
 
@@ -702,20 +845,39 @@ internal sealed class TextInputMetrics : IDisposable
         {
             var segmentStart = boundaries[boundaryIndex];
             var segmentEnd = boundaries[boundaryIndex + 1];
-            var segmentWidth = MeasureTextElement(style, paint, lineText, segmentStart, segmentEnd - segmentStart);
+            var segmentWidth = MeasureTextElement(
+                style,
+                paint,
+                lineText,
+                segmentStart,
+                segmentEnd - segmentStart
+            );
             if (currentWidth > 0 && currentWidth + segmentWidth > maxWidth)
             {
-                var breakBoundary = lastWrapBoundary > lineStartBoundary ? lastWrapBoundary : boundaryIndex;
+                var breakBoundary =
+                    lastWrapBoundary > lineStartBoundary ? lastWrapBoundary : boundaryIndex;
                 if (breakBoundary <= lineStartBoundary)
                     breakBoundary = boundaryIndex + 1;
-                if (breakBoundary < boundaries.Length - 1 &&
-                    IsLineStartProhibited(text: lineText, index: boundaries[breakBoundary]) &&
-                    breakBoundary + 1 <= boundaries.Length - 1)
+                if (
+                    breakBoundary < boundaries.Length - 1
+                    && IsLineStartProhibited(text: lineText, index: boundaries[breakBoundary])
+                    && breakBoundary + 1 <= boundaries.Length - 1
+                )
                 {
                     breakBoundary++;
                 }
 
-                spans.Add(CreateWrappedLineSpan(style, paint, lineText, boundaries, lineStartBoundary, breakBoundary, absoluteStart));
+                spans.Add(
+                    CreateWrappedLineSpan(
+                        style,
+                        paint,
+                        lineText,
+                        boundaries,
+                        lineStartBoundary,
+                        breakBoundary,
+                        absoluteStart
+                    )
+                );
                 lineStartBoundary = breakBoundary;
                 boundaryIndex = breakBoundary;
                 currentWidth = 0;
@@ -724,13 +886,26 @@ internal sealed class TextInputMetrics : IDisposable
             }
 
             currentWidth += segmentWidth;
-            if (IsWrapOpportunity(lineText, segmentStart, segmentEnd) ||
-                IsCjkWrapOpportunity(lineText, segmentEnd))
+            if (
+                IsWrapOpportunity(lineText, segmentStart, segmentEnd)
+                || IsCjkWrapOpportunity(lineText, segmentEnd)
+            )
                 lastWrapBoundary = boundaryIndex + 1;
             boundaryIndex++;
         }
 
-        spans.Add(CreateWrappedLineSpan(style, paint, lineText, boundaries, lineStartBoundary, boundaries.Length - 1, absoluteStart, endsWithNewline));
+        spans.Add(
+            CreateWrappedLineSpan(
+                style,
+                paint,
+                lineText,
+                boundaries,
+                lineStartBoundary,
+                boundaries.Length - 1,
+                absoluteStart,
+                endsWithNewline
+            )
+        );
     }
 
     private void AppendDenseAsciiLineSpans(
@@ -740,7 +915,8 @@ internal sealed class TextInputMetrics : IDisposable
         float maxWidth,
         bool endsWithNewline,
         SKFont font,
-        SKPaint paint)
+        SKPaint paint
+    )
     {
         var fullCaretOffsets = new float[lineText.Length + 1];
         FillDenseAsciiCaretOffsets(font, paint, lineText, fullCaretOffsets);
@@ -758,7 +934,17 @@ internal sealed class TextInputMetrics : IDisposable
                 if (breakIndex <= lineStart)
                     breakIndex = index + 1;
 
-                spans.Add(CreateDenseAsciiLineSpan(lineText, lineStart, breakIndex, absoluteStart, fullCaretOffsets, font.Typeface, endsWithNewline: false));
+                spans.Add(
+                    CreateDenseAsciiLineSpan(
+                        lineText,
+                        lineStart,
+                        breakIndex,
+                        absoluteStart,
+                        fullCaretOffsets,
+                        font.Typeface,
+                        endsWithNewline: false
+                    )
+                );
                 lineStart = breakIndex;
                 index = breakIndex;
                 lastWrapBoundary = -1;
@@ -770,7 +956,17 @@ internal sealed class TextInputMetrics : IDisposable
             index++;
         }
 
-        spans.Add(CreateDenseAsciiLineSpan(lineText, lineStart, lineText.Length, absoluteStart, fullCaretOffsets, font.Typeface, endsWithNewline));
+        spans.Add(
+            CreateDenseAsciiLineSpan(
+                lineText,
+                lineStart,
+                lineText.Length,
+                absoluteStart,
+                fullCaretOffsets,
+                font.Typeface,
+                endsWithNewline
+            )
+        );
     }
 
     private TextLineSpan CreateDenseAsciiLineSpan(
@@ -780,7 +976,8 @@ internal sealed class TextInputMetrics : IDisposable
         int absoluteStart,
         float[] fullCaretOffsets,
         SKTypeface typeface,
-        bool endsWithNewline)
+        bool endsWithNewline
+    )
     {
         var length = end - start;
         var lineText = SliceText(sourceText, start, length);
@@ -793,9 +990,10 @@ internal sealed class TextInputMetrics : IDisposable
             caretOffsets[index] = fullCaretOffsets[start + index] - baseOffset;
         }
 
-        var runs = length == 0
-            ? Array.Empty<TextRunSpan>()
-            : [new TextRunSpan(0, length, lineText, caretOffsets[^1], typeface)];
+        var runs =
+            length == 0
+                ? Array.Empty<TextRunSpan>()
+                : [new TextRunSpan(0, length, lineText, caretOffsets[^1], typeface)];
 
         return new TextLineSpan(
             absoluteStart + start,
@@ -804,7 +1002,8 @@ internal sealed class TextInputMetrics : IDisposable
             caretIndices,
             caretOffsets,
             runs,
-            endsWithNewline);
+            endsWithNewline
+        );
     }
 
     private TextLineSpan CreateWrappedLineSpan(
@@ -815,7 +1014,8 @@ internal sealed class TextInputMetrics : IDisposable
         int startBoundaryIndex,
         int endBoundaryIndex,
         int absoluteStart,
-        bool endsWithNewline = false)
+        bool endsWithNewline = false
+    )
     {
         var relativeStart = boundaries[startBoundaryIndex];
         var relativeEnd = boundaries[endBoundaryIndex];
@@ -825,7 +1025,8 @@ internal sealed class TextInputMetrics : IDisposable
             SliceText(sourceText, relativeStart, relativeEnd - relativeStart),
             absoluteStart + relativeStart,
             absoluteStart + relativeEnd,
-            endsWithNewline);
+            endsWithNewline
+        );
     }
 
     private TextLineSpan CreateLineSpan(
@@ -834,16 +1035,31 @@ internal sealed class TextInputMetrics : IDisposable
         string lineText,
         int absoluteStart,
         int absoluteEnd,
-        bool endsWithNewline)
+        bool endsWithNewline
+    )
     {
         var caretIndices = GetTextElementBoundaries(lineText);
         var caretOffsets = new float[caretIndices.Length];
         caretOffsets[0] = 0;
         var runs = BuildTextRuns(style, paint, lineText, caretIndices, caretOffsets);
-        return new TextLineSpan(absoluteStart, absoluteEnd, lineText, caretIndices, caretOffsets, runs, endsWithNewline);
+        return new TextLineSpan(
+            absoluteStart,
+            absoluteEnd,
+            lineText,
+            caretIndices,
+            caretOffsets,
+            runs,
+            endsWithNewline
+        );
     }
 
-    private float MeasureTextElement(SceneTextStyle style, SKPaint paint, string text, int start, int length)
+    private float MeasureTextElement(
+        SceneTextStyle style,
+        SKPaint paint,
+        string text,
+        int start,
+        int length
+    )
     {
         if (length <= 0)
             return 0;
@@ -853,8 +1069,11 @@ internal sealed class TextInputMetrics : IDisposable
         return font.MeasureText(text.AsSpan(start, length), paint);
     }
 
-    private SKFont CreateSingleTypefaceFont(SceneTextStyle style, string text)
-        => SkiaFontSynthesis.CreateFont(fontCatalog.ResolveTypefaceForText(style.Font, text), style.Font);
+    private SKFont CreateSingleTypefaceFont(SceneTextStyle style, string text) =>
+        SkiaFontSynthesis.CreateFont(
+            fontCatalog.ResolveTypefaceForText(style.Font, text),
+            style.Font
+        );
 
     private bool IsWrapOpportunity(string text, int start, int end)
     {
@@ -866,22 +1085,55 @@ internal sealed class TextInputMetrics : IDisposable
         if (nextIndex <= 0 || nextIndex >= text.Length)
             return false;
 
-        return IsCjkCharacter(text[nextIndex - 1]) &&
-               !IsLineStartProhibited(text, nextIndex);
+        return IsCjkCharacter(text[nextIndex - 1]) && !IsLineStartProhibited(text, nextIndex);
     }
 
-    private static bool IsLineStartProhibited(string text, int index)
-        => index >= 0 &&
-           index < text.Length &&
-           IsLineStartProhibitedJapanesePunctuation(text[index]);
+    private static bool IsLineStartProhibited(string text, int index) =>
+        index >= 0 && index < text.Length && IsLineStartProhibitedJapanesePunctuation(text[index]);
 
-    private static bool IsCjkCharacter(char ch)
-        => ch is >= '\u3040' and <= '\u30ff' ||
-           ch is >= '\u3400' and <= '\u9fff' ||
-           ch is >= '\uf900' and <= '\ufaff';
+    private static bool IsCjkCharacter(char ch) =>
+        ch is >= '\u3040' and <= '\u30ff'
+        || ch is >= '\u3400' and <= '\u9fff'
+        || ch is >= '\uf900' and <= '\ufaff';
 
-    private static bool IsLineStartProhibitedJapanesePunctuation(char ch)
-        => ch is '。' or '、' or '，' or '．' or '！' or '？' or '）' or ')' or '］' or ']' or '｝' or '}' or '」' or '』' or '】' or '〉' or '》' or 'ぁ' or 'ぃ' or 'ぅ' or 'ぇ' or 'ぉ' or 'っ' or 'ゃ' or 'ゅ' or 'ょ' or 'ァ' or 'ィ' or 'ゥ' or 'ェ' or 'ォ' or 'ッ' or 'ャ' or 'ュ' or 'ョ' or 'ー';
+    private static bool IsLineStartProhibitedJapanesePunctuation(char ch) =>
+        ch
+            is '。'
+                or '、'
+                or '，'
+                or '．'
+                or '！'
+                or '？'
+                or '）'
+                or ')'
+                or '］'
+                or ']'
+                or '｝'
+                or '}'
+                or '」'
+                or '』'
+                or '】'
+                or '〉'
+                or '》'
+                or 'ぁ'
+                or 'ぃ'
+                or 'ぅ'
+                or 'ぇ'
+                or 'ぉ'
+                or 'っ'
+                or 'ゃ'
+                or 'ゅ'
+                or 'ょ'
+                or 'ァ'
+                or 'ィ'
+                or 'ゥ'
+                or 'ェ'
+                or 'ォ'
+                or 'ッ'
+                or 'ャ'
+                or 'ュ'
+                or 'ョ'
+                or 'ー';
 
     private string SliceText(string text, int start, int length)
     {

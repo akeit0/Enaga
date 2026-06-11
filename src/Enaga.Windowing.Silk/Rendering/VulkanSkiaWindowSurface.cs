@@ -61,7 +61,9 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
     {
         this.window = window;
         this.timeProvider = timeProvider ?? TimeProvider.System;
-        vkSurfaceSource = window.VkSurface ?? throw new InvalidOperationException("Windowing platform doesn't support Vulkan.");
+        vkSurfaceSource =
+            window.VkSurface
+            ?? throw new InvalidOperationException("Windowing platform doesn't support Vulkan.");
         vk = Vk.GetApi();
     }
 
@@ -70,7 +72,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         get
         {
             WaitForSubmittedWork();
-            return contentSurface?.Canvas ?? throw new InvalidOperationException("Vulkan Skia surface is not initialized.");
+            return contentSurface?.Canvas
+                ?? throw new InvalidOperationException("Vulkan Skia surface is not initialized.");
         }
     }
 
@@ -107,7 +110,12 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
 
     public void Present(ReadOnlySpan<SceneDamageRect> dirtyRects = default)
     {
-        if (!initialized || context is null || contentSurface is null || swapchainImages.Length == 0)
+        if (
+            !initialized
+            || context is null
+            || contentSurface is null
+            || swapchainImages.Length == 0
+        )
             return;
 
         var startTimestamp = timeProvider.GetTimestamp();
@@ -127,14 +135,16 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
                 dirtyRects.Length,
                 false,
                 width,
-                height);
+                height
+            );
             return;
         }
 
         var targetImageVersion = swapchainImageContentVersions[imageIndex];
-        var canReusePresentedImage = !contentChanged &&
-                                     targetImageVersion == contentVersion &&
-                                     swapchainImageLayouts[imageIndex] == ImageLayout.PresentSrcKhr;
+        var canReusePresentedImage =
+            !contentChanged
+            && targetImageVersion == contentVersion
+            && swapchainImageLayouts[imageIndex] == ImageLayout.PresentSrcKhr;
         if (canReusePresentedImage)
         {
             QueuePresent(imageIndex, imageAvailableSemaphore);
@@ -145,7 +155,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
                 dirtyRects.Length,
                 false,
                 width,
-                height);
+                height
+            );
             return;
         }
 
@@ -168,7 +179,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             dirtyRects.Length,
             false,
             width,
-            height);
+            height
+        );
     }
 
     public void Dispose()
@@ -250,7 +262,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         var requiredExtensions = GetRequiredInstanceExtensions();
         var appNamePtr = (byte*)SilkMarshal.StringToPtr("Enaga", NativeStringEncoding.UTF8);
         var engineNamePtr = (byte*)SilkMarshal.StringToPtr("SkiaSharp", NativeStringEncoding.UTF8);
-        var extensionNamesPtr = (byte**)SilkMarshal.StringArrayToPtr(requiredExtensions, NativeStringEncoding.UTF8);
+        var extensionNamesPtr = (byte**)
+            SilkMarshal.StringArrayToPtr(requiredExtensions, NativeStringEncoding.UTF8);
 
         try
         {
@@ -287,21 +300,30 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
 
     private void CreateSurface()
     {
-        var rawSurface = vkSurfaceSource.Create<AllocationCallbacks>(new VkHandle(instance.Handle), null);
+        var rawSurface = vkSurfaceSource.Create<AllocationCallbacks>(
+            new VkHandle(instance.Handle),
+            null
+        );
         surface = new SurfaceKHR(rawSurface.Handle);
     }
 
     private void SelectPhysicalDevice()
     {
         uint deviceCount = 0;
-        Check(vk.EnumeratePhysicalDevices(instance, ref deviceCount, null), "vkEnumeratePhysicalDevices");
+        Check(
+            vk.EnumeratePhysicalDevices(instance, ref deviceCount, null),
+            "vkEnumeratePhysicalDevices"
+        );
         if (deviceCount == 0)
             throw new InvalidOperationException("No Vulkan physical devices are available.");
 
         var devices = new PhysicalDevice[deviceCount];
         fixed (PhysicalDevice* devicesPtr = devices)
         {
-            Check(vk.EnumeratePhysicalDevices(instance, ref deviceCount, devicesPtr), "vkEnumeratePhysicalDevices");
+            Check(
+                vk.EnumeratePhysicalDevices(instance, ref deviceCount, devicesPtr),
+                "vkEnumeratePhysicalDevices"
+            );
         }
 
         foreach (var candidate in devices)
@@ -317,7 +339,9 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             }
         }
 
-        throw new InvalidOperationException("No Vulkan device supports graphics + present for the current window surface.");
+        throw new InvalidOperationException(
+            "No Vulkan device supports graphics + present for the current window surface."
+        );
     }
 
     private bool TrySelectQueueFamily(PhysicalDevice candidate, out uint queueFamilyIndex)
@@ -327,7 +351,11 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         var queueFamilies = new QueueFamilyProperties[queueFamilyCount];
         fixed (QueueFamilyProperties* queueFamiliesPtr = queueFamilies)
         {
-            vk.GetPhysicalDeviceQueueFamilyProperties(candidate, ref queueFamilyCount, queueFamiliesPtr);
+            vk.GetPhysicalDeviceQueueFamilyProperties(
+                candidate,
+                ref queueFamilyCount,
+                queueFamiliesPtr
+            );
         }
 
         for (uint index = 0; index < queueFamilyCount; index++)
@@ -338,7 +366,15 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             }
 
             Bool32 presentSupported = false;
-            Check(khrSurfaceApi!.GetPhysicalDeviceSurfaceSupport(candidate, index, surface, out presentSupported), "vkGetPhysicalDeviceSurfaceSupportKHR");
+            Check(
+                khrSurfaceApi!.GetPhysicalDeviceSurfaceSupport(
+                    candidate,
+                    index,
+                    surface,
+                    out presentSupported
+                ),
+                "vkGetPhysicalDeviceSurfaceSupportKHR"
+            );
             if (presentSupported)
             {
                 queueFamilyIndex = index;
@@ -353,7 +389,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
     private void CreateDevice()
     {
         var queuePriority = 1f;
-        var extensionNamesPtr = (byte**)SilkMarshal.StringArrayToPtr(RequiredDeviceExtensions, NativeStringEncoding.UTF8);
+        var extensionNamesPtr = (byte**)
+            SilkMarshal.StringArrayToPtr(RequiredDeviceExtensions, NativeStringEncoding.UTF8);
 
         try
         {
@@ -374,10 +411,15 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
                 PpEnabledExtensionNames = extensionNamesPtr,
             };
 
-            Check(vk.CreateDevice(physicalDevice, in deviceCreateInfo, null, out device), "vkCreateDevice");
+            Check(
+                vk.CreateDevice(physicalDevice, in deviceCreateInfo, null, out device),
+                "vkCreateDevice"
+            );
             graphicsQueue = vk.GetDeviceQueue(device, graphicsQueueFamilyIndex, 0);
             if (!vk.TryGetDeviceExtension(instance, device, out KhrSwapchain? swapchainApi))
-                throw new InvalidOperationException("VK_KHR_swapchain device extension is unavailable.");
+                throw new InvalidOperationException(
+                    "VK_KHR_swapchain device extension is unavailable."
+                );
             khrSwapchainApi = swapchainApi;
         }
         finally
@@ -394,7 +436,10 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             QueueFamilyIndex = graphicsQueueFamilyIndex,
             Flags = CommandPoolCreateFlags.ResetCommandBufferBit,
         };
-        Check(vk.CreateCommandPool(device, in commandPoolCreateInfo, null, out commandPool), "vkCreateCommandPool");
+        Check(
+            vk.CreateCommandPool(device, in commandPoolCreateInfo, null, out commandPool),
+            "vkCreateCommandPool"
+        );
 
         var allocateInfo = new CommandBufferAllocateInfo
         {
@@ -403,7 +448,10 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             Level = CommandBufferLevel.Primary,
             CommandBufferCount = 1,
         };
-        Check(vk.AllocateCommandBuffers(device, in allocateInfo, out commandBuffer), "vkAllocateCommandBuffers");
+        Check(
+            vk.AllocateCommandBuffers(device, in allocateInfo, out commandBuffer),
+            "vkAllocateCommandBuffers"
+        );
     }
 
     private void CreateSyncObjects()
@@ -412,8 +460,14 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         {
             SType = StructureType.SemaphoreCreateInfo,
         };
-        Check(vk.CreateSemaphore(device, in semaphoreCreateInfo, null, out imageAvailableSemaphore), "vkCreateSemaphore");
-        Check(vk.CreateSemaphore(device, in semaphoreCreateInfo, null, out renderFinishedSemaphore), "vkCreateSemaphore");
+        Check(
+            vk.CreateSemaphore(device, in semaphoreCreateInfo, null, out imageAvailableSemaphore),
+            "vkCreateSemaphore"
+        );
+        Check(
+            vk.CreateSemaphore(device, in semaphoreCreateInfo, null, out renderFinishedSemaphore),
+            "vkCreateSemaphore"
+        );
 
         var fenceCreateInfo = new FenceCreateInfo
         {
@@ -456,8 +510,11 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             GetProcedureAddress = GetProcedureAddress,
         };
 
-        context = GRContext.CreateVulkan(backendContext)
-            ?? throw new InvalidOperationException("Unable to create a Vulkan-backed Skia GRContext.");
+        context =
+            GRContext.CreateVulkan(backendContext)
+            ?? throw new InvalidOperationException(
+                "Unable to create a Vulkan-backed Skia GRContext."
+            );
     }
 
     private void RecreateSwapchainAndContentTarget(Vector2D<int> size)
@@ -475,17 +532,33 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         swapchainPresentMode = SelectPresentMode();
 
         var capabilities = new SurfaceCapabilitiesKHR();
-        Check(khrSurfaceApi!.GetPhysicalDeviceSurfaceCapabilities(physicalDevice, surface, out capabilities), "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
+        Check(
+            khrSurfaceApi!.GetPhysicalDeviceSurfaceCapabilities(
+                physicalDevice,
+                surface,
+                out capabilities
+            ),
+            "vkGetPhysicalDeviceSurfaceCapabilitiesKHR"
+        );
 
         var minWidth = Math.Max(1, requestedSize.X);
         var minHeight = Math.Max(1, requestedSize.Y);
-        swapchainExtent = capabilities.CurrentExtent.Width != uint.MaxValue
-            ? capabilities.CurrentExtent
-            : new Extent2D
-            {
-                Width = Math.Clamp((uint)minWidth, capabilities.MinImageExtent.Width, capabilities.MaxImageExtent.Width),
-                Height = Math.Clamp((uint)minHeight, capabilities.MinImageExtent.Height, capabilities.MaxImageExtent.Height),
-            };
+        swapchainExtent =
+            capabilities.CurrentExtent.Width != uint.MaxValue
+                ? capabilities.CurrentExtent
+                : new Extent2D
+                {
+                    Width = Math.Clamp(
+                        (uint)minWidth,
+                        capabilities.MinImageExtent.Width,
+                        capabilities.MaxImageExtent.Width
+                    ),
+                    Height = Math.Clamp(
+                        (uint)minHeight,
+                        capabilities.MinImageExtent.Height,
+                        capabilities.MaxImageExtent.Height
+                    ),
+                };
 
         uint imageCount = capabilities.MinImageCount + 1;
         if (capabilities.MaxImageCount > 0 && imageCount > capabilities.MaxImageCount)
@@ -502,22 +575,37 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             ImageArrayLayers = 1,
             ImageUsage = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferDstBit,
             ImageSharingMode = SharingMode.Exclusive,
-            PreTransform = (capabilities.SupportedTransforms & SurfaceTransformFlagsKHR.IdentityBitKhr) != 0
-                ? SurfaceTransformFlagsKHR.IdentityBitKhr
-                : capabilities.CurrentTransform,
+            PreTransform =
+                (capabilities.SupportedTransforms & SurfaceTransformFlagsKHR.IdentityBitKhr) != 0
+                    ? SurfaceTransformFlagsKHR.IdentityBitKhr
+                    : capabilities.CurrentTransform,
             CompositeAlpha = SelectCompositeAlpha(capabilities.SupportedCompositeAlpha),
             PresentMode = swapchainPresentMode,
             Clipped = true,
         };
 
-        Check(khrSwapchainApi!.CreateSwapchain(device, in swapchainCreateInfo, null, out swapchain), "vkCreateSwapchainKHR");
+        Check(
+            khrSwapchainApi!.CreateSwapchain(device, in swapchainCreateInfo, null, out swapchain),
+            "vkCreateSwapchainKHR"
+        );
 
         uint swapchainImageCount = 0;
-        Check(khrSwapchainApi.GetSwapchainImages(device, swapchain, ref swapchainImageCount, null), "vkGetSwapchainImagesKHR");
+        Check(
+            khrSwapchainApi.GetSwapchainImages(device, swapchain, ref swapchainImageCount, null),
+            "vkGetSwapchainImagesKHR"
+        );
         swapchainImages = new Image[swapchainImageCount];
         fixed (Image* swapchainImagesPtr = swapchainImages)
         {
-            Check(khrSwapchainApi.GetSwapchainImages(device, swapchain, ref swapchainImageCount, swapchainImagesPtr), "vkGetSwapchainImagesKHR");
+            Check(
+                khrSwapchainApi.GetSwapchainImages(
+                    device,
+                    swapchain,
+                    ref swapchainImageCount,
+                    swapchainImagesPtr
+                ),
+                "vkGetSwapchainImagesKHR"
+            );
         }
 
         swapchainImageLayouts = new ImageLayout[swapchainImages.Length];
@@ -530,20 +618,43 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
     private SurfaceFormatKHR SelectSurfaceFormat()
     {
         uint formatCount = 0;
-        Check(khrSurfaceApi!.GetPhysicalDeviceSurfaceFormats(physicalDevice, surface, ref formatCount, null), "vkGetPhysicalDeviceSurfaceFormatsKHR");
+        Check(
+            khrSurfaceApi!.GetPhysicalDeviceSurfaceFormats(
+                physicalDevice,
+                surface,
+                ref formatCount,
+                null
+            ),
+            "vkGetPhysicalDeviceSurfaceFormatsKHR"
+        );
         if (formatCount == 0)
-            throw new InvalidOperationException("The Vulkan surface doesn't expose any swapchain formats.");
+            throw new InvalidOperationException(
+                "The Vulkan surface doesn't expose any swapchain formats."
+            );
 
         var formats = new SurfaceFormatKHR[formatCount];
         fixed (SurfaceFormatKHR* formatsPtr = formats)
         {
-            Check(khrSurfaceApi.GetPhysicalDeviceSurfaceFormats(physicalDevice, surface, ref formatCount, formatsPtr), "vkGetPhysicalDeviceSurfaceFormatsKHR");
+            Check(
+                khrSurfaceApi.GetPhysicalDeviceSurfaceFormats(
+                    physicalDevice,
+                    surface,
+                    ref formatCount,
+                    formatsPtr
+                ),
+                "vkGetPhysicalDeviceSurfaceFormatsKHR"
+            );
         }
 
         foreach (var format in formats)
         {
-            if ((format.Format == Format.B8G8R8A8Unorm || format.Format == Format.B8G8R8A8Srgb) &&
-                (format.ColorSpace == ColorSpaceKHR.SpaceSrgbNonlinearKhr || format.ColorSpace == ColorSpaceKHR.PaceSrgbNonlinearKhr))
+            if (
+                (format.Format == Format.B8G8R8A8Unorm || format.Format == Format.B8G8R8A8Srgb)
+                && (
+                    format.ColorSpace == ColorSpaceKHR.SpaceSrgbNonlinearKhr
+                    || format.ColorSpace == ColorSpaceKHR.PaceSrgbNonlinearKhr
+                )
+            )
             {
                 return format;
             }
@@ -561,13 +672,29 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
     private PresentModeKHR SelectPresentMode()
     {
         uint presentModeCount = 0;
-        Check(khrSurfaceApi!.GetPhysicalDeviceSurfacePresentModes(physicalDevice, surface, ref presentModeCount, null), "vkGetPhysicalDeviceSurfacePresentModesKHR");
+        Check(
+            khrSurfaceApi!.GetPhysicalDeviceSurfacePresentModes(
+                physicalDevice,
+                surface,
+                ref presentModeCount,
+                null
+            ),
+            "vkGetPhysicalDeviceSurfacePresentModesKHR"
+        );
         var presentModes = new PresentModeKHR[presentModeCount];
         if (presentModes.Length > 0)
         {
             fixed (PresentModeKHR* presentModesPtr = presentModes)
             {
-                Check(khrSurfaceApi.GetPhysicalDeviceSurfacePresentModes(physicalDevice, surface, ref presentModeCount, presentModesPtr), "vkGetPhysicalDeviceSurfacePresentModesKHR");
+                Check(
+                    khrSurfaceApi.GetPhysicalDeviceSurfacePresentModes(
+                        physicalDevice,
+                        surface,
+                        ref presentModeCount,
+                        presentModesPtr
+                    ),
+                    "vkGetPhysicalDeviceSurfacePresentModesKHR"
+                );
             }
         }
 
@@ -589,10 +716,16 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
 
         width = Math.Max(1, targetWidth);
         height = Math.Max(1, targetHeight);
-        var swapchainIsRgba = swapchainSurfaceFormat.Format == Format.R8G8B8A8Unorm || swapchainSurfaceFormat.Format == Format.R8G8B8A8Srgb;
+        var swapchainIsRgba =
+            swapchainSurfaceFormat.Format == Format.R8G8B8A8Unorm
+            || swapchainSurfaceFormat.Format == Format.R8G8B8A8Srgb;
         contentColorType = swapchainIsRgba ? SKColorType.Rgba8888 : SKColorType.Bgra8888;
         contentImageFormat = swapchainIsRgba ? Format.R8G8B8A8Unorm : Format.B8G8R8A8Unorm;
-        contentImageUsage = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferSrcBit | ImageUsageFlags.TransferDstBit | ImageUsageFlags.SampledBit;
+        contentImageUsage =
+            ImageUsageFlags.ColorAttachmentBit
+            | ImageUsageFlags.TransferSrcBit
+            | ImageUsageFlags.TransferDstBit
+            | ImageUsageFlags.SampledBit;
 
         CreateContentImage();
 
@@ -611,13 +744,17 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         };
 
         contentBackendTexture = new GRBackendTexture(width, height, contentImageInfo);
-        contentSurface = SKSurface.Create(
-            context!,
-            contentBackendTexture,
-            GRSurfaceOrigin.TopLeft,
-            1,
-            contentColorType)
-            ?? throw new InvalidOperationException($"Unable to create a Vulkan-backed Skia content surface. Format={contentImageFormat}, ColorType={contentColorType}, Usage={contentImageInfo.ImageUsageFlags}.");
+        contentSurface =
+            SKSurface.Create(
+                context!,
+                contentBackendTexture,
+                GRSurfaceOrigin.TopLeft,
+                1,
+                contentColorType
+            )
+            ?? throw new InvalidOperationException(
+                $"Unable to create a Vulkan-backed Skia content surface. Format={contentImageFormat}, ColorType={contentColorType}, Usage={contentImageInfo.ImageUsageFlags}."
+            );
     }
 
     private void CreateContentImage()
@@ -644,22 +781,34 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         {
             SType = StructureType.MemoryAllocateInfo,
             AllocationSize = memoryRequirements.Size,
-            MemoryTypeIndex = FindMemoryType(memoryRequirements.MemoryTypeBits, MemoryPropertyFlags.DeviceLocalBit),
+            MemoryTypeIndex = FindMemoryType(
+                memoryRequirements.MemoryTypeBits,
+                MemoryPropertyFlags.DeviceLocalBit
+            ),
         };
 
-        Check(vk.AllocateMemory(device, in allocateInfo, null, out contentImageMemory), "vkAllocateMemory");
+        Check(
+            vk.AllocateMemory(device, in allocateInfo, null, out contentImageMemory),
+            "vkAllocateMemory"
+        );
         Check(vk.BindImageMemory(device, contentImage, contentImageMemory, 0), "vkBindImageMemory");
 
-        ExecuteCommandBuffer(commandBufferHandle =>
-        {
-            TransitionImage(
-                commandBufferHandle,
-                contentImage,
-                ImageLayout.Undefined,
-                ImageLayout.ColorAttachmentOptimal,
-                AccessFlags.None,
-                AccessFlags.ColorAttachmentWriteBit);
-        }, waitForSwapchainImage: false, signalRenderFinished: false, waitForCompletion: true);
+        ExecuteCommandBuffer(
+            commandBufferHandle =>
+            {
+                TransitionImage(
+                    commandBufferHandle,
+                    contentImage,
+                    ImageLayout.Undefined,
+                    ImageLayout.ColorAttachmentOptimal,
+                    AccessFlags.None,
+                    AccessFlags.ColorAttachmentWriteBit
+                );
+            },
+            waitForSwapchainImage: false,
+            signalRenderFinished: false,
+            waitForCompletion: true
+        );
 
         contentImageLayout = ImageLayout.ColorAttachmentOptimal;
     }
@@ -685,7 +834,14 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         imageIndex = 0;
         while (true)
         {
-            var result = khrSwapchainApi!.AcquireNextImage(device, swapchain, ulong.MaxValue, imageAvailableSemaphore, default, ref imageIndex);
+            var result = khrSwapchainApi!.AcquireNextImage(
+                device,
+                swapchain,
+                ulong.MaxValue,
+                imageAvailableSemaphore,
+                default,
+                ref imageIndex
+            );
             if (result == Result.ErrorOutOfDateKhr)
             {
                 RecreateSwapchainAndContentTarget(window.Size);
@@ -726,11 +882,15 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         Action<CommandBuffer> record,
         bool waitForSwapchainImage = true,
         bool signalRenderFinished = true,
-        bool waitForCompletion = false)
+        bool waitForCompletion = false
+    )
     {
         WaitForSubmittedWork();
         Check(vk.ResetFences(device, 1, in inFlightFence), "vkResetFences");
-        Check(vk.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None), "vkResetCommandBuffer");
+        Check(
+            vk.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None),
+            "vkResetCommandBuffer"
+        );
 
         var beginInfo = new CommandBufferBeginInfo
         {
@@ -776,7 +936,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         ImageLayout oldLayout,
         ImageLayout newLayout,
         AccessFlags sourceAccessMask,
-        AccessFlags destinationAccessMask)
+        AccessFlags destinationAccessMask
+    )
     {
         var barrier = new ImageMemoryBarrier
         {
@@ -801,7 +962,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             0,
             null,
             1,
-            &barrier);
+            &barrier
+        );
     }
 
     private void DestroySwapchain()
@@ -852,7 +1014,9 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         return extensions;
     }
 
-    private static CompositeAlphaFlagsKHR SelectCompositeAlpha(CompositeAlphaFlagsKHR supportedCompositeAlpha)
+    private static CompositeAlphaFlagsKHR SelectCompositeAlpha(
+        CompositeAlphaFlagsKHR supportedCompositeAlpha
+    )
     {
         if ((supportedCompositeAlpha & CompositeAlphaFlagsKHR.PreMultipliedBitKhr) != 0)
             return CompositeAlphaFlagsKHR.PreMultipliedBitKhr;
@@ -864,7 +1028,12 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         return CompositeAlphaFlagsKHR.InheritBitKhr;
     }
 
-    private void CopyContentToSwapchain(CommandBuffer targetCommandBuffer, uint imageIndex, SceneDamageRect[]? dirtyRects, bool usePartialCopy)
+    private void CopyContentToSwapchain(
+        CommandBuffer targetCommandBuffer,
+        uint imageIndex,
+        SceneDamageRect[]? dirtyRects,
+        bool usePartialCopy
+    )
     {
         TransitionImage(
             targetCommandBuffer,
@@ -872,7 +1041,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             contentImageLayout,
             ImageLayout.TransferSrcOptimal,
             AccessFlags.ColorAttachmentWriteBit,
-            AccessFlags.TransferReadBit);
+            AccessFlags.TransferReadBit
+        );
 
         TransitionImage(
             targetCommandBuffer,
@@ -880,7 +1050,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             swapchainImageLayouts[imageIndex],
             ImageLayout.TransferDstOptimal,
             AccessFlags.None,
-            AccessFlags.TransferWriteBit);
+            AccessFlags.TransferWriteBit
+        );
 
         if (usePartialCopy && dirtyRects is not null)
             CopyDirtyRegions(targetCommandBuffer, imageIndex, dirtyRects);
@@ -893,7 +1064,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             ImageLayout.TransferSrcOptimal,
             ImageLayout.ColorAttachmentOptimal,
             AccessFlags.TransferReadBit,
-            AccessFlags.ColorAttachmentWriteBit);
+            AccessFlags.ColorAttachmentWriteBit
+        );
 
         TransitionImage(
             targetCommandBuffer,
@@ -901,7 +1073,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             ImageLayout.TransferDstOptimal,
             ImageLayout.PresentSrcKhr,
             AccessFlags.TransferWriteBit,
-            AccessFlags.None);
+            AccessFlags.None
+        );
     }
 
     private void CopyFullFrame(CommandBuffer targetCommandBuffer, uint imageIndex)
@@ -914,21 +1087,32 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
             swapchainImages[imageIndex],
             ImageLayout.TransferDstOptimal,
             1,
-            in region);
+            in region
+        );
     }
 
-    private void CopyDirtyRegions(CommandBuffer targetCommandBuffer, uint imageIndex, ReadOnlySpan<SceneDamageRect> dirtyRects)
+    private void CopyDirtyRegions(
+        CommandBuffer targetCommandBuffer,
+        uint imageIndex,
+        ReadOnlySpan<SceneDamageRect> dirtyRects
+    )
     {
-        Span<ImageCopy> copyRegions = dirtyRects.Length <= MaxPartialCopyRegionCount
-            ? stackalloc ImageCopy[dirtyRects.Length]
-            : new ImageCopy[dirtyRects.Length];
+        Span<ImageCopy> copyRegions =
+            dirtyRects.Length <= MaxPartialCopyRegionCount
+                ? stackalloc ImageCopy[dirtyRects.Length]
+                : new ImageCopy[dirtyRects.Length];
         var copyRegionCount = 0;
         foreach (var dirtyRect in dirtyRects)
         {
             if (dirtyRect.Width <= 0 || dirtyRect.Height <= 0)
                 continue;
 
-            copyRegions[copyRegionCount++] = CreateImageCopyRegion(dirtyRect.X, dirtyRect.Y, dirtyRect.Width, dirtyRect.Height);
+            copyRegions[copyRegionCount++] = CreateImageCopyRegion(
+                dirtyRect.X,
+                dirtyRect.Y,
+                dirtyRect.Width,
+                dirtyRect.Height
+            );
         }
 
         if (copyRegionCount <= 0)
@@ -946,7 +1130,8 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
                 swapchainImages[imageIndex],
                 ImageLayout.TransferDstOptimal,
                 (uint)copyRegionCount,
-                copyRegionsPtr);
+                copyRegionsPtr
+            );
         }
     }
 
@@ -962,13 +1147,19 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         };
     }
 
-    private bool ShouldUsePartialCopy(uint imageIndex, ReadOnlySpan<SceneDamageRect> dirtyRects, bool contentChanged)
+    private bool ShouldUsePartialCopy(
+        uint imageIndex,
+        ReadOnlySpan<SceneDamageRect> dirtyRects,
+        bool contentChanged
+    )
     {
-        if (!contentChanged ||
-            dirtyRects.Length == 0 ||
-            dirtyRects.Length > MaxPartialCopyRegionCount ||
-            width != (int)swapchainExtent.Width ||
-            height != (int)swapchainExtent.Height)
+        if (
+            !contentChanged
+            || dirtyRects.Length == 0
+            || dirtyRects.Length > MaxPartialCopyRegionCount
+            || width != (int)swapchainExtent.Width
+            || height != (int)swapchainExtent.Height
+        )
         {
             return false;
         }
@@ -980,10 +1171,12 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         long dirtyPixels = 0;
         foreach (var dirtyRect in dirtyRects)
         {
-            if (dirtyRect.X <= 0 &&
-                dirtyRect.Y <= 0 &&
-                dirtyRect.Width >= width &&
-                dirtyRect.Height >= height)
+            if (
+                dirtyRect.X <= 0
+                && dirtyRect.Y <= 0
+                && dirtyRect.Width >= width
+                && dirtyRect.Height >= height
+            )
             {
                 return false;
             }
@@ -1000,7 +1193,10 @@ internal sealed unsafe class VulkanSkiaWindowSurface : ISkiaWindowSurface
         if (!submissionPending || device.Handle == 0 || inFlightFence.Handle == 0)
             return;
 
-        Check(vk.WaitForFences(device, 1, in inFlightFence, true, ulong.MaxValue), "vkWaitForFences");
+        Check(
+            vk.WaitForFences(device, 1, in inFlightFence, true, ulong.MaxValue),
+            "vkWaitForFences"
+        );
         submissionPending = false;
     }
 

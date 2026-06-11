@@ -6,7 +6,7 @@ namespace Enaga.Scene;
 public enum SceneGradientKind
 {
     Linear,
-    Radial
+    Radial,
 }
 
 public enum SceneRuntimeShaderUniformKind
@@ -14,7 +14,7 @@ public enum SceneRuntimeShaderUniformKind
     Int,
     Float,
     Color,
-    FloatArray
+    FloatArray,
 }
 
 public sealed record SceneGradient(
@@ -27,21 +27,22 @@ public sealed record SceneGradient(
     float EndY = 1,
     float CenterX = 0.5f,
     float CenterY = 0.5f,
-    float Radius = 0.5f)
+    float Radius = 0.5f
+)
 {
     public bool Equals(SceneGradient? other)
     {
-        return other is not null &&
-               Kind == other.Kind &&
-               Colors.AsSpan().SequenceEqual(other.Colors) &&
-               ScenePaintEquality.ArraysEqual(Stops, other.Stops) &&
-               StartX == other.StartX &&
-               StartY == other.StartY &&
-               EndX == other.EndX &&
-               EndY == other.EndY &&
-               CenterX == other.CenterX &&
-               CenterY == other.CenterY &&
-               Radius == other.Radius;
+        return other is not null
+            && Kind == other.Kind
+            && Colors.AsSpan().SequenceEqual(other.Colors)
+            && ScenePaintEquality.ArraysEqual(Stops, other.Stops)
+            && StartX == other.StartX
+            && StartY == other.StartY
+            && EndX == other.EndX
+            && EndY == other.EndY
+            && CenterX == other.CenterX
+            && CenterY == other.CenterY
+            && Radius == other.Radius;
     }
 
     public override int GetHashCode()
@@ -66,7 +67,8 @@ public sealed record SceneBoxShadow(
     float OffsetX = 0,
     float OffsetY = 8,
     float Blur = 18,
-    float Spread = 0);
+    float Spread = 0
+);
 
 public sealed record SceneRuntimeShaderUniform(
     string Name,
@@ -74,17 +76,18 @@ public sealed record SceneRuntimeShaderUniform(
     int IntValue = 0,
     float FloatValue = 0,
     string? ColorValue = null,
-    float[]? FloatArrayValue = null)
+    float[]? FloatArrayValue = null
+)
 {
     public bool Equals(SceneRuntimeShaderUniform? other)
     {
-        return other is not null &&
-               string.Equals(Name, other.Name, StringComparison.Ordinal) &&
-               Kind == other.Kind &&
-               IntValue == other.IntValue &&
-               FloatValue == other.FloatValue &&
-               string.Equals(ColorValue, other.ColorValue, StringComparison.Ordinal) &&
-               ScenePaintEquality.ArraysEqual(FloatArrayValue, other.FloatArrayValue);
+        return other is not null
+            && string.Equals(Name, other.Name, StringComparison.Ordinal)
+            && Kind == other.Kind
+            && IntValue == other.IntValue
+            && FloatValue == other.FloatValue
+            && string.Equals(ColorValue, other.ColorValue, StringComparison.Ordinal)
+            && ScenePaintEquality.ArraysEqual(FloatArrayValue, other.FloatArrayValue);
     }
 
     public override int GetHashCode()
@@ -104,15 +107,16 @@ public sealed record SceneRuntimeShader(
     string? SourceId,
     string Source,
     bool HostTime = false,
-    SceneRuntimeShaderUniform[]? Uniforms = null)
+    SceneRuntimeShaderUniform[]? Uniforms = null
+)
 {
     public bool Equals(SceneRuntimeShader? other)
     {
-        return other is not null &&
-               string.Equals(SourceId, other.SourceId, StringComparison.Ordinal) &&
-               string.Equals(Source, other.Source, StringComparison.Ordinal) &&
-               HostTime == other.HostTime &&
-               ScenePaintEquality.ArraysEqual(Uniforms, other.Uniforms);
+        return other is not null
+            && string.Equals(SourceId, other.SourceId, StringComparison.Ordinal)
+            && string.Equals(Source, other.Source, StringComparison.Ordinal)
+            && HostTime == other.HostTime
+            && ScenePaintEquality.ArraysEqual(Uniforms, other.Uniforms);
     }
 
     public override int GetHashCode()

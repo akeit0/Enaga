@@ -4,27 +4,30 @@ using System.Security.Cryptography;
 
 namespace Enaga.Rendering.Skia;
 
-
 internal enum WebFontCacheState
 {
     Pending,
     Ready,
-    Failed
+    Failed,
 }
 
 internal readonly record struct WebFontCacheResult(
     WebFontCacheState State,
     string? LocalPath = null,
-    string? Error = null);
+    string? Error = null
+);
 
 internal static class WebFontCache
 {
     private static readonly HttpClient HttpClient = new();
-    private static readonly ConcurrentDictionary<string, RemoteFontEntry> RemoteEntries = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, RemoteFontEntry> RemoteEntries = new(
+        StringComparer.Ordinal
+    );
     private static readonly string CacheDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Enaga",
-        "font-cache");
+        "font-cache"
+    );
     private static readonly TimeSpan MaxEntryAge = TimeSpan.FromDays(30);
     private static readonly TimeSpan CleanupThrottle = TimeSpan.FromMinutes(1);
     private const int MaxCacheFileCount = 64;
@@ -32,8 +35,10 @@ internal static class WebFontCache
 
     public static WebFontCacheResult Resolve(string source)
     {
-        if (!Uri.TryCreate(source, UriKind.Absolute, out var uri) ||
-            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (
+            !Uri.TryCreate(source, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        )
             return ResolveLocal(source);
 
         Directory.CreateDirectory(CacheDirectory);
@@ -71,7 +76,10 @@ internal static class WebFontCache
 
         return File.Exists(source)
             ? new WebFontCacheResult(WebFontCacheState.Ready, source)
-            : new WebFontCacheResult(WebFontCacheState.Failed, Error: $"Font file was not found: {source}");
+            : new WebFontCacheResult(
+                WebFontCacheState.Failed,
+                Error: $"Font file was not found: {source}"
+            );
     }
 
     private static string BuildCachePath(Uri uri, string source)
@@ -93,7 +101,9 @@ internal static class WebFontCache
             var tempPath = $"{entry.CachePath}.tmp";
             try
             {
-                using var response = await HttpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+                using var response = await HttpClient
+                    .GetAsync(uri, HttpCompletionOption.ResponseHeadersRead)
+                    .ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
                 await File.WriteAllBytesAsync(tempPath, bytes).ConfigureAwait(false);
@@ -181,11 +191,15 @@ internal static class WebFontCache
         }
         catch (IOException ex)
         {
-            Console.Error.WriteLine($"[WebFontCache] Failed to delete {file.FullName}: {ex.Message}");
+            Console.Error.WriteLine(
+                $"[WebFontCache] Failed to delete {file.FullName}: {ex.Message}"
+            );
         }
         catch (UnauthorizedAccessException ex)
         {
-            Console.Error.WriteLine($"[WebFontCache] Failed to delete {file.FullName}: {ex.Message}");
+            Console.Error.WriteLine(
+                $"[WebFontCache] Failed to delete {file.FullName}: {ex.Message}"
+            );
         }
     }
 

@@ -27,7 +27,11 @@ internal static class SkiaFontSynthesis
     public static void Apply(SKFont skFont, int fontWeight, bool italic)
     {
         var typefaceStyle = skFont.Typeface?.FontStyle;
-        if (fontWeight >= 500 && (typefaceStyle?.Weight ?? (int)SKFontStyleWeight.Normal) < (int)SKFontStyleWeight.Medium)
+        if (
+            fontWeight >= 500
+            && (typefaceStyle?.Weight ?? (int)SKFontStyleWeight.Normal)
+                < (int)SKFontStyleWeight.Medium
+        )
             skFont.Embolden = true;
 
         if (italic && typefaceStyle?.Slant != SKFontStyleSlant.Italic)

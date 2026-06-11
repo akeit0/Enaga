@@ -6,7 +6,7 @@ public enum SceneScrollBarDragAxis
 {
     None,
     Horizontal,
-    Vertical
+    Vertical,
 }
 
 public sealed class SceneScrollBarDragState<T>
@@ -53,16 +53,33 @@ public static class SceneScrollBarDragController
         float x,
         float y,
         out SceneScrollBarDragAxis axis,
-        out float thumbOffset)
+        out float thumbOffset
+    )
     {
-        if (SceneScrollBarLayout.TryHitHorizontalScrollBarThumb(box, x, y, out _, out var horizontalOffset))
+        if (
+            SceneScrollBarLayout.TryHitHorizontalScrollBarThumb(
+                box,
+                x,
+                y,
+                out _,
+                out var horizontalOffset
+            )
+        )
         {
             axis = SceneScrollBarDragAxis.Horizontal;
             thumbOffset = horizontalOffset;
             return true;
         }
 
-        if (SceneScrollBarLayout.TryHitVerticalScrollBarThumb(box, x, y, out _, out var verticalOffset))
+        if (
+            SceneScrollBarLayout.TryHitVerticalScrollBarThumb(
+                box,
+                x,
+                y,
+                out _,
+                out var verticalOffset
+            )
+        )
         {
             axis = SceneScrollBarDragAxis.Vertical;
             thumbOffset = verticalOffset;
@@ -79,7 +96,8 @@ public static class SceneScrollBarDragController
         SceneLayoutBox box,
         ISceneScrollOffsetState state,
         float pointerX,
-        float pointerY)
+        float pointerY
+    )
         where T : notnull
     {
         if (!drag.IsActive)
@@ -89,7 +107,11 @@ public static class SceneScrollBarDragController
         {
             var nextScrollX = SceneScrollMetrics.ClampScrollX(
                 box,
-                SceneScrollBarLayout.ResolveHorizontalScrollOffsetFromThumbLeft(box, pointerX - drag.ThumbOffset));
+                SceneScrollBarLayout.ResolveHorizontalScrollOffsetFromThumbLeft(
+                    box,
+                    pointerX - drag.ThumbOffset
+                )
+            );
             SceneSmoothScrollController.SetImmediate(state, box, nextScrollX, state.ScrollY);
             return true;
         }
@@ -98,7 +120,11 @@ public static class SceneScrollBarDragController
         {
             var nextScrollY = SceneScrollMetrics.ClampScrollY(
                 box,
-                SceneScrollBarLayout.ResolveVerticalScrollOffsetFromThumbTop(box, pointerY - drag.ThumbOffset));
+                SceneScrollBarLayout.ResolveVerticalScrollOffsetFromThumbTop(
+                    box,
+                    pointerY - drag.ThumbOffset
+                )
+            );
             SceneSmoothScrollController.SetImmediate(state, box, state.ScrollX, nextScrollY);
             return true;
         }

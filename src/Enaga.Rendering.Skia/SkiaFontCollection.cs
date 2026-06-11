@@ -91,7 +91,8 @@ internal sealed class SkiaFontCollection : IDisposable
             this.entry = entry;
         }
 
-        public SkiaFontData Data => entry?.Data ?? throw new ObjectDisposedException(nameof(SkiaFontDataLease));
+        public SkiaFontData Data =>
+            entry?.Data ?? throw new ObjectDisposedException(nameof(SkiaFontDataLease));
 
         public void Dispose()
         {
@@ -126,7 +127,8 @@ internal sealed class SkiaFontCollection : IDisposable
         int SizeQuarterPx,
         string Identity,
         int Weight,
-        bool Italic)
+        bool Italic
+    )
     {
         public static SkiaFontDescription From(SceneFont font, int fontVersion)
         {
@@ -135,7 +137,8 @@ internal sealed class SkiaFontCollection : IDisposable
                 QuantizePixel(font.Size),
                 font.CacheIdentity,
                 font.Weight,
-                font.Italic);
+                font.Italic
+            );
         }
 
         private static int QuantizePixel(float value)

@@ -12,17 +12,21 @@ public sealed record HtmlDomElement(
     IReadOnlyDictionary<string, string> Attributes,
     IReadOnlyList<HtmlDomNode> Children,
     string? InitialTextContent = null,
-    string? InitialInnerText = null) : HtmlDomNode
+    string? InitialInnerText = null
+) : HtmlDomNode
 {
     private string? textContent;
     private string? innerText;
 
     public string TextContent => textContent ??= InitialTextContent ?? BuildTextContent(Children);
 
-    public string InnerText => innerText ??= InitialInnerText ?? (IsNonRenderedTextElement(LocalName) ? string.Empty : BuildInnerText(Children));
+    public string InnerText =>
+        innerText ??=
+            InitialInnerText
+            ?? (IsNonRenderedTextElement(LocalName) ? string.Empty : BuildInnerText(Children));
 
-    public string? GetAttribute(string name)
-        => Attributes.TryGetValue(name, out var value) ? value : null;
+    public string? GetAttribute(string name) =>
+        Attributes.TryGetValue(name, out var value) ? value : null;
 
     public bool HasClass(string className)
     {
@@ -40,7 +44,10 @@ public sealed record HtmlDomElement(
             while (current < span.Length && !char.IsWhiteSpace(span[current]))
                 current += 1;
 
-            if (start < current && span[start..current].Equals(className.AsSpan(), StringComparison.Ordinal))
+            if (
+                start < current
+                && span[start..current].Equals(className.AsSpan(), StringComparison.Ordinal)
+            )
                 return true;
         }
 
@@ -84,7 +91,8 @@ public sealed record HtmlDomElement(
                 case HtmlDomText text:
                     AppendText(text.Text, ref textContent, ref builder);
                     break;
-                case HtmlDomElement childElement when !IsNonRenderedTextElement(childElement.LocalName):
+                case HtmlDomElement childElement
+                    when !IsNonRenderedTextElement(childElement.LocalName):
                     AppendText(childElement.InnerText, ref textContent, ref builder);
                     break;
             }
@@ -93,7 +101,11 @@ public sealed record HtmlDomElement(
         return builder?.ToString() ?? textContent ?? string.Empty;
     }
 
-    private static void AppendText(string text, ref string? textContent, ref System.Text.StringBuilder? builder)
+    private static void AppendText(
+        string text,
+        ref string? textContent,
+        ref System.Text.StringBuilder? builder
+    )
     {
         if (text.Length == 0)
             return;
@@ -116,36 +128,35 @@ public sealed record HtmlDomElement(
         textContent = null;
     }
 
-    private static bool IsNonRenderedTextElement(string localName)
-        => string.Equals(localName, "script", StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(localName, "style", StringComparison.OrdinalIgnoreCase);
+    private static bool IsNonRenderedTextElement(string localName) =>
+        string.Equals(localName, "script", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(localName, "style", StringComparison.OrdinalIgnoreCase);
 }
 
-public sealed record HtmlDomScript(
-    string TextContent,
-    string? Source,
-    string? Type)
+public sealed record HtmlDomScript(string TextContent, string? Source, string? Type)
 {
     public bool HasSource => !string.IsNullOrWhiteSpace(Source);
 
     public bool IsClassicJavaScript =>
-        string.IsNullOrWhiteSpace(Type) ||
-        Type.StartsWith("text/javascript", StringComparison.OrdinalIgnoreCase) ||
-        Type.StartsWith("application/javascript", StringComparison.OrdinalIgnoreCase);
+        string.IsNullOrWhiteSpace(Type)
+        || Type.StartsWith("text/javascript", StringComparison.OrdinalIgnoreCase)
+        || Type.StartsWith("application/javascript", StringComparison.OrdinalIgnoreCase);
 
-    public bool IsExecutableInlineJavaScript => !HasSource && IsClassicJavaScript && !string.IsNullOrWhiteSpace(TextContent);
+    public bool IsExecutableInlineJavaScript =>
+        !HasSource && IsClassicJavaScript && !string.IsNullOrWhiteSpace(TextContent);
 }
 
 public sealed record HtmlParsedDomDocument(
     HtmlDomElement RootElement,
     IReadOnlyList<string> AuthorStyleTexts,
     IReadOnlyList<HtmlDomScript> AuthorScripts,
-    string? BasePath)
+    string? BasePath
+)
 {
     public HtmlDomDocument ToDomDocument() => new(RootElement, BasePath);
 
-    public IReadOnlyList<string> GetExecutableInlineScriptTexts()
-        => AuthorScripts
+    public IReadOnlyList<string> GetExecutableInlineScriptTexts() =>
+        AuthorScripts
             .Where(static script => script.IsExecutableInlineJavaScript)
             .Select(static script => script.TextContent)
             .ToArray();

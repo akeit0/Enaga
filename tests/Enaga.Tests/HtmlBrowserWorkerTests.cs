@@ -1,8 +1,8 @@
-using Enaga.Browser;
-using Enaga.Html;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Enaga.Browser;
+using Enaga.Html;
 using Xunit;
 
 namespace Enaga.Tests;
@@ -14,15 +14,19 @@ public sealed class HtmlBrowserWorkerTests
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDirectory);
-        File.WriteAllText(Path.Combine(tempDirectory, "worker.js"), """
+        File.WriteAllText(
+            Path.Combine(tempDirectory, "worker.js"),
+            """
             onmessage = function (event) {
               postMessage("worker:" + event.data);
             };
-            """);
+            """
+        );
 
         try
         {
-            var document = new HtmlDocument("""
+            var document = new HtmlDocument(
+                """
                 <body>
                   <div id="status">idle</div>
                   <script>
@@ -33,13 +37,26 @@ public sealed class HtmlBrowserWorkerTests
                     worker.postMessage("ping");
                   </script>
                 </body>
-                """, BasePath: tempDirectory);
+                """,
+                BasePath: tempDirectory
+            );
 
-            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, Path.Combine(tempDirectory, "index.html"));
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
+                document,
+                Path.Combine(tempDirectory, "index.html")
+            );
 
             Assert.NotNull(runtime);
-            PumpUntil(runtime, html => html.Contains("<div id=\"status\">worker:ping</div>", StringComparison.Ordinal));
-            Assert.Contains("<div id=\"status\">worker:ping</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+            PumpUntil(
+                runtime,
+                html =>
+                    html.Contains("<div id=\"status\">worker:ping</div>", StringComparison.Ordinal)
+            );
+            Assert.Contains(
+                "<div id=\"status\">worker:ping</div>",
+                runtime.CurrentDocument.Html,
+                StringComparison.Ordinal
+            );
         }
         finally
         {
@@ -52,8 +69,13 @@ public sealed class HtmlBrowserWorkerTests
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDirectory);
-        File.WriteAllText(Path.Combine(tempDirectory, "dep.js"), "export const prefix = 'atomics';");
-        File.WriteAllText(Path.Combine(tempDirectory, "worker.js"), """
+        File.WriteAllText(
+            Path.Combine(tempDirectory, "dep.js"),
+            "export const prefix = 'atomics';"
+        );
+        File.WriteAllText(
+            Path.Combine(tempDirectory, "worker.js"),
+            """
             import { prefix } from "./dep.js";
             onmessage = function () {
               const buffer = new SharedArrayBuffer(4);
@@ -62,11 +84,13 @@ public sealed class HtmlBrowserWorkerTests
               const previous = Atomics.add(values, 0, 1);
               postMessage(prefix + ":" + previous + ":" + Atomics.load(values, 0) + ":" + (self === globalThis));
             };
-            """);
+            """
+        );
 
         try
         {
-            var document = new HtmlDocument("""
+            var document = new HtmlDocument(
+                """
                 <body>
                   <div id="status">idle</div>
                   <script>
@@ -77,13 +101,29 @@ public sealed class HtmlBrowserWorkerTests
                     worker.postMessage("go");
                   </script>
                 </body>
-                """, BasePath: tempDirectory);
+                """,
+                BasePath: tempDirectory
+            );
 
-            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, Path.Combine(tempDirectory, "index.html"));
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
+                document,
+                Path.Combine(tempDirectory, "index.html")
+            );
 
             Assert.NotNull(runtime);
-            PumpUntil(runtime, html => html.Contains("<div id=\"status\">atomics:41:42:true</div>", StringComparison.Ordinal));
-            Assert.Contains("<div id=\"status\">atomics:41:42:true</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+            PumpUntil(
+                runtime,
+                html =>
+                    html.Contains(
+                        "<div id=\"status\">atomics:41:42:true</div>",
+                        StringComparison.Ordinal
+                    )
+            );
+            Assert.Contains(
+                "<div id=\"status\">atomics:41:42:true</div>",
+                runtime.CurrentDocument.Html,
+                StringComparison.Ordinal
+            );
         }
         finally
         {
@@ -97,19 +137,26 @@ public sealed class HtmlBrowserWorkerTests
         var tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var scriptDirectory = Path.Combine(tempDirectory, "scripts");
         Directory.CreateDirectory(scriptDirectory);
-        File.WriteAllText(Path.Combine(scriptDirectory, "dep.js"), """
+        File.WriteAllText(
+            Path.Combine(scriptDirectory, "dep.js"),
+            """
             self.importedValue = "classic";
-            """);
-        File.WriteAllText(Path.Combine(scriptDirectory, "worker.js"), """
+            """
+        );
+        File.WriteAllText(
+            Path.Combine(scriptDirectory, "worker.js"),
+            """
             importScripts("./dep.js");
             onmessage = function (event) {
               postMessage(importedValue + ":" + event.data + ":" + (self === globalThis));
             };
-            """);
+            """
+        );
 
         try
         {
-            var document = new HtmlDocument("""
+            var document = new HtmlDocument(
+                """
                 <body>
                   <div id="status">idle</div>
                   <script>
@@ -120,13 +167,29 @@ public sealed class HtmlBrowserWorkerTests
                     worker.postMessage("ping");
                   </script>
                 </body>
-                """, BasePath: tempDirectory);
+                """,
+                BasePath: tempDirectory
+            );
 
-            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, Path.Combine(tempDirectory, "index.html"));
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
+                document,
+                Path.Combine(tempDirectory, "index.html")
+            );
 
             Assert.NotNull(runtime);
-            PumpUntil(runtime, html => html.Contains("<div id=\"status\">classic:ping:true</div>", StringComparison.Ordinal));
-            Assert.Contains("<div id=\"status\">classic:ping:true</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+            PumpUntil(
+                runtime,
+                html =>
+                    html.Contains(
+                        "<div id=\"status\">classic:ping:true</div>",
+                        StringComparison.Ordinal
+                    )
+            );
+            Assert.Contains(
+                "<div id=\"status\">classic:ping:true</div>",
+                runtime.CurrentDocument.Html,
+                StringComparison.Ordinal
+            );
         }
         finally
         {
@@ -146,19 +209,22 @@ public sealed class HtmlBrowserWorkerTests
 
             return request.Path switch
             {
-                "/page/worker.js" => TestHttpResponse.Ok("""
+                "/page/worker.js" => TestHttpResponse.Ok(
+                    """
                     import { prefix } from "./dep.js";
                     onmessage = function (event) { postMessage(prefix + ":" + event.data); };
-                    """),
+                    """
+                ),
                 "/page/dep.js" => TestHttpResponse.Ok("""export const prefix = "remote";"""),
-                _ => TestHttpResponse.NotFound()
+                _ => TestHttpResponse.NotFound(),
             };
         });
 
         var documentUrl = server.Url("/page/index.html");
         var workerUrl = server.Url("/page/worker.js");
         var depUrl = server.Url("/page/dep.js");
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status">idle</div>
               <script>
@@ -169,16 +235,25 @@ public sealed class HtmlBrowserWorkerTests
                 worker.postMessage("ping");
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
             document,
             documentUrl,
-            new HtmlBrowserScriptRuntimeOptions(customUserAgent));
+            new HtmlBrowserScriptRuntimeOptions(customUserAgent)
+        );
 
         Assert.NotNull(runtime);
-        PumpUntil(runtime, html => html.Contains("<div id=\"status\">remote:ping</div>", StringComparison.Ordinal));
-        Assert.Contains("<div id=\"status\">remote:ping</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        PumpUntil(
+            runtime,
+            html => html.Contains("<div id=\"status\">remote:ping</div>", StringComparison.Ordinal)
+        );
+        Assert.Contains(
+            "<div id=\"status\">remote:ping</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
 
         TestHttpRequest workerRequest;
         TestHttpRequest depRequest;
@@ -217,6 +292,7 @@ public sealed class HtmlBrowserWorkerTests
     private sealed record TestHttpResponse(int StatusCode, string StatusText, string Body)
     {
         public static TestHttpResponse Ok(string body) => new(200, "OK", body);
+
         public static TestHttpResponse NotFound() => new(404, "Not Found", string.Empty);
     }
 
@@ -293,10 +369,19 @@ public sealed class HtmlBrowserWorkerTests
 
             var response = respond(new TestHttpRequest(path, headersByName));
             var bodyBytes = Encoding.UTF8.GetBytes(response.Body);
-            using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { NewLine = "\r\n" };
-            await writer.WriteLineAsync($"HTTP/1.1 {response.StatusCode} {response.StatusText}").ConfigureAwait(false);
-            await writer.WriteLineAsync($"Content-Length: {bodyBytes.Length}").ConfigureAwait(false);
-            await writer.WriteLineAsync("Content-Type: text/javascript; charset=utf-8").ConfigureAwait(false);
+            using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true)
+            {
+                NewLine = "\r\n",
+            };
+            await writer
+                .WriteLineAsync($"HTTP/1.1 {response.StatusCode} {response.StatusText}")
+                .ConfigureAwait(false);
+            await writer
+                .WriteLineAsync($"Content-Length: {bodyBytes.Length}")
+                .ConfigureAwait(false);
+            await writer
+                .WriteLineAsync("Content-Type: text/javascript; charset=utf-8")
+                .ConfigureAwait(false);
             await writer.WriteLineAsync("Connection: close").ConfigureAwait(false);
             await writer.WriteLineAsync().ConfigureAwait(false);
             await writer.FlushAsync().ConfigureAwait(false);

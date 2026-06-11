@@ -28,7 +28,9 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
         this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public SKCanvas Canvas => contentSurface?.Canvas ?? throw new InvalidOperationException("GPU Skia surface is not initialized.");
+    public SKCanvas Canvas =>
+        contentSurface?.Canvas
+        ?? throw new InvalidOperationException("GPU Skia surface is not initialized.");
 
     public GRContext? Context => context;
 
@@ -68,7 +70,8 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
             dirtyRects.Length,
             contentStorageResized,
             width,
-            height);
+            height
+        );
         contentStorageResized = false;
     }
 
@@ -101,9 +104,11 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
 
     private unsafe bool EnsureContentSurface(int requiredWidth, int requiredHeight)
     {
-        if (contentSurface is not null &&
-            requiredWidth <= contentWidth &&
-            requiredHeight <= contentHeight)
+        if (
+            contentSurface is not null
+            && requiredWidth <= contentWidth
+            && requiredHeight <= contentHeight
+        )
         {
             return false;
         }
@@ -117,10 +122,26 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
 
         contentColorTexture = gl.GenTexture();
         gl.BindTexture(TextureTarget.Texture2D, contentColorTexture);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+        gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName.TextureMinFilter,
+            (int)GLEnum.Linear
+        );
+        gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName.TextureMagFilter,
+            (int)GLEnum.Linear
+        );
+        gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName.TextureWrapS,
+            (int)GLEnum.ClampToEdge
+        );
+        gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName.TextureWrapT,
+            (int)GLEnum.ClampToEdge
+        );
         gl.TexImage2D(
             TextureTarget.Texture2D,
             0,
@@ -130,7 +151,8 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
             0,
             PixelFormat.Rgba,
             PixelType.UnsignedByte,
-            null);
+            null
+        );
 
         contentFramebuffer = gl.GenFramebuffer();
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, contentFramebuffer);
@@ -139,7 +161,8 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
             FramebufferAttachment.ColorAttachment0,
             TextureTarget.Texture2D,
             contentColorTexture,
-            0);
+            0
+        );
 
         contentDepthStencilRenderbuffer = gl.GenRenderbuffer();
         gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, contentDepthStencilRenderbuffer);
@@ -147,24 +170,28 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
             RenderbufferTarget.Renderbuffer,
             InternalFormat.Depth24Stencil8,
             (uint)contentWidth,
-            (uint)contentHeight);
+            (uint)contentHeight
+        );
         gl.FramebufferRenderbuffer(
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.DepthStencilAttachment,
             RenderbufferTarget.Renderbuffer,
-            contentDepthStencilRenderbuffer);
+            contentDepthStencilRenderbuffer
+        );
 
         contentBackendRenderTarget = new GRBackendRenderTarget(
             contentWidth,
             contentHeight,
             0,
             8,
-            new GRGlFramebufferInfo(contentFramebuffer, (uint)InternalFormat.Rgba8));
+            new GRGlFramebufferInfo(contentFramebuffer, (uint)InternalFormat.Rgba8)
+        );
         contentSurface = SKSurface.Create(
             context!,
             contentBackendRenderTarget,
             GRSurfaceOrigin.TopLeft,
-            SKColorType.Rgba8888);
+            SKColorType.Rgba8888
+        );
 
         contentSurface.Canvas.Clear(SKColors.Transparent);
         return true;
@@ -180,12 +207,14 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
             safeHeight,
             0,
             8,
-            new GRGlFramebufferInfo(0, (uint)InternalFormat.Rgba8));
+            new GRGlFramebufferInfo(0, (uint)InternalFormat.Rgba8)
+        );
         windowSurface = SKSurface.Create(
             context!,
             windowBackendRenderTarget,
             GRSurfaceOrigin.BottomLeft,
-            SKColorType.Rgba8888);
+            SKColorType.Rgba8888
+        );
     }
 
     private static int GrowContentExtent(int required)
@@ -195,8 +224,8 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
         return Math.Max(minimum, AlignUp(grown, 64));
     }
 
-    private static int AlignUp(int value, int alignment)
-        => ((value + alignment - 1) / alignment) * alignment;
+    private static int AlignUp(int value, int alignment) =>
+        ((value + alignment - 1) / alignment) * alignment;
 
     private void ReleaseContentFramebufferAttachments()
     {
@@ -218,5 +247,4 @@ internal sealed class OpenGlSkiaWindowSurface : ISkiaWindowSurface
             contentColorTexture = 0;
         }
     }
-
 }

@@ -31,15 +31,16 @@ internal sealed class HtmlStyleInvalidationSet
             invalidation = new HtmlElementSnapshotInvalidation(
                 invalidation.NodeId,
                 existing.RestyleHint | invalidation.RestyleHint,
-                existing.Invalidation | invalidation.Invalidation);
+                existing.Invalidation | invalidation.Invalidation
+            );
         }
 
         entries[invalidation.NodeId] = invalidation;
         RecomputeTotals();
     }
 
-    public bool TryGet(HtmlNodeId nodeId, out HtmlElementSnapshotInvalidation invalidation)
-        => entries.TryGetValue(nodeId, out invalidation);
+    public bool TryGet(HtmlNodeId nodeId, out HtmlElementSnapshotInvalidation invalidation) =>
+        entries.TryGetValue(nodeId, out invalidation);
 
     public IReadOnlyCollection<HtmlElementSnapshotInvalidation> Entries => entries.Values;
 

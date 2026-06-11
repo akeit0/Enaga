@@ -1,12 +1,12 @@
 using Enaga.Input;
 using Enaga.Rendering;
+using Enaga.Rendering.Skia;
+using Silk.NET.Input.Glfw;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
-using SilkGlfw = Silk.NET.GLFW.Glfw;
-using Enaga.Rendering.Skia;
 using Silk.NET.Windowing.Glfw;
-using Silk.NET.Input.Glfw;
 using SkiaSharp;
+using SilkGlfw = Silk.NET.GLFW.Glfw;
 
 namespace Enaga.Hosting;
 
@@ -38,23 +38,43 @@ public sealed class NativeWindowApp : IDisposable
     private SilkWindowInputRouter? inputRouter;
     private SKColor? startupClearColor;
 
-    public NativeWindowApp(IRenderRoot renderRoot, string? windowTitle = null, INativeWindowPlatformIntegration? platformIntegration = null, double framesPerSecond = DefaultFramesPerSecond, RenderTraceLogFlags traceLogFlags = RenderTraceLogFlags.None, RenderGraphicsBackend graphicsBackend = RenderGraphicsBackend.OpenGl, SKColor? startupClearColor = null)
-        : this(renderRoot, NativeWindowOptions.FromCompatibility(windowTitle, platformIntegration, framesPerSecond, traceLogFlags, graphicsBackend, startupClearColor))
-    {
-    }
+    public NativeWindowApp(
+        IRenderRoot renderRoot,
+        string? windowTitle = null,
+        INativeWindowPlatformIntegration? platformIntegration = null,
+        double framesPerSecond = DefaultFramesPerSecond,
+        RenderTraceLogFlags traceLogFlags = RenderTraceLogFlags.None,
+        RenderGraphicsBackend graphicsBackend = RenderGraphicsBackend.OpenGl,
+        SKColor? startupClearColor = null
+    )
+        : this(
+            renderRoot,
+            NativeWindowOptions.FromCompatibility(
+                windowTitle,
+                platformIntegration,
+                framesPerSecond,
+                traceLogFlags,
+                graphicsBackend,
+                startupClearColor
+            )
+        ) { }
 
     public NativeWindowApp(IRenderRoot renderRoot, NativeWindowOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         activeFramesPerSecond = options.FramesPerSecond;
         graphicsBackend = options.GraphicsBackend;
-        timeProvider = options.TimeProvider ?? throw new ArgumentNullException(nameof(options.TimeProvider));
+        timeProvider =
+            options.TimeProvider ?? throw new ArgumentNullException(nameof(options.TimeProvider));
         startTimestamp = timeProvider.GetTimestamp();
         this.renderRoot = renderRoot;
         renderWakeSource = renderRoot as IRenderWakeSource;
         platformIntegration = options.PlatformIntegration;
         startupClearColor = options.StartupClearColor;
-        diagnosticsCollector = new WindowRenderDiagnosticsCollector(options.TraceLogFlags, options.Diagnostics);
+        diagnosticsCollector = new WindowRenderDiagnosticsCollector(
+            options.TraceLogFlags,
+            options.Diagnostics
+        );
         var silkWindowOptions = options.ToSilkWindowOptions();
         GlfwWindowing.Use();
         GlfwInput.RegisterPlatform();
@@ -68,7 +88,8 @@ public sealed class NativeWindowApp : IDisposable
             activeFramesPerSecond,
             () => hostUpdatePending || platformIntegration?.HasPendingInput == true,
             wakeSignal,
-            timeProvider);
+            timeProvider
+        );
         window.Load += OnLoad;
         window.Render += OnRender;
         window.Resize += OnResize;
@@ -78,9 +99,25 @@ public sealed class NativeWindowApp : IDisposable
             renderWakeSource.RenderWakeRequested += OnRenderWakeRequested;
     }
 
-    public static NativeWindowApp Create(IRenderRoot renderRoot, string? windowTitle = null, INativeWindowPlatformIntegration? platformIntegration = null, double framesPerSecond = DefaultFramesPerSecond, RenderTraceLogFlags traceLogFlags = RenderTraceLogFlags.None, RenderGraphicsBackend graphicsBackend = RenderGraphicsBackend.OpenGl, SKColor? startupClearColor = null)
+    public static NativeWindowApp Create(
+        IRenderRoot renderRoot,
+        string? windowTitle = null,
+        INativeWindowPlatformIntegration? platformIntegration = null,
+        double framesPerSecond = DefaultFramesPerSecond,
+        RenderTraceLogFlags traceLogFlags = RenderTraceLogFlags.None,
+        RenderGraphicsBackend graphicsBackend = RenderGraphicsBackend.OpenGl,
+        SKColor? startupClearColor = null
+    )
     {
-        return new NativeWindowApp(renderRoot, windowTitle, platformIntegration, framesPerSecond, traceLogFlags, graphicsBackend, startupClearColor);
+        return new NativeWindowApp(
+            renderRoot,
+            windowTitle,
+            platformIntegration,
+            framesPerSecond,
+            traceLogFlags,
+            graphicsBackend,
+            startupClearColor
+        );
     }
 
     public static NativeWindowApp Create(IRenderRoot renderRoot, NativeWindowOptions options)
@@ -121,8 +158,8 @@ public sealed class NativeWindowApp : IDisposable
 
     public bool HitTestOverlayInput(float x, float y)
     {
-        return renderRoot is IOverlayInputHitTestSource hitTestSource &&
-               hitTestSource.HitTestOverlayInput(x, y);
+        return renderRoot is IOverlayInputHitTestSource hitTestSource
+            && hitTestSource.HitTestOverlayInput(x, y);
     }
 
     public void PointerMove(float x, float y, int buttons, bool synthetic = false)
@@ -235,10 +272,10 @@ public sealed class NativeWindowApp : IDisposable
             var presentFullFrame = resizeSettlePresentFramesRemaining > 0;
             platformIntegration?.OnBeforeRender();
             surfaceManager.RenderIntoCanvas(renderRoot, GetElapsed(), frameTarget);
-            ReadOnlySpan<SceneDamageRect> dirtyRects =
-                renderRoot is IRenderDirtyRectSource dirtyRectSource
-                    ? dirtyRectSource.GetLastDirtyRects()
-                    : ReadOnlySpan<SceneDamageRect>.Empty;
+            ReadOnlySpan<SceneDamageRect> dirtyRects = renderRoot
+                is IRenderDirtyRectSource dirtyRectSource
+                ? dirtyRectSource.GetLastDirtyRects()
+                : ReadOnlySpan<SceneDamageRect>.Empty;
             platformIntegration?.OnRendered();
             var frameTargetStillCurrent = surfaceManager.IsCurrentFrameTarget(frameTarget);
             if (!frameTargetStillCurrent)
@@ -247,7 +284,10 @@ public sealed class NativeWindowApp : IDisposable
                 RequestResizeSettlePresent();
                 windowLoop.RequestImmediateFrame();
                 WakeWindowEventLoop();
-                RecordRenderDiagnostics(timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds, surfaceManager.LastDiagnostics);
+                RecordRenderDiagnostics(
+                    timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds,
+                    surfaceManager.LastDiagnostics
+                );
                 return;
             }
             var physicalDirtyRects = presentFullFrame
@@ -260,7 +300,10 @@ public sealed class NativeWindowApp : IDisposable
                     surfaceManager.Present(physicalDirtyRects);
 
                 ApplyRenderCadence(IdleFramesPerSecond);
-                RecordRenderDiagnostics(timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds, surfaceManager.LastDiagnostics);
+                RecordRenderDiagnostics(
+                    timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds,
+                    surfaceManager.LastDiagnostics
+                );
                 return;
             }
 
@@ -268,7 +311,10 @@ public sealed class NativeWindowApp : IDisposable
             surfaceManager.Present(physicalDirtyRects);
             if (resizeSettlePresentFramesRemaining > 0)
                 resizeSettlePresentFramesRemaining--;
-            RecordRenderDiagnostics(timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds, surfaceManager.LastDiagnostics);
+            RecordRenderDiagnostics(
+                timeProvider.GetElapsedTime(frameStartTimestamp).TotalMilliseconds,
+                surfaceManager.LastDiagnostics
+            );
             if (ShouldSkipIdleFrame())
                 ApplyRenderCadence(IdleFramesPerSecond);
         }
@@ -330,11 +376,11 @@ public sealed class NativeWindowApp : IDisposable
             return false;
 
         var runtimeState = diagnosticsProvider.GetRenderRootDiagnosticsSnapshot().RuntimeState;
-        return !runtimeState.ImeOpen &&
-               !runtimeState.CompositionActive &&
-               !runtimeState.AnimationEnabled &&
-               !runtimeState.ShaderAnimationEnabled &&
-               !runtimeState.RenderInvalidated;
+        return !runtimeState.ImeOpen
+            && !runtimeState.CompositionActive
+            && !runtimeState.AnimationEnabled
+            && !runtimeState.ShaderAnimationEnabled
+            && !runtimeState.RenderInvalidated;
     }
 
     private void RequestInteractiveBurst()
@@ -376,9 +422,7 @@ public sealed class NativeWindowApp : IDisposable
 
     private void TryRenderLiveResizeFrame()
     {
-        if (!surfaceManager.HasSurface ||
-            renderingFrame ||
-            window.IsClosing)
+        if (!surfaceManager.HasSurface || renderingFrame || window.IsClosing)
         {
             return;
         }
@@ -407,16 +451,22 @@ public sealed class NativeWindowApp : IDisposable
             invalidationSink.InvalidatePresentationSurface();
     }
 
-    private void RecordRenderDiagnostics(double totalFrameMs, PresentDiagnosticsSnapshot presentDiagnostics)
+    private void RecordRenderDiagnostics(
+        double totalFrameMs,
+        PresentDiagnosticsSnapshot presentDiagnostics
+    )
     {
         if (renderRoot is not IRenderDiagnosticsProvider diagnosticsProvider)
             return;
 
         var rootDiagnostics = diagnosticsProvider.GetRenderRootDiagnosticsSnapshot();
-        diagnosticsCollector.Record(GetElapsed().TotalMilliseconds, totalFrameMs, rootDiagnostics, presentDiagnostics);
+        diagnosticsCollector.Record(
+            GetElapsed().TotalMilliseconds,
+            totalFrameMs,
+            rootDiagnostics,
+            presentDiagnostics
+        );
     }
 
-    private TimeSpan GetElapsed()
-        => timeProvider.GetElapsedTime(startTimestamp);
-
+    private TimeSpan GetElapsed() => timeProvider.GetElapsedTime(startTimestamp);
 }

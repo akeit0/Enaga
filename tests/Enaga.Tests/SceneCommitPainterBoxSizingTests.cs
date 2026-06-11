@@ -19,7 +19,9 @@ public sealed class SceneCommitPainterBoxSizingTests
                 50,
                 BorderWidth: 8,
                 BorderRadius: 3,
-                BoxSizing: SceneBoxSizing.ContentBox));
+                BoxSizing: SceneBoxSizing.ContentBox
+            )
+        );
 
         Assert.True(Math.Abs(18 - geometry.FillRect.Left) < 0.001f);
         Assert.True(Math.Abs(28 - geometry.FillRect.Top) < 0.001f);
@@ -45,7 +47,9 @@ public sealed class SceneCommitPainterBoxSizingTests
                 50,
                 BorderWidth: 8,
                 BorderRadius: 12,
-                BoxSizing: SceneBoxSizing.BorderBox));
+                BoxSizing: SceneBoxSizing.BorderBox
+            )
+        );
 
         Assert.True(Math.Abs(18 - geometry.FillRect.Left) < 0.001f);
         Assert.True(Math.Abs(28 - geometry.FillRect.Top) < 0.001f);
@@ -71,7 +75,9 @@ public sealed class SceneCommitPainterBoxSizingTests
                 50,
                 BorderWidth: 8,
                 BorderRadius: 12,
-                BoxSizing: SceneBoxSizing.ContentBox));
+                BoxSizing: SceneBoxSizing.ContentBox
+            )
+        );
         var borderBox = SceneCommitPainter.ResolveBoxPaintGeometry(
             new SceneLayoutBox(
                 SceneNodeKind.View,
@@ -81,7 +87,9 @@ public sealed class SceneCommitPainterBoxSizingTests
                 50,
                 BorderWidth: 8,
                 BorderRadius: 12,
-                BoxSizing: SceneBoxSizing.BorderBox));
+                BoxSizing: SceneBoxSizing.BorderBox
+            )
+        );
 
         Assert.Equal(contentBox, borderBox);
     }
@@ -98,7 +106,9 @@ public sealed class SceneCommitPainterBoxSizingTests
                 12,
                 BorderWidth: 8,
                 BorderRadius: 6,
-                BoxSizing: SceneBoxSizing.BorderBox));
+                BoxSizing: SceneBoxSizing.BorderBox
+            )
+        );
 
         Assert.True(Math.Abs(0 - geometry.FillRect.Width) < 0.001f);
         Assert.True(Math.Abs(0 - geometry.FillRect.Height) < 0.001f);
@@ -116,7 +126,9 @@ public sealed class SceneCommitPainterBoxSizingTests
                 50,
                 BorderWidth: 8,
                 BorderRadius: 0,
-                BoxSizing: SceneBoxSizing.ContentBox));
+                BoxSizing: SceneBoxSizing.ContentBox
+            )
+        );
         var negativeRadius = SceneCommitPainter.ResolveBoxPaintGeometry(
             new SceneLayoutBox(
                 SceneNodeKind.View,
@@ -126,7 +138,9 @@ public sealed class SceneCommitPainterBoxSizingTests
                 50,
                 BorderWidth: 8,
                 BorderRadius: -10,
-                BoxSizing: SceneBoxSizing.ContentBox));
+                BoxSizing: SceneBoxSizing.ContentBox
+            )
+        );
 
         Assert.True(Math.Abs(0 - zeroRadius.FillRadius) < 0.001f);
         Assert.True(Math.Abs(0 - zeroRadius.BorderRadius) < 0.001f);

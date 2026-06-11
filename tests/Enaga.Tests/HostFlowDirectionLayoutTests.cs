@@ -1,6 +1,6 @@
-using Okojo.Objects;
-using Enaga.Rendering;
 using Enaga.React.OkojoRuntime;
+using Enaga.Rendering;
+using Okojo.Objects;
 using Okojo.Runtime;
 using Xunit;
 
@@ -15,13 +15,34 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 80);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("width", 200), ("height", 40), ("flexDirection", "row-reverse")));
-            var first = host.BenchmarkCreateHostNode("View", "first", CreateStyleProps(realm, ("width", 40), ("height", 20)));
-            var second = host.BenchmarkCreateHostNode("View", "second", CreateStyleProps(realm, ("width", 60), ("height", 20)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(
+                    realm,
+                    ("width", 200),
+                    ("height", 40),
+                    ("flexDirection", "row-reverse")
+                )
+            );
+            var first = host.BenchmarkCreateHostNode(
+                "View",
+                "first",
+                CreateStyleProps(realm, ("width", 40), ("height", 20))
+            );
+            var second = host.BenchmarkCreateHostNode(
+                "View",
+                "second",
+                CreateStyleProps(realm, ("width", 60), ("height", 20))
+            );
             host.BenchmarkAppendChild(root, first);
             host.BenchmarkAppendChild(root, second);
 
@@ -47,15 +68,31 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 80);
 
             var realm = host.BenchmarkRealm;
             var root = host.BenchmarkCreateHostNode(
                 "View",
                 "root",
-                CreateStyleProps(realm, ("width", 200), ("height", 80), ("flexDirection", "column"), ("direction", "rtl"), ("alignItems", "start")));
-            var child = host.BenchmarkCreateHostNode("View", "child", CreateStyleProps(realm, ("width", 40), ("height", 20)));
+                CreateStyleProps(
+                    realm,
+                    ("width", 200),
+                    ("height", 80),
+                    ("flexDirection", "column"),
+                    ("direction", "rtl"),
+                    ("alignItems", "start")
+                )
+            );
+            var child = host.BenchmarkCreateHostNode(
+                "View",
+                "child",
+                CreateStyleProps(realm, ("width", 40), ("height", 20))
+            );
             host.BenchmarkAppendChild(root, child);
 
             var rootChildren = new JsArray(realm);
@@ -80,7 +117,11 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 160, height: 220);
 
             var realm = host.BenchmarkRealm;
@@ -93,12 +134,34 @@ public sealed class HostFlowDirectionLayoutTests
                     ("height", 220),
                     ("flexDirection", "row"),
                     ("flexWrap", "wrap"),
-                    ("gap", 10)));
-            var first = host.BenchmarkCreateHostNode("View", "first", CreateStyleProps(realm, ("width", 50), ("height", 50)));
-            var second = host.BenchmarkCreateHostNode("View", "second", CreateStyleProps(realm, ("width", 50), ("height", 50)));
-            var third = host.BenchmarkCreateHostNode("View", "third", CreateStyleProps(realm, ("width", 50), ("height", 50)));
-            var fourth = host.BenchmarkCreateHostNode("View", "fourth", CreateStyleProps(realm, ("width", 50), ("height", 50)));
-            var fifth = host.BenchmarkCreateHostNode("View", "fifth", CreateStyleProps(realm, ("width", 50), ("height", 50)));
+                    ("gap", 10)
+                )
+            );
+            var first = host.BenchmarkCreateHostNode(
+                "View",
+                "first",
+                CreateStyleProps(realm, ("width", 50), ("height", 50))
+            );
+            var second = host.BenchmarkCreateHostNode(
+                "View",
+                "second",
+                CreateStyleProps(realm, ("width", 50), ("height", 50))
+            );
+            var third = host.BenchmarkCreateHostNode(
+                "View",
+                "third",
+                CreateStyleProps(realm, ("width", 50), ("height", 50))
+            );
+            var fourth = host.BenchmarkCreateHostNode(
+                "View",
+                "fourth",
+                CreateStyleProps(realm, ("width", 50), ("height", 50))
+            );
+            var fifth = host.BenchmarkCreateHostNode(
+                "View",
+                "fifth",
+                CreateStyleProps(realm, ("width", 50), ("height", 50))
+            );
             host.BenchmarkAppendChild(root, first);
             host.BenchmarkAppendChild(root, second);
             host.BenchmarkAppendChild(root, third);
@@ -135,12 +198,24 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 120);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("width", 50), ("height", 50)));
-            var child = host.BenchmarkCreateHostNode("View", "child", CreateStyleProps(realm, ("width", 20), ("height", 25), ("alignSelf", "center")));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(realm, ("width", 50), ("height", 50))
+            );
+            var child = host.BenchmarkCreateHostNode(
+                "View",
+                "child",
+                CreateStyleProps(realm, ("width", 20), ("height", 25), ("alignSelf", "center"))
+            );
             host.BenchmarkAppendChild(root, child);
 
             var rootChildren = new JsArray(realm);
@@ -165,7 +240,11 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 240, height: 240);
 
             var realm = host.BenchmarkRealm;
@@ -177,9 +256,19 @@ public sealed class HostFlowDirectionLayoutTests
                     ("width", 200),
                     ("height", 200),
                     ("padding", 10),
-                    ("direction", "rtl")));
-            var first = host.BenchmarkCreateHostNode("View", "first", CreateStyleProps(realm, ("margin", 5), ("width", 50), ("height", 50)));
-            var second = host.BenchmarkCreateHostNode("View", "second", CreateStyleProps(realm, ("margin", 5), ("width", 50), ("height", 50)));
+                    ("direction", "rtl")
+                )
+            );
+            var first = host.BenchmarkCreateHostNode(
+                "View",
+                "first",
+                CreateStyleProps(realm, ("margin", 5), ("width", 50), ("height", 50))
+            );
+            var second = host.BenchmarkCreateHostNode(
+                "View",
+                "second",
+                CreateStyleProps(realm, ("margin", 5), ("width", 50), ("height", 50))
+            );
             host.BenchmarkAppendChild(root, first);
             host.BenchmarkAppendChild(root, second);
 
@@ -207,12 +296,24 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 120);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("width", 100), ("height", 100)));
-            var child = host.BenchmarkCreateHostNode("View", "child", CreateStyleProps(realm, ("width", 20), ("height", 20), ("left", 10), ("top", 6)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(realm, ("width", 100), ("height", 100))
+            );
+            var child = host.BenchmarkCreateHostNode(
+                "View",
+                "child",
+                CreateStyleProps(realm, ("width", 20), ("height", 20), ("left", 10), ("top", 6))
+            );
             host.BenchmarkAppendChild(root, child);
 
             var rootChildren = new JsArray(realm);
@@ -241,12 +342,21 @@ public sealed class HostFlowDirectionLayoutTests
                 entryPath,
                 debugEnabled: false,
                 backendServices: DummyRuntimeBackendServices.Create(),
-                defaultPositionMode: DefaultPositionMode.Static);
+                defaultPositionMode: DefaultPositionMode.Static
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 120);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("width", 100), ("height", 100)));
-            var child = host.BenchmarkCreateHostNode("View", "child", CreateStyleProps(realm, ("width", 20), ("height", 20), ("left", 10), ("top", 6)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(realm, ("width", 100), ("height", 100))
+            );
+            var child = host.BenchmarkCreateHostNode(
+                "View",
+                "child",
+                CreateStyleProps(realm, ("width", 20), ("height", 20), ("left", 10), ("top", 6))
+            );
             host.BenchmarkAppendChild(root, child);
 
             var rootChildren = new JsArray(realm);
@@ -271,13 +381,36 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 160);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("width", 100), ("height", 100)));
-            var absolute = host.BenchmarkCreateHostNode("View", "absolute", CreateStyleProps(realm, ("position", "absolute"), ("width", 20), ("height", 20), ("left", 12), ("top", 8)));
-            var sibling = host.BenchmarkCreateHostNode("View", "sibling", CreateStyleProps(realm, ("width", 20), ("height", 20)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(realm, ("width", 100), ("height", 100))
+            );
+            var absolute = host.BenchmarkCreateHostNode(
+                "View",
+                "absolute",
+                CreateStyleProps(
+                    realm,
+                    ("position", "absolute"),
+                    ("width", 20),
+                    ("height", 20),
+                    ("left", 12),
+                    ("top", 8)
+                )
+            );
+            var sibling = host.BenchmarkCreateHostNode(
+                "View",
+                "sibling",
+                CreateStyleProps(realm, ("width", 20), ("height", 20))
+            );
             host.BenchmarkAppendChild(root, absolute);
             host.BenchmarkAppendChild(root, sibling);
 
@@ -305,12 +438,30 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 140);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("width", 60), ("height", 60), ("borderWidth", 4), ("padding", 6)));
-            var child = host.BenchmarkCreateHostNode("View", "child", CreateStyleProps(realm, ("width", 20), ("height", 20)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(
+                    realm,
+                    ("width", 60),
+                    ("height", 60),
+                    ("borderWidth", 4),
+                    ("padding", 6)
+                )
+            );
+            var child = host.BenchmarkCreateHostNode(
+                "View",
+                "child",
+                CreateStyleProps(realm, ("width", 20), ("height", 20))
+            );
             host.BenchmarkAppendChild(root, child);
 
             var rootChildren = new JsArray(realm);
@@ -335,12 +486,24 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 140);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("borderWidth", 4), ("padding", 6)));
-            var child = host.BenchmarkCreateHostNode("View", "child", CreateStyleProps(realm, ("width", 20), ("height", 10)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(realm, ("borderWidth", 4), ("padding", 6))
+            );
+            var child = host.BenchmarkCreateHostNode(
+                "View",
+                "child",
+                CreateStyleProps(realm, ("width", 20), ("height", 10))
+            );
             host.BenchmarkAppendChild(root, child);
 
             var rootChildren = new JsArray(realm);
@@ -367,16 +530,36 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 240, height: 240);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("width", 200), ("height", 200), ("padding", 10)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(realm, ("width", 200), ("height", 200), ("padding", 10))
+            );
             var first = host.BenchmarkCreateHostNode(
                 "View",
                 "first",
-                CreateStyleProps(realm, ("margin", 5), ("padding", 20), ("borderWidth", 10), ("height", 50), ("boxSizing", "content-box")));
-            var second = host.BenchmarkCreateHostNode("View", "second", CreateStyleProps(realm, ("height", 50)));
+                CreateStyleProps(
+                    realm,
+                    ("margin", 5),
+                    ("padding", 20),
+                    ("borderWidth", 10),
+                    ("height", 50),
+                    ("boxSizing", "content-box")
+                )
+            );
+            var second = host.BenchmarkCreateHostNode(
+                "View",
+                "second",
+                CreateStyleProps(realm, ("height", 50))
+            );
             host.BenchmarkAppendChild(root, first);
             host.BenchmarkAppendChild(root, second);
 
@@ -403,16 +586,36 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 240, height: 240);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("width", 200), ("height", 200), ("padding", 10)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(realm, ("width", 200), ("height", 200), ("padding", 10))
+            );
             var first = host.BenchmarkCreateHostNode(
                 "View",
                 "first",
-                CreateStyleProps(realm, ("margin", 5), ("padding", 20), ("borderWidth", 10), ("height", 50), ("boxSizing", "border-box")));
-            var second = host.BenchmarkCreateHostNode("View", "second", CreateStyleProps(realm, ("height", 50)));
+                CreateStyleProps(
+                    realm,
+                    ("margin", 5),
+                    ("padding", 20),
+                    ("borderWidth", 10),
+                    ("height", 50),
+                    ("boxSizing", "border-box")
+                )
+            );
+            var second = host.BenchmarkCreateHostNode(
+                "View",
+                "second",
+                CreateStyleProps(realm, ("height", 50))
+            );
             host.BenchmarkAppendChild(root, first);
             host.BenchmarkAppendChild(root, second);
 
@@ -439,13 +642,35 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 240, height: 240);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("width", 200), ("height", 200), ("padding", 10)));
-            var first = host.BenchmarkCreateHostNode("View", "first", CreateStyleProps(realm, ("margin", 5), ("padding", 60), ("height", 30), ("boxSizing", "content-box")));
-            var second = host.BenchmarkCreateHostNode("View", "second", CreateStyleProps(realm, ("height", 50)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(realm, ("width", 200), ("height", 200), ("padding", 10))
+            );
+            var first = host.BenchmarkCreateHostNode(
+                "View",
+                "first",
+                CreateStyleProps(
+                    realm,
+                    ("margin", 5),
+                    ("padding", 60),
+                    ("height", 30),
+                    ("boxSizing", "content-box")
+                )
+            );
+            var second = host.BenchmarkCreateHostNode(
+                "View",
+                "second",
+                CreateStyleProps(realm, ("height", 50))
+            );
             host.BenchmarkAppendChild(root, first);
             host.BenchmarkAppendChild(root, second);
 
@@ -472,11 +697,19 @@ public sealed class HostFlowDirectionLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 200);
 
             var realm = host.BenchmarkRealm;
-            var root = host.BenchmarkCreateHostNode("View", "root", CreateStyleProps(realm, ("padding", 12)));
+            var root = host.BenchmarkCreateHostNode(
+                "View",
+                "root",
+                CreateStyleProps(realm, ("padding", 12))
+            );
 
             var rootChildren = new JsArray(realm);
             rootChildren.SetElement(rootChildren.Length, JsValue.FromObject(root));
@@ -502,7 +735,10 @@ public sealed class HostFlowDirectionLayoutTests
         return tempDirectory;
     }
 
-    private static JsPlainObject CreateStyleProps(JsRealm realm, params (string Name, object Value)[] styleEntries)
+    private static JsPlainObject CreateStyleProps(
+        JsRealm realm,
+        params (string Name, object Value)[] styleEntries
+    )
     {
         var style = new JsPlainObject(realm);
         foreach (var (name, value) in styleEntries)
@@ -515,8 +751,11 @@ public sealed class HostFlowDirectionLayoutTests
                     int number => new JsValue(number),
                     double number => new JsValue(number),
                     float number => new JsValue(number),
-                    _ => throw new InvalidOperationException($"Unsupported style value for '{name}'.")
-                });
+                    _ => throw new InvalidOperationException(
+                        $"Unsupported style value for '{name}'."
+                    ),
+                }
+            );
         }
 
         var props = new JsPlainObject(realm);

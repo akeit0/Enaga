@@ -1,5 +1,5 @@
-using Okojo.Runtime;
 using Enaga.Layout;
+using Okojo.Runtime;
 
 namespace Enaga.React.OkojoRuntime;
 
@@ -77,8 +77,12 @@ internal sealed class ReactAppPropertyAtoms(AtomTable atoms)
     public readonly int LineHeight = atoms.InternNoCheck("lineHeight");
     public readonly int ActiveBorderColor = atoms.InternNoCheck("activeBorderColor");
     public readonly int PlaceholderColor = atoms.InternNoCheck("placeholderColor");
-    public readonly int CompositionUnderlineColor = atoms.InternNoCheck("compositionUnderlineColor");
-    public readonly int CompositionSelectionUnderlineColor = atoms.InternNoCheck("compositionSelectionUnderlineColor");
+    public readonly int CompositionUnderlineColor = atoms.InternNoCheck(
+        "compositionUnderlineColor"
+    );
+    public readonly int CompositionSelectionUnderlineColor = atoms.InternNoCheck(
+        "compositionSelectionUnderlineColor"
+    );
     public readonly int Fit = atoms.InternNoCheck("fit");
     public readonly int Hoverable = atoms.InternNoCheck("hoverable");
     public readonly int Tooltip = atoms.InternNoCheck("tooltip");

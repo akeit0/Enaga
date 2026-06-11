@@ -32,7 +32,10 @@ internal sealed unsafe class MacImeContext : IDisposable
 
     public static MacImeContext? TryAttach(nint nsWindow, ITextCompositionSink compositionSink)
     {
-        var contentView = ObjectiveC.IntPtr_objc_msgSend(nsWindow, ObjectiveC.GetSelector("contentView"));
+        var contentView = ObjectiveC.IntPtr_objc_msgSend(
+            nsWindow,
+            ObjectiveC.GetSelector("contentView")
+        );
         if (contentView == 0)
             return null;
 
@@ -63,32 +66,78 @@ internal sealed unsafe class MacImeContext : IDisposable
             if (swizzled || viewClass == 0)
                 return;
 
-            var setMarkedText = ObjectiveC.GetSelector("setMarkedText:selectedRange:replacementRange:");
+            var setMarkedText = ObjectiveC.GetSelector(
+                "setMarkedText:selectedRange:replacementRange:"
+            );
             var unmarkText = ObjectiveC.GetSelector("unmarkText");
             var insertText = ObjectiveC.GetSelector("insertText:replacementRange:");
-            var firstRectForCharacterRange = ObjectiveC.GetSelector("firstRectForCharacterRange:actualRange:");
+            var firstRectForCharacterRange = ObjectiveC.GetSelector(
+                "firstRectForCharacterRange:actualRange:"
+            );
 
-            originalSetMarkedText = ObjectiveC.class_getMethodImplementation(viewClass, setMarkedText);
+            originalSetMarkedText = ObjectiveC.class_getMethodImplementation(
+                viewClass,
+                setMarkedText
+            );
             originalUnmarkText = ObjectiveC.class_getMethodImplementation(viewClass, unmarkText);
             originalInsertText = ObjectiveC.class_getMethodImplementation(viewClass, insertText);
-            originalFirstRectForCharacterRange = ObjectiveC.class_getMethodImplementation(viewClass, firstRectForCharacterRange);
+            originalFirstRectForCharacterRange = ObjectiveC.class_getMethodImplementation(
+                viewClass,
+                firstRectForCharacterRange
+            );
 
-            ObjectiveC.class_replaceMethod(viewClass, setMarkedText, (nint)(delegate* unmanaged<nint, nint, nint, NSRange, NSRange, void>)&SetMarkedTextCallback, "v@:@{_NSRange=QQ}{_NSRange=QQ}");
-            ObjectiveC.class_replaceMethod(viewClass, unmarkText, (nint)(delegate* unmanaged<nint, nint, void>)&UnmarkTextCallback, "v@:");
-            ObjectiveC.class_replaceMethod(viewClass, insertText, (nint)(delegate* unmanaged<nint, nint, nint, NSRange, void>)&InsertTextCallback, "v@:@{_NSRange=QQ}");
-            ObjectiveC.class_replaceMethod(viewClass, firstRectForCharacterRange, (nint)(delegate* unmanaged<nint, nint, NSRange, nint, NSRect>)&FirstRectForCharacterRangeCallback, "{CGRect={CGPoint=dd}{CGSize=dd}}@:{_NSRange=QQ}^{_NSRange=QQ}");
+            ObjectiveC.class_replaceMethod(
+                viewClass,
+                setMarkedText,
+                (nint)
+                    (delegate* unmanaged<nint, nint, nint, NSRange, NSRange, void>)
+                        &SetMarkedTextCallback,
+                "v@:@{_NSRange=QQ}{_NSRange=QQ}"
+            );
+            ObjectiveC.class_replaceMethod(
+                viewClass,
+                unmarkText,
+                (nint)(delegate* unmanaged<nint, nint, void>)&UnmarkTextCallback,
+                "v@:"
+            );
+            ObjectiveC.class_replaceMethod(
+                viewClass,
+                insertText,
+                (nint)(delegate* unmanaged<nint, nint, nint, NSRange, void>)&InsertTextCallback,
+                "v@:@{_NSRange=QQ}"
+            );
+            ObjectiveC.class_replaceMethod(
+                viewClass,
+                firstRectForCharacterRange,
+                (nint)
+                    (delegate* unmanaged<nint, nint, NSRange, nint, NSRect>)
+                        &FirstRectForCharacterRangeCallback,
+                "{CGRect={CGPoint=dd}{CGSize=dd}}@:{_NSRange=QQ}^{_NSRange=QQ}"
+            );
             swizzled = true;
         }
     }
 
     [UnmanagedCallersOnly]
-    private static void SetMarkedTextCallback(nint self, nint selector, nint textObject, NSRange selectedRange, NSRange replacementRange)
+    private static void SetMarkedTextCallback(
+        nint self,
+        nint selector,
+        nint textObject,
+        NSRange selectedRange,
+        NSRange replacementRange
+    )
     {
         if (ContextsByView.TryGetValue(self, out var context))
             context.SetMarkedText(textObject, selectedRange, replacementRange);
 
         if (originalSetMarkedText != 0)
-            ((delegate* unmanaged<nint, nint, nint, NSRange, NSRange, void>)originalSetMarkedText)(self, selector, textObject, selectedRange, replacementRange);
+            ((delegate* unmanaged<nint, nint, nint, NSRange, NSRange, void>)originalSetMarkedText)(
+                self,
+                selector,
+                textObject,
+                selectedRange,
+                replacementRange
+            );
     }
 
     [UnmanagedCallersOnly]
@@ -102,28 +151,52 @@ internal sealed unsafe class MacImeContext : IDisposable
     }
 
     [UnmanagedCallersOnly]
-    private static void InsertTextCallback(nint self, nint selector, nint textObject, NSRange replacementRange)
+    private static void InsertTextCallback(
+        nint self,
+        nint selector,
+        nint textObject,
+        NSRange replacementRange
+    )
     {
         ContextsByView.TryGetValue(self, out var context);
         context?.PrepareCompositionCommit();
 
         if (originalInsertText != 0)
-            ((delegate* unmanaged<nint, nint, nint, NSRange, void>)originalInsertText)(self, selector, textObject, replacementRange);
+            ((delegate* unmanaged<nint, nint, nint, NSRange, void>)originalInsertText)(
+                self,
+                selector,
+                textObject,
+                replacementRange
+            );
 
         context?.CompleteCompositionCommit();
     }
 
     [UnmanagedCallersOnly]
-    private static NSRect FirstRectForCharacterRangeCallback(nint self, nint selector, NSRange range, nint actualRange)
+    private static NSRect FirstRectForCharacterRangeCallback(
+        nint self,
+        nint selector,
+        NSRange range,
+        nint actualRange
+    )
     {
-        if (ContextsByView.TryGetValue(self, out var context) &&
-            context.TryGetCandidateRect(out var rect))
+        if (
+            ContextsByView.TryGetValue(self, out var context)
+            && context.TryGetCandidateRect(out var rect)
+        )
         {
             return rect;
         }
 
         return originalFirstRectForCharacterRange != 0
-            ? ((delegate* unmanaged<nint, nint, NSRange, nint, NSRect>)originalFirstRectForCharacterRange)(self, selector, range, actualRange)
+            ? (
+                (delegate* unmanaged<
+                    nint,
+                    nint,
+                    NSRange,
+                    nint,
+                    NSRect>)originalFirstRectForCharacterRange
+            )(self, selector, range, actualRange)
             : default;
     }
 
@@ -152,8 +225,10 @@ internal sealed unsafe class MacImeContext : IDisposable
         if (!compositionActive)
         {
             compositionActive = true;
-            if (TryResolveReplacementStart(replacementRange, out var startIndex) &&
-                compositionSink is ITextCompositionRangeSink rangeSink)
+            if (
+                TryResolveReplacementStart(replacementRange, out var startIndex)
+                && compositionSink is ITextCompositionRangeSink rangeSink
+            )
                 rangeSink.StartTextComposition(startIndex);
             else
                 compositionSink.StartTextComposition();
@@ -161,7 +236,12 @@ internal sealed unsafe class MacImeContext : IDisposable
 
         var selectionStart = checked((int)Math.Min(selectedRange.Location, (nuint)int.MaxValue));
         var selectionLength = checked((int)Math.Min(selectedRange.Length, (nuint)int.MaxValue));
-        compositionSink.UpdateTextComposition(text, selectionStart, selectionStart, selectionLength);
+        compositionSink.UpdateTextComposition(
+            text,
+            selectionStart,
+            selectionStart,
+            selectionLength
+        );
         HasPendingVisualUpdate = true;
     }
 
@@ -195,7 +275,10 @@ internal sealed unsafe class MacImeContext : IDisposable
         if (!compositionSink.TryGetTextCompositionCursor(out var cursor))
             return false;
 
-        var contentView = ObjectiveC.IntPtr_objc_msgSend(nsWindow, ObjectiveC.GetSelector("contentView"));
+        var contentView = ObjectiveC.IntPtr_objc_msgSend(
+            nsWindow,
+            ObjectiveC.GetSelector("contentView")
+        );
         if (contentView == 0)
             return false;
 
@@ -204,8 +287,13 @@ internal sealed unsafe class MacImeContext : IDisposable
             cursor.X,
             Math.Max(0, bounds.Height - cursor.Y - cursor.Height),
             Math.Max(1, cursor.Width),
-            Math.Max(1, cursor.Height));
-        rect = ObjectiveC.NSRect_objc_msgSend_NSRect(nsWindow, ObjectiveC.GetSelector("convertRectToScreen:"), localRect);
+            Math.Max(1, cursor.Height)
+        );
+        rect = ObjectiveC.NSRect_objc_msgSend_NSRect(
+            nsWindow,
+            ObjectiveC.GetSelector("convertRectToScreen:"),
+            localRect
+        );
         return true;
     }
 
@@ -220,7 +308,9 @@ internal sealed unsafe class MacImeContext : IDisposable
         private const string ObjCLibrary = "/usr/lib/libobjc.A.dylib";
 
         [DllImport(ObjCLibrary)]
-        public static extern nint sel_registerName([MarshalAs(UnmanagedType.LPUTF8Str)] string name);
+        public static extern nint sel_registerName(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string name
+        );
 
         [DllImport(ObjCLibrary)]
         public static extern nint object_getClass(nint obj);
@@ -230,16 +320,29 @@ internal sealed unsafe class MacImeContext : IDisposable
 
         [DllImport(ObjCLibrary)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool class_replaceMethod(nint cls, nint selector, nint implementation, [MarshalAs(UnmanagedType.LPUTF8Str)] string types);
+        public static extern bool class_replaceMethod(
+            nint cls,
+            nint selector,
+            nint implementation,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string types
+        );
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
         public static extern nint IntPtr_objc_msgSend(nint receiver, nint selector);
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern nint IntPtr_objc_msgSend_IntPtr(nint receiver, nint selector, nint value);
+        public static extern nint IntPtr_objc_msgSend_IntPtr(
+            nint receiver,
+            nint selector,
+            nint value
+        );
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern byte Byte_objc_msgSend_IntPtr(nint receiver, nint selector, nint value);
+        public static extern byte Byte_objc_msgSend_IntPtr(
+            nint receiver,
+            nint selector,
+            nint value
+        );
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
         public static extern nint UTF8String_objc_msgSend(nint receiver, nint selector);
@@ -248,7 +351,11 @@ internal sealed unsafe class MacImeContext : IDisposable
         public static extern NSRect NSRect_objc_msgSend(nint receiver, nint selector);
 
         [DllImport(ObjCLibrary, EntryPoint = "objc_msgSend")]
-        public static extern NSRect NSRect_objc_msgSend_NSRect(nint receiver, nint selector, NSRect rect);
+        public static extern NSRect NSRect_objc_msgSend_NSRect(
+            nint receiver,
+            nint selector,
+            NSRect rect
+        );
 
         public static nint GetSelector(string name) => sel_registerName(name);
 
@@ -260,9 +367,10 @@ internal sealed unsafe class MacImeContext : IDisposable
             var stringSelector = GetSelector("string");
             var respondsToSelector = GetSelector("respondsToSelector:");
             var utf8String = GetSelector("UTF8String");
-            var nsString = Byte_objc_msgSend_IntPtr(textObject, respondsToSelector, stringSelector) != 0
-                ? IntPtr_objc_msgSend(textObject, stringSelector)
-                : textObject;
+            var nsString =
+                Byte_objc_msgSend_IntPtr(textObject, respondsToSelector, stringSelector) != 0
+                    ? IntPtr_objc_msgSend(textObject, stringSelector)
+                    : textObject;
             var utf8 = UTF8String_objc_msgSend(nsString, utf8String);
             return utf8 == 0 ? string.Empty : Marshal.PtrToStringUTF8(utf8) ?? string.Empty;
         }

@@ -6,7 +6,8 @@ public readonly record struct StyleLayoutVersionResult<TNode>(
     IReadOnlyList<TNode> Nodes,
     RestyleHint InvalidationHints,
     RenderDamage Damage,
-    uint Generation);
+    uint Generation
+);
 
 public interface IStyleLayoutVersionAdapter<TNode, TStyle, TKey>
     where TKey : notnull
@@ -21,7 +22,9 @@ public interface IStyleLayoutVersionAdapter<TNode, TStyle, TKey>
     bool HasSameNodeLayoutIdentity(TNode previous, TNode next);
 }
 
-public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityComparer<TKey>? keyComparer = null)
+public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(
+    IEqualityComparer<TKey>? keyComparer = null
+)
     where TKey : notnull
     where TStyle : class
 {
@@ -31,7 +34,8 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
 
     public StyleLayoutVersionResult<TNode> AssignVersions(
         IReadOnlyList<TNode> nodes,
-        IStyleLayoutVersionAdapter<TNode, TStyle, TKey> adapter)
+        IStyleLayoutVersionAdapter<TNode, TStyle, TKey> adapter
+    )
     {
         var invalidation = RestyleHint.None;
         var damage = RenderDamage.None;
@@ -44,7 +48,8 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
         IStyleLayoutVersionAdapter<TNode, TStyle, TKey> adapter,
         out RestyleHint invalidation,
         out RenderDamage damage,
-        out uint generation)
+        out uint generation
+    )
     {
         invalidation = RestyleHint.None;
         damage = RenderDamage.None;
@@ -57,7 +62,8 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
         IReadOnlyList<TNode> nodes,
         IStyleLayoutVersionAdapter<TNode, TStyle, TKey> adapter,
         ref RestyleHint invalidation,
-        ref RenderDamage damage)
+        ref RenderDamage damage
+    )
     {
         if (nodes.Count == 0)
             return nodes;
@@ -85,9 +91,15 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
         TNode node,
         IStyleLayoutVersionAdapter<TNode, TStyle, TKey> adapter,
         ref RestyleHint invalidation,
-        ref RenderDamage damage)
+        ref RenderDamage damage
+    )
     {
-        var children = AssignVersions(adapter.GetChildren(node), adapter, ref invalidation, ref damage);
+        var children = AssignVersions(
+            adapter.GetChildren(node),
+            adapter,
+            ref invalidation,
+            ref damage
+        );
         var candidate = ReferenceEquals(children, adapter.GetChildren(node))
             ? node
             : adapter.WithChildren(node, children);
@@ -98,9 +110,20 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
             entry = new Entry(adapter.GetNodeId(candidate), style, candidate);
             entries[key] = entry;
             Generation++;
-            invalidation |= RestyleHint.MatchSelf | RestyleHint.CascadeSelf | RestyleHint.RebuildFormattingTree;
-            damage |= RenderDamage.RebuildStyle | RenderDamage.RebuildLayoutTree | RenderDamage.Relayout | RenderDamage.Refragment | RenderDamage.Repaint | RenderDamage.RebuildHitTest;
-            return adapter.WithVersions(candidate, entry.Data.StyleVersion, entry.Data.LayoutVersion);
+            invalidation |=
+                RestyleHint.MatchSelf | RestyleHint.CascadeSelf | RestyleHint.RebuildFormattingTree;
+            damage |=
+                RenderDamage.RebuildStyle
+                | RenderDamage.RebuildLayoutTree
+                | RenderDamage.Relayout
+                | RenderDamage.Refragment
+                | RenderDamage.Repaint
+                | RenderDamage.RebuildHitTest;
+            return adapter.WithVersions(
+                candidate,
+                entry.Data.StyleVersion,
+                entry.Data.LayoutVersion
+            );
         }
 
         var styleChanged = !adapter.HasSameStyleLayoutIdentity(entry.Style, style);
@@ -111,7 +134,11 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
             entry.Data.Style = style;
             entry.Data.StyleVersion++;
             entry.Data.Hint |= RestyleHint.CascadeSelf;
-            entry.Data.Damage |= RenderDamage.RebuildStyle | RenderDamage.Relayout | RenderDamage.Refragment | RenderDamage.Repaint;
+            entry.Data.Damage |=
+                RenderDamage.RebuildStyle
+                | RenderDamage.Relayout
+                | RenderDamage.Refragment
+                | RenderDamage.Repaint;
             entry.Data.Flags |= ElementStyleFlags.WasRestyled;
             entry.Data.Flags &= ~ElementStyleFlags.TraversedWithoutStyling;
             Generation++;
@@ -124,7 +151,12 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
             entry.Node = candidate;
             entry.Data.LayoutVersion++;
             entry.Data.Hint |= RestyleHint.RebuildFormattingTree;
-            entry.Data.Damage |= RenderDamage.RebuildLayoutTree | RenderDamage.Relayout | RenderDamage.Refragment | RenderDamage.Repaint | RenderDamage.RebuildHitTest;
+            entry.Data.Damage |=
+                RenderDamage.RebuildLayoutTree
+                | RenderDamage.Relayout
+                | RenderDamage.Refragment
+                | RenderDamage.Repaint
+                | RenderDamage.RebuildHitTest;
             Generation++;
             invalidation |= RestyleHint.RebuildFormattingTree;
             damage |= entry.Data.Damage;
@@ -137,13 +169,14 @@ public sealed class ElementStyleLayoutStore<TKey, TStyle, TNode>(IEqualityCompar
     {
         public TStyle Style { get; set; } = style;
         public TNode Node { get; set; } = node;
-        public ElementStyleData<TStyle> Data { get; } = new()
-        {
-            NodeId = nodeId,
-            Style = style,
-            StyleVersion = 1,
-            LayoutVersion = 1
-        };
+        public ElementStyleData<TStyle> Data { get; } =
+            new()
+            {
+                NodeId = nodeId,
+                Style = style,
+                StyleVersion = 1,
+                LayoutVersion = 1,
+            };
     }
 }
 
@@ -163,7 +196,7 @@ public sealed class DomElementStyleStore<TStyle>
         {
             NodeId = nodeId,
             StyleVersion = 1,
-            LayoutVersion = 1
+            LayoutVersion = 1,
         };
         elements[nodeId] = data;
         Generation++;
@@ -188,7 +221,8 @@ public sealed class DomElementStyleStore<TStyle>
         HtmlNodeId nodeId,
         TStyle style,
         Func<TStyle, TStyle, bool> hasSameStyleLayoutIdentity,
-        bool layoutIdentityChanged)
+        bool layoutIdentityChanged
+    )
     {
         var data = GetOrCreate(nodeId);
         var invalidation = RestyleHint.None;
@@ -201,20 +235,42 @@ public sealed class DomElementStyleStore<TStyle>
             data.StyleVersion++;
             data.LayoutVersion++;
             data.Hint |= RestyleHint.CascadeSelf | RestyleHint.RebuildFormattingTree;
-            data.Damage |= RenderDamage.RebuildStyle | RenderDamage.RebuildLayoutTree | RenderDamage.Relayout | RenderDamage.Refragment | RenderDamage.Repaint | RenderDamage.RebuildHitTest;
+            data.Damage |=
+                RenderDamage.RebuildStyle
+                | RenderDamage.RebuildLayoutTree
+                | RenderDamage.Relayout
+                | RenderDamage.Refragment
+                | RenderDamage.Repaint
+                | RenderDamage.RebuildHitTest;
             data.Flags |= ElementStyleFlags.WasRestyled;
             data.Flags &= ~ElementStyleFlags.TraversedWithoutStyling;
             invalidation |= RestyleHint.CascadeSelf | RestyleHint.RebuildFormattingTree;
-            damage |= RenderDamage.RebuildStyle | RenderDamage.RebuildLayoutTree | RenderDamage.Relayout | RenderDamage.Refragment | RenderDamage.Repaint | RenderDamage.RebuildHitTest;
+            damage |=
+                RenderDamage.RebuildStyle
+                | RenderDamage.RebuildLayoutTree
+                | RenderDamage.Relayout
+                | RenderDamage.Refragment
+                | RenderDamage.Repaint
+                | RenderDamage.RebuildHitTest;
             Generation++;
         }
         else if (layoutIdentityChanged)
         {
             data.LayoutVersion++;
             data.Hint |= RestyleHint.RebuildFormattingTree;
-            data.Damage |= RenderDamage.RebuildLayoutTree | RenderDamage.Relayout | RenderDamage.Refragment | RenderDamage.Repaint | RenderDamage.RebuildHitTest;
+            data.Damage |=
+                RenderDamage.RebuildLayoutTree
+                | RenderDamage.Relayout
+                | RenderDamage.Refragment
+                | RenderDamage.Repaint
+                | RenderDamage.RebuildHitTest;
             invalidation |= RestyleHint.RebuildFormattingTree;
-            damage |= RenderDamage.RebuildLayoutTree | RenderDamage.Relayout | RenderDamage.Refragment | RenderDamage.Repaint | RenderDamage.RebuildHitTest;
+            damage |=
+                RenderDamage.RebuildLayoutTree
+                | RenderDamage.Relayout
+                | RenderDamage.Refragment
+                | RenderDamage.Repaint
+                | RenderDamage.RebuildHitTest;
             Generation++;
         }
         else
@@ -222,7 +278,13 @@ public sealed class DomElementStyleStore<TStyle>
             data.MarkTraversedWithoutStyling();
         }
 
-        return new StyleLayoutVersionPair(data.StyleVersion, data.LayoutVersion, invalidation, damage, Generation);
+        return new StyleLayoutVersionPair(
+            data.StyleVersion,
+            data.LayoutVersion,
+            invalidation,
+            damage,
+            Generation
+        );
     }
 }
 
@@ -231,4 +293,5 @@ public readonly record struct StyleLayoutVersionPair(
     uint LayoutVersion,
     RestyleHint InvalidationHints,
     RenderDamage Damage,
-    uint Generation);
+    uint Generation
+);

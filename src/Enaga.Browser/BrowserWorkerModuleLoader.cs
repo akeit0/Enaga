@@ -6,17 +6,25 @@ namespace Enaga.Browser;
 
 internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader, IWorkerScriptSourceLoader
 {
-    private const string WorkerAcceptHeader = "text/javascript, application/javascript, application/ecmascript, */*;q=0.8";
+    private const string WorkerAcceptHeader =
+        "text/javascript, application/javascript, application/ecmascript, */*;q=0.8";
 
     private readonly string documentSource;
     private readonly string? basePath;
     private readonly BrowserNetworkSession networkSession;
+
     // NOTE: Okojo's module loader calls LoadSource with only the resolved id, so Enaga keeps a
     // best-effort requester map from ResolveSpecifier. This lets worker fetches send a sensible
     // Referer and Sec-Fetch-* shape even though there is no full browser navigation/origin policy yet.
-    private readonly ConcurrentDictionary<string, string?> requestContextByResolvedId = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, string?> requestContextByResolvedId = new(
+        StringComparer.Ordinal
+    );
 
-    public BrowserWorkerModuleLoader(string documentSource, string? basePath, BrowserNetworkSession networkSession)
+    public BrowserWorkerModuleLoader(
+        string documentSource,
+        string? basePath,
+        BrowserNetworkSession networkSession
+    )
     {
         this.documentSource = documentSource;
         this.basePath = basePath;
@@ -36,7 +44,8 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader, IWorkerSc
         else
             resolved = ResolveAgainst(documentSource, trimmed);
 
-        requestContextByResolvedId[NormalizeResolvedId(resolved)] = referrer ?? GetInitialRequestContext();
+        requestContextByResolvedId[NormalizeResolvedId(resolved)] =
+            referrer ?? GetInitialRequestContext();
         return resolved;
     }
 
@@ -46,7 +55,10 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader, IWorkerSc
             return File.ReadAllText(filePath, Encoding.UTF8);
 
         var targetUri = new Uri(resolvedId);
-        var requestContext = requestContextByResolvedId.TryGetValue(NormalizeResolvedId(resolvedId), out var context)
+        var requestContext = requestContextByResolvedId.TryGetValue(
+            NormalizeResolvedId(resolvedId),
+            out var context
+        )
             ? context
             : GetInitialRequestContext();
 
@@ -57,14 +69,13 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader, IWorkerSc
         return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
     }
 
-    public string ResolveScript(string path, string? referrer = null)
-        => ResolveSpecifier(path, referrer);
+    public string ResolveScript(string path, string? referrer = null) =>
+        ResolveSpecifier(path, referrer);
 
-    public string LoadScript(string path, string? referrer = null)
-        => LoadSource(path);
+    public string LoadScript(string path, string? referrer = null) => LoadSource(path);
 
-    private string? GetInitialRequestContext()
-        => !string.IsNullOrWhiteSpace(basePath) ? basePath : documentSource;
+    private string? GetInitialRequestContext() =>
+        !string.IsNullOrWhiteSpace(basePath) ? basePath : documentSource;
 
     private static string NormalizeResolvedId(string resolvedId)
     {
@@ -86,7 +97,9 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader, IWorkerSc
                 referer,
                 FetchDestination: "worker",
                 FetchMode: fetchMode,
-                FetchSite: fetchSite));
+                FetchSite: fetchSite
+            )
+        );
     }
 
     private static Uri? TryResolveHttpReferer(string? requestContext)
@@ -105,7 +118,15 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader, IWorkerSc
         if (referer is null)
             return ("no-cors", "none");
 
-        if (Uri.Compare(targetUri, referer, UriComponents.SchemeAndServer, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0)
+        if (
+            Uri.Compare(
+                targetUri,
+                referer,
+                UriComponents.SchemeAndServer,
+                UriFormat.Unescaped,
+                StringComparison.OrdinalIgnoreCase
+            ) == 0
+        )
             return ("same-origin", "same-origin");
 
         return ("cors", "cross-site");
@@ -148,5 +169,4 @@ internal sealed class BrowserWorkerModuleLoader : IModuleSourceLoader, IWorkerSc
         filePath = resolvedId;
         return true;
     }
-
 }

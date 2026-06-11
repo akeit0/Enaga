@@ -1,6 +1,6 @@
 using Enaga.Rendering;
-using Silk.NET.Windowing;
 using Enaga.Rendering.Skia;
+using Silk.NET.Windowing;
 
 namespace Enaga.Hosting;
 

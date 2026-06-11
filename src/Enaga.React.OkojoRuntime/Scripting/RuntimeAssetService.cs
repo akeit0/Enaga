@@ -6,13 +6,20 @@ internal sealed class RuntimeAssetService : IDisposable
 {
     private readonly IRuntimeAssetResolver assetResolver;
     private readonly string materializationRoot;
-    private readonly Dictionary<string, string> materializedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> materializedPaths = new(
+        StringComparer.OrdinalIgnoreCase
+    );
     private bool disposed;
 
     public RuntimeAssetService(IRuntimeAssetResolver assetResolver)
     {
-        this.assetResolver = assetResolver ?? throw new ArgumentNullException(nameof(assetResolver));
-        materializationRoot = Path.Combine(Path.GetTempPath(), "Enaga.RuntimeAssets", Guid.NewGuid().ToString("N"));
+        this.assetResolver =
+            assetResolver ?? throw new ArgumentNullException(nameof(assetResolver));
+        materializationRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Enaga.RuntimeAssets",
+            Guid.NewGuid().ToString("N")
+        );
         Directory.CreateDirectory(materializationRoot);
     }
 
@@ -36,23 +43,29 @@ internal sealed class RuntimeAssetService : IDisposable
                 ? assetReference.Uri.LocalPath
                 : assetReference.Uri?.AbsoluteUri ?? assetReference.Source,
             RuntimeAssetKind.Stream => MaterializeStream(assetReference),
-            _ => assetReference.Source
+            _ => assetReference.Source,
         };
     }
 
     private string MaterializeStream(RuntimeAssetReference assetReference)
     {
         if (assetReference.OpenStream is null)
-            throw new InvalidOperationException($"Asset '{assetReference.Source}' cannot be materialized because no stream factory was provided.");
+            throw new InvalidOperationException(
+                $"Asset '{assetReference.Source}' cannot be materialized because no stream factory was provided."
+            );
 
-        if (materializedPaths.TryGetValue(assetReference.Source, out var existingPath) && File.Exists(existingPath))
+        if (
+            materializedPaths.TryGetValue(assetReference.Source, out var existingPath)
+            && File.Exists(existingPath)
+        )
             return existingPath;
 
         using var stream = assetReference.OpenStream();
         using var memory = new MemoryStream();
         stream.CopyTo(memory);
         var bytes = memory.ToArray();
-        var fileName = $"{Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()}{ResolveExtension(assetReference)}";
+        var fileName =
+            $"{Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()}{ResolveExtension(assetReference)}";
         var path = Path.Combine(materializationRoot, fileName);
         File.WriteAllBytes(path, bytes);
         materializedPaths[assetReference.Source] = path;
@@ -72,7 +85,7 @@ internal sealed class RuntimeAssetService : IDisposable
             "image/jpeg" => ".jpg",
             "application/json" => ".json",
             "text/plain; charset=utf-8" => ".txt",
-            _ => ".bin"
+            _ => ".bin",
         };
     }
 

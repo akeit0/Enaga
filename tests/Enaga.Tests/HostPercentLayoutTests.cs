@@ -1,6 +1,6 @@
-using Okojo.Objects;
-using Enaga.Rendering;
 using Enaga.React.OkojoRuntime;
+using Enaga.Rendering;
+using Okojo.Objects;
 using Okojo.Runtime;
 using Xunit;
 
@@ -18,7 +18,11 @@ public sealed class HostPercentLayoutTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime(width: 200, height: 100);
 
             var realm = host.BenchmarkRealm;

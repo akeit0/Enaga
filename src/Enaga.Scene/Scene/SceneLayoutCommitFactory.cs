@@ -6,13 +6,20 @@ public static class SceneLayoutCommitFactory
         SceneNodeId rootId,
         SceneViewport viewport,
         SceneNodeMap<SceneGraphNode> nodes,
-        SceneNodeMap<SceneLayoutBox> layout)
+        SceneNodeMap<SceneLayoutBox> layout
+    )
     {
         var resolvedLayout = ResolveLayoutContentSizes(nodes, layout);
         var hostAnimatedShaderRootIds = BuildHostAnimatedShaderRootIds(nodes, resolvedLayout);
-        return new SceneLayoutCommit(rootId, viewport, nodes, resolvedLayout, hostAnimatedShaderRootIds)
+        return new SceneLayoutCommit(
+            rootId,
+            viewport,
+            nodes,
+            resolvedLayout,
+            hostAnimatedShaderRootIds
+        )
         {
-            PaintOrderIds = BuildPaintOrderIds(rootId, nodes, resolvedLayout)
+            PaintOrderIds = BuildPaintOrderIds(rootId, nodes, resolvedLayout),
         };
     }
 
@@ -20,16 +27,19 @@ public static class SceneLayoutCommitFactory
         SceneNodeId rootId,
         SceneViewport viewport,
         IReadOnlyDictionary<SceneNodeId, SceneGraphNode> nodes,
-        IReadOnlyDictionary<SceneNodeId, SceneLayoutBox> layout)
-        => Create(
+        IReadOnlyDictionary<SceneNodeId, SceneLayoutBox> layout
+    ) =>
+        Create(
             rootId,
             viewport,
             nodes as SceneNodeMap<SceneGraphNode> ?? new SceneNodeMap<SceneGraphNode>(nodes),
-            layout as SceneNodeMap<SceneLayoutBox> ?? new SceneNodeMap<SceneLayoutBox>(layout));
+            layout as SceneNodeMap<SceneLayoutBox> ?? new SceneNodeMap<SceneLayoutBox>(layout)
+        );
 
     private static SceneNodeMap<SceneLayoutBox> ResolveLayoutContentSizes(
         SceneNodeMap<SceneGraphNode> nodes,
-        SceneNodeMap<SceneLayoutBox> layout)
+        SceneNodeMap<SceneLayoutBox> layout
+    )
     {
         foreach (var (id, node) in nodes)
         {
@@ -52,8 +62,10 @@ public static class SceneLayoutCommitFactory
                 resolvedContentHeight = Math.Max(resolvedContentHeight, inferredContentHeight);
             }
 
-            if (Math.Abs(resolvedContentWidth - box.ContentWidth) <= 0.001f &&
-                Math.Abs(resolvedContentHeight - box.ContentHeight) <= 0.001f)
+            if (
+                Math.Abs(resolvedContentWidth - box.ContentWidth) <= 0.001f
+                && Math.Abs(resolvedContentHeight - box.ContentHeight) <= 0.001f
+            )
             {
                 continue;
             }
@@ -61,7 +73,7 @@ public static class SceneLayoutCommitFactory
             layout[id] = box with
             {
                 ContentWidth = resolvedContentWidth,
-                ContentHeight = resolvedContentHeight
+                ContentHeight = resolvedContentHeight,
             };
         }
 
@@ -72,7 +84,8 @@ public static class SceneLayoutCommitFactory
         SceneNodeId scrollViewId,
         SceneLayoutBox scrollBox,
         SceneNodeMap<SceneGraphNode> nodes,
-        SceneNodeMap<SceneLayoutBox> layout)
+        SceneNodeMap<SceneLayoutBox> layout
+    )
     {
         if (!nodes.TryGetValue(scrollViewId, out var scrollNode) || scrollNode.Children.Length == 0)
             return scrollBox.Width;
@@ -87,7 +100,10 @@ public static class SceneLayoutCommitFactory
                 continue;
 
             maxRight = Math.Max(maxRight, childBox.AbsLeft + childBox.Width);
-            if (!nodes.TryGetValue(nodeId, out var childNode) || childNode.NodeKind == SceneNodeKind.ScrollView)
+            if (
+                !nodes.TryGetValue(nodeId, out var childNode)
+                || childNode.NodeKind == SceneNodeKind.ScrollView
+            )
                 continue;
 
             PushChildrenReverse(pending, childNode.Children);
@@ -100,7 +116,8 @@ public static class SceneLayoutCommitFactory
         SceneNodeId scrollViewId,
         SceneLayoutBox scrollBox,
         SceneNodeMap<SceneGraphNode> nodes,
-        SceneNodeMap<SceneLayoutBox> layout)
+        SceneNodeMap<SceneLayoutBox> layout
+    )
     {
         if (!nodes.TryGetValue(scrollViewId, out var scrollNode) || scrollNode.Children.Length == 0)
             return scrollBox.Height;
@@ -115,7 +132,10 @@ public static class SceneLayoutCommitFactory
                 continue;
 
             maxBottom = Math.Max(maxBottom, childBox.AbsTop + childBox.Height);
-            if (!nodes.TryGetValue(nodeId, out var childNode) || childNode.NodeKind == SceneNodeKind.ScrollView)
+            if (
+                !nodes.TryGetValue(nodeId, out var childNode)
+                || childNode.NodeKind == SceneNodeKind.ScrollView
+            )
                 continue;
 
             PushChildrenReverse(pending, childNode.Children);
@@ -126,7 +146,8 @@ public static class SceneLayoutCommitFactory
 
     private static SceneNodeId[] BuildHostAnimatedShaderRootIds(
         SceneNodeMap<SceneGraphNode> nodes,
-        SceneNodeMap<SceneLayoutBox> layout)
+        SceneNodeMap<SceneLayoutBox> layout
+    )
     {
         var roots = new List<SceneNodeId>();
         foreach (var (id, box) in layout)
@@ -138,7 +159,10 @@ public static class SceneLayoutCommitFactory
             var currentId = id;
             while (nodes.TryGetValue(currentId, out var node) && node.ParentId is { } parentId)
             {
-                if (layout.TryGetValue(parentId, out var parentBox) && IsHostAnimatedRuntimeShader(parentBox))
+                if (
+                    layout.TryGetValue(parentId, out var parentBox)
+                    && IsHostAnimatedRuntimeShader(parentBox)
+                )
                 {
                     hasAnimatedAncestor = true;
                     break;
@@ -157,7 +181,8 @@ public static class SceneLayoutCommitFactory
     private static SceneNodeId[] BuildPaintOrderIds(
         SceneNodeId rootId,
         SceneNodeMap<SceneGraphNode> nodes,
-        SceneNodeMap<SceneLayoutBox> layout)
+        SceneNodeMap<SceneLayoutBox> layout
+    )
     {
         if (!nodes.ContainsKey(rootId) || !layout.ContainsKey(rootId))
             return [];
@@ -169,8 +194,7 @@ public static class SceneLayoutCommitFactory
         while (pending.Count > 0)
         {
             var id = pending.Pop();
-            if (!nodes.TryGetValue(id, out var node) ||
-                !layout.ContainsKey(id))
+            if (!nodes.TryGetValue(id, out var node) || !layout.ContainsKey(id))
             {
                 continue;
             }
@@ -189,12 +213,15 @@ public static class SceneLayoutCommitFactory
         return trimmed;
     }
 
-    private static void PushChildrenReverse(Stack<SceneNodeId> pending, ReadOnlySpan<SceneNodeId> children)
+    private static void PushChildrenReverse(
+        Stack<SceneNodeId> pending,
+        ReadOnlySpan<SceneNodeId> children
+    )
     {
         for (var index = children.Length - 1; index >= 0; index--)
             pending.Push(children[index]);
     }
 
-    private static bool IsHostAnimatedRuntimeShader(SceneLayoutBox box)
-        => box.BackgroundShader?.HostTime == true;
+    private static bool IsHostAnimatedRuntimeShader(SceneLayoutBox box) =>
+        box.BackgroundShader?.HostTime == true;
 }

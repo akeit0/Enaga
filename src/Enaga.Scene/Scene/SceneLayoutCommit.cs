@@ -6,27 +6,27 @@ public enum SceneNodeKind
     Text,
     ScrollView,
     TextInput,
-    Image
+    Image,
 }
 
 public enum SceneTextAlign
 {
     Left,
     Center,
-    Right
+    Right,
 }
 
 public enum SceneBoxSizing
 {
     ContentBox,
-    BorderBox
+    BorderBox,
 }
 
 public enum SceneBorderStyle
 {
     None,
     Solid,
-    Dotted
+    Dotted,
 }
 
 public enum SceneControlKind
@@ -36,7 +36,7 @@ public enum SceneControlKind
     TextArea,
     Button,
     Select,
-    Radio
+    Radio,
 }
 
 public sealed record SceneViewport(int Width, int Height);
@@ -45,7 +45,8 @@ public readonly record struct SceneGraphNode(
     SceneNodeKind NodeKind,
     SceneNodeId? ParentId,
     SceneNodeId[] Children,
-    string? Label = null);
+    string? Label = null
+);
 
 public sealed record SceneFont(
     float Size,
@@ -53,7 +54,8 @@ public sealed record SceneFont(
     int Weight = 400,
     bool Italic = false,
     string? Source = null,
-    string? Identity = null)
+    string? Identity = null
+)
 {
     public string CacheIdentity => Identity ?? Source ?? Family ?? string.Empty;
 }
@@ -71,7 +73,8 @@ public sealed record SceneTextStyle
         bool Italic = false,
         bool TextOverflowEllipsis = false,
         SceneFont? Font = null,
-        SceneBoxShadow[]? TextShadows = null)
+        SceneBoxShadow[]? TextShadows = null
+    )
     {
         this.Font = Font ?? new SceneFont(FontSize, FontFamily, FontWeight, Italic);
         this.Color = Color;
@@ -104,7 +107,8 @@ public readonly record struct SceneBoxGeometry(
     float PaddingTop,
     float PaddingRight,
     float PaddingBottom,
-    bool IsPositioned);
+    bool IsPositioned
+);
 
 public readonly record struct SceneBoxPaint(
     string? BackgroundColor,
@@ -118,23 +122,23 @@ public readonly record struct SceneBoxPaint(
     SceneBoxShadow[]? BackgroundShadows,
     string? BackgroundImageSource,
     string? BackgroundImageFit,
-    SceneBoxBorder? Border);
+    SceneBoxBorder? Border
+);
 
 public readonly record struct ScenePaintOverride(
     string? BackgroundColor = null,
     string? BorderColor = null,
-    string? TextColor = null)
+    string? TextColor = null
+)
 {
-    public bool IsEmpty =>
-        BackgroundColor is null &&
-        BorderColor is null &&
-        TextColor is null;
+    public bool IsEmpty => BackgroundColor is null && BorderColor is null && TextColor is null;
 }
 
 public readonly record struct SceneTextPayload(
     string TextContent,
     SceneTextStyle? TextStyle,
-    float LineHeight);
+    float LineHeight
+);
 
 public readonly record struct SceneTextInputPayload(
     string TextContent,
@@ -155,7 +159,8 @@ public readonly record struct SceneTextInputPayload(
     string? CompositionUnderlineColor,
     string? CompositionSelectionUnderlineColor,
     bool ImeOpen,
-    string? ImeIndicator);
+    string? ImeIndicator
+);
 
 public readonly record struct SceneScrollPayload(
     float ScrollX,
@@ -167,16 +172,19 @@ public readonly record struct SceneScrollPayload(
     bool HorizontalScrollEnabled,
     float ScrollBarWidth,
     string? ScrollBarTrackColor,
-    string? ScrollBarThumbColor);
+    string? ScrollBarThumbColor
+);
 
 public readonly record struct SceneImagePayload(
     string ImageSource,
     string? ImagePlaceholderSource,
-    string? ImageFit);
+    string? ImageFit
+);
 
 public readonly record struct SceneInteractionPayload(
     string? LinkHref,
-    SceneControlKind ControlKind);
+    SceneControlKind ControlKind
+);
 
 public sealed record SceneLayoutBox(
     SceneNodeKind NodeKind,
@@ -235,77 +243,92 @@ public sealed record SceneLayoutBox(
     string? ScrollBarThumbColor = null,
     bool IsPositioned = false,
     SceneControlKind ControlKind = SceneControlKind.None,
-    bool IsChecked = false)
+    bool IsChecked = false
+)
 {
-    public SceneBoxGeometry Geometry => new(
-        AbsLeft,
-        AbsTop,
-        Width,
-        Height,
-        PaddingLeft,
-        PaddingTop,
-        PaddingRight,
-        PaddingBottom,
-        IsPositioned);
+    public SceneBoxGeometry Geometry =>
+        new(
+            AbsLeft,
+            AbsTop,
+            Width,
+            Height,
+            PaddingLeft,
+            PaddingTop,
+            PaddingRight,
+            PaddingBottom,
+            IsPositioned
+        );
 
-    public SceneBoxPaint Paint => new(
-        BackgroundColor,
-        BorderColor,
-        BorderWidth,
-        BorderRadius,
-        BoxSizing,
-        BorderStyle,
-        BackgroundGradient,
-        BackgroundShader,
-        BackgroundShadows,
-        BackgroundImageSource,
-        BackgroundImageFit,
-        Border);
+    public SceneBoxPaint Paint =>
+        new(
+            BackgroundColor,
+            BorderColor,
+            BorderWidth,
+            BorderRadius,
+            BoxSizing,
+            BorderStyle,
+            BackgroundGradient,
+            BackgroundShader,
+            BackgroundShadows,
+            BackgroundImageSource,
+            BackgroundImageFit,
+            Border
+        );
 
-    public SceneTextPayload? Text => NodeKind == SceneNodeKind.Text && TextContent is { } textContent
-        ? new SceneTextPayload(textContent, TextStyle, LineHeight)
-        : null;
+    public SceneTextPayload? Text =>
+        NodeKind == SceneNodeKind.Text && TextContent is { } textContent
+            ? new SceneTextPayload(textContent, TextStyle, LineHeight)
+            : null;
 
-    public SceneTextInputPayload? TextInput => NodeKind == SceneNodeKind.TextInput
-        ? new SceneTextInputPayload(
-            TextContent ?? string.Empty,
-            TextStyle,
-            PlaceholderText ?? string.Empty,
-            PlaceholderColor,
-            Multiline,
-            LineHeight,
-            CaretIndex,
-            SelectionStart,
-            SelectionEnd,
-            IsFocused,
-            CompositionText ?? string.Empty,
-            CompositionStart,
-            CompositionCursorOffset,
-            CompositionSelectionStart,
-            CompositionSelectionLength,
-            CompositionUnderlineColor,
-            CompositionSelectionUnderlineColor,
-            ImeOpen,
-            ImeIndicator)
-        : null;
+    public SceneTextInputPayload? TextInput =>
+        NodeKind == SceneNodeKind.TextInput
+            ? new SceneTextInputPayload(
+                TextContent ?? string.Empty,
+                TextStyle,
+                PlaceholderText ?? string.Empty,
+                PlaceholderColor,
+                Multiline,
+                LineHeight,
+                CaretIndex,
+                SelectionStart,
+                SelectionEnd,
+                IsFocused,
+                CompositionText ?? string.Empty,
+                CompositionStart,
+                CompositionCursorOffset,
+                CompositionSelectionStart,
+                CompositionSelectionLength,
+                CompositionUnderlineColor,
+                CompositionSelectionUnderlineColor,
+                ImeOpen,
+                ImeIndicator
+            )
+            : null;
 
-    public SceneScrollPayload? Scroll => NodeKind == SceneNodeKind.ScrollView || IsScrollContainer || ClipContent || ContentWidth > 0 || ContentHeight > 0
-        ? new SceneScrollPayload(
-            ScrollX,
-            ScrollY,
-            IsScrollContainer,
-            ClipContent,
-            ContentWidth,
-            ContentHeight,
-            HorizontalScrollEnabled,
-            ScrollBarWidth,
-            ScrollBarTrackColor,
-            ScrollBarThumbColor)
-        : null;
+    public SceneScrollPayload? Scroll =>
+        NodeKind == SceneNodeKind.ScrollView
+        || IsScrollContainer
+        || ClipContent
+        || ContentWidth > 0
+        || ContentHeight > 0
+            ? new SceneScrollPayload(
+                ScrollX,
+                ScrollY,
+                IsScrollContainer,
+                ClipContent,
+                ContentWidth,
+                ContentHeight,
+                HorizontalScrollEnabled,
+                ScrollBarWidth,
+                ScrollBarTrackColor,
+                ScrollBarThumbColor
+            )
+            : null;
 
-    public SceneImagePayload? Image => NodeKind == SceneNodeKind.Image && ImageSource is { } imageSource
-        ? new SceneImagePayload(imageSource, ImagePlaceholderSource, ImageFit)
-        : null;
+    public SceneImagePayload? Image =>
+        NodeKind == SceneNodeKind.Image && ImageSource is { } imageSource
+            ? new SceneImagePayload(imageSource, ImagePlaceholderSource, ImageFit)
+            : null;
 
     public SceneInteractionPayload Interaction => new(LinkHref, ControlKind);
 }
@@ -322,40 +345,44 @@ public sealed record SceneBoxBorder(
     string? LeftColor,
     string? TopColor,
     string? RightColor,
-    string? BottomColor);
+    string? BottomColor
+);
 
 public sealed record SceneLayoutCommit(
     SceneNodeId RootId,
     SceneViewport Viewport,
     SceneNodeMap<SceneGraphNode> Nodes,
     SceneNodeMap<SceneLayoutBox> Layout,
-    SceneNodeId[] HostAnimatedShaderRootIds)
+    SceneNodeId[] HostAnimatedShaderRootIds
+)
 {
     public SceneLayoutCommit(
         SceneNodeId rootId,
         SceneViewport viewport,
         IReadOnlyDictionary<SceneNodeId, SceneGraphNode> nodes,
         IReadOnlyDictionary<SceneNodeId, SceneLayoutBox> layout,
-        SceneNodeId[] hostAnimatedShaderRootIds)
+        SceneNodeId[] hostAnimatedShaderRootIds
+    )
         : this(
             rootId,
             viewport,
             new SceneNodeMap<SceneGraphNode>(nodes),
             new SceneNodeMap<SceneLayoutBox>(layout),
-            hostAnimatedShaderRootIds)
-    {
-    }
+            hostAnimatedShaderRootIds
+        ) { }
 
     public SceneNodeId[] PaintOrderIds { get; init; } = [];
 
-    private static readonly IReadOnlyDictionary<SceneNodeId, ScenePaintOverride> EmptyPaintOverrides =
-        new Dictionary<SceneNodeId, ScenePaintOverride>();
+    private static readonly IReadOnlyDictionary<
+        SceneNodeId,
+        ScenePaintOverride
+    > EmptyPaintOverrides = new Dictionary<SceneNodeId, ScenePaintOverride>();
 
     public IReadOnlyDictionary<SceneNodeId, ScenePaintOverride> PaintOverrides { get; init; } =
         EmptyPaintOverrides;
 
-    public bool TryGetPaintOverride(SceneNodeId id, out ScenePaintOverride paintOverride)
-        => PaintOverrides.TryGetValue(id, out paintOverride) && !paintOverride.IsEmpty;
+    public bool TryGetPaintOverride(SceneNodeId id, out ScenePaintOverride paintOverride) =>
+        PaintOverrides.TryGetValue(id, out paintOverride) && !paintOverride.IsEmpty;
 
     public SceneNodeId[] DynamicOverlayRootIds { get; init; } = [];
 }

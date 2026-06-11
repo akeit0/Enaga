@@ -8,7 +8,7 @@ internal enum HostInputEventType
     Wheel,
     KeyDown,
     KeyUp,
-    TextInput
+    TextInput,
 }
 
 internal readonly record struct HostInputEvent(
@@ -23,4 +23,5 @@ internal readonly record struct HostInputEvent(
     string? Key = null,
     string? Text = null,
     int Modifiers = 0,
-    bool Repeat = false);
+    bool Repeat = false
+);

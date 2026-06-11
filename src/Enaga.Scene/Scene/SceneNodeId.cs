@@ -24,8 +24,7 @@ public sealed class SceneNodeIdAllocator
         return new SceneNodeId(nextValue++);
     }
 
-    public void Reset(ulong firstValue = 1)
-        => nextValue = Math.Max(1UL, firstValue);
+    public void Reset(ulong firstValue = 1) => nextValue = Math.Max(1UL, firstValue);
 }
 
 public sealed class SceneNodeIdentityMap<TKey>
@@ -35,11 +34,13 @@ public sealed class SceneNodeIdentityMap<TKey>
     private readonly SceneNodeIdAllocator allocator;
 
     public SceneNodeIdentityMap(TKey rootKey, IEqualityComparer<TKey>? comparer = null)
-        : this(rootKey, new SceneNodeIdAllocator(), comparer)
-    {
-    }
+        : this(rootKey, new SceneNodeIdAllocator(), comparer) { }
 
-    public SceneNodeIdentityMap(TKey rootKey, SceneNodeIdAllocator allocator, IEqualityComparer<TKey>? comparer = null)
+    public SceneNodeIdentityMap(
+        TKey rootKey,
+        SceneNodeIdAllocator allocator,
+        IEqualityComparer<TKey>? comparer = null
+    )
     {
         ArgumentNullException.ThrowIfNull(allocator);
         ids = new Dictionary<TKey, SceneNodeId>(comparer);
@@ -60,6 +61,5 @@ public sealed class SceneNodeIdentityMap<TKey>
         return id;
     }
 
-    public bool TryGet(TKey key, out SceneNodeId id)
-        => ids.TryGetValue(key, out id);
+    public bool TryGet(TKey key, out SceneNodeId id) => ids.TryGetValue(key, out id);
 }

@@ -12,13 +12,14 @@ public enum RuntimeDiagnosticArea
     Damage = 7,
     Window = 8,
     ShaderTrace = 9,
-    Configuration = 10
+    Configuration = 10,
 }
 
 public readonly record struct RuntimeDiagnosticEvent(
     RuntimeDiagnosticArea Area,
     string Source,
-    string Message);
+    string Message
+);
 
 public interface IRuntimeDiagnosticsSink
 {
@@ -105,7 +106,10 @@ public sealed class FileRuntimeDiagnosticsSink : IRuntimeDiagnosticsSink
 
         lock (sync)
         {
-            File.AppendAllText(path, $"{RuntimeDiagnosticsTextFormatter.Format(diagnosticEvent)}{Environment.NewLine}");
+            File.AppendAllText(
+                path,
+                $"{RuntimeDiagnosticsTextFormatter.Format(diagnosticEvent)}{Environment.NewLine}"
+            );
         }
     }
 }
@@ -115,7 +119,10 @@ public sealed class FilteredRuntimeDiagnosticsSink : IRuntimeDiagnosticsSink
     private readonly IRuntimeDiagnosticsSink inner;
     private readonly HashSet<RuntimeDiagnosticArea> enabledAreas;
 
-    public FilteredRuntimeDiagnosticsSink(IRuntimeDiagnosticsSink inner, IEnumerable<RuntimeDiagnosticArea> enabledAreas)
+    public FilteredRuntimeDiagnosticsSink(
+        IRuntimeDiagnosticsSink inner,
+        IEnumerable<RuntimeDiagnosticArea> enabledAreas
+    )
     {
         this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
         ArgumentNullException.ThrowIfNull(enabledAreas);
@@ -138,9 +145,7 @@ internal sealed class NullRuntimeDiagnosticsSink : IRuntimeDiagnosticsSink
 {
     public bool IsEnabled(RuntimeDiagnosticArea area) => false;
 
-    public void Write(RuntimeDiagnosticEvent diagnosticEvent)
-    {
-    }
+    public void Write(RuntimeDiagnosticEvent diagnosticEvent) { }
 }
 
 internal static class RuntimeDiagnosticsTextFormatter
@@ -158,7 +163,7 @@ internal static class RuntimeDiagnosticsTextFormatter
             RuntimeDiagnosticArea.ModuleInvalidation => "module-invalidation",
             RuntimeDiagnosticArea.SceneCommit => "scene-commit",
             RuntimeDiagnosticArea.ShaderTrace => "shader-trace",
-            _ => area.ToString().ToLowerInvariant()
+            _ => area.ToString().ToLowerInvariant(),
         };
     }
 }

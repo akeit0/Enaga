@@ -27,13 +27,21 @@ internal sealed class WindowRenderDiagnosticsCollector
     private int uploadRectCount;
     private SceneDamageReason damageReasons;
 
-    public WindowRenderDiagnosticsCollector(RenderTraceLogFlags traceLogFlags, IRuntimeDiagnosticsSink diagnostics)
+    public WindowRenderDiagnosticsCollector(
+        RenderTraceLogFlags traceLogFlags,
+        IRuntimeDiagnosticsSink diagnostics
+    )
     {
         this.traceLogFlags = traceLogFlags;
         this.diagnostics = diagnostics ?? RuntimeDiagnosticsSink.None;
     }
 
-    public void Record(double nowMs, double totalFrameMs, RenderRootDiagnosticsSnapshot rootDiagnostics, PresentDiagnosticsSnapshot presentDiagnostics)
+    public void Record(
+        double nowMs,
+        double totalFrameMs,
+        RenderRootDiagnosticsSnapshot rootDiagnostics,
+        PresentDiagnosticsSnapshot presentDiagnostics
+    )
     {
         if (!rootDiagnostics.DiagnosticsEnabled)
             return;
@@ -68,49 +76,74 @@ internal sealed class WindowRenderDiagnosticsCollector
         Reset(nowMs);
     }
 
-    private void Flush(RenderRootDiagnosticsSnapshot rootDiagnostics, PresentDiagnosticsSnapshot presentDiagnostics, int safeSampleCount, double framesPerSecond)
+    private void Flush(
+        RenderRootDiagnosticsSnapshot rootDiagnostics,
+        PresentDiagnosticsSnapshot presentDiagnostics,
+        int safeSampleCount,
+        double framesPerSecond
+    )
     {
         if (traceLogFlags.HasFlag(RenderTraceLogFlags.Paint))
         {
-            diagnostics.Write(new RuntimeDiagnosticEvent(
-                RuntimeDiagnosticArea.Rendering,
-                SourceName,
-                $"fps={framesPerSecond:F1} total={totalFrameMs / safeSampleCount:F2}ms source={sourceFrameMs / safeSampleCount:F2}ms paint={paintMs / safeSampleCount:F2}ms present={presentMs / safeSampleCount:F2}ms commitReuse={(double)commitReuseCount / safeSampleCount:P0} pictureReuse={(double)pictureReuseCount / safeSampleCount:P0}"));
+            diagnostics.Write(
+                new RuntimeDiagnosticEvent(
+                    RuntimeDiagnosticArea.Rendering,
+                    SourceName,
+                    $"fps={framesPerSecond:F1} total={totalFrameMs / safeSampleCount:F2}ms source={sourceFrameMs / safeSampleCount:F2}ms paint={paintMs / safeSampleCount:F2}ms present={presentMs / safeSampleCount:F2}ms commitReuse={(double)commitReuseCount / safeSampleCount:P0} pictureReuse={(double)pictureReuseCount / safeSampleCount:P0}"
+                )
+            );
         }
 
         if (traceLogFlags.HasFlag(RenderTraceLogFlags.ViewPerFrame))
         {
-            diagnostics.Write(new RuntimeDiagnosticEvent(
-                RuntimeDiagnosticArea.Rendering,
-                SourceName,
-                $"views/frame={(double)viewCallCount / safeSampleCount:F1}"));
+            diagnostics.Write(
+                new RuntimeDiagnosticEvent(
+                    RuntimeDiagnosticArea.Rendering,
+                    SourceName,
+                    $"views/frame={(double)viewCallCount / safeSampleCount:F1}"
+                )
+            );
         }
 
-        if (traceLogFlags.HasFlag(RenderTraceLogFlags.Damage) &&
-            (damageReasons != SceneDamageReason.None ||
-             dirtyRectCount > 0 ||
-             dirtyPixels > 0 ||
-             uploadBytes > 0 ||
-             uploadRectCount > 0 ||
-             presentDiagnostics.TextureStorageResized))
+        if (
+            traceLogFlags.HasFlag(RenderTraceLogFlags.Damage)
+            && (
+                damageReasons != SceneDamageReason.None
+                || dirtyRectCount > 0
+                || dirtyPixels > 0
+                || uploadBytes > 0
+                || uploadRectCount > 0
+                || presentDiagnostics.TextureStorageResized
+            )
+        )
         {
-            diagnostics.Write(new RuntimeDiagnosticEvent(
-                RuntimeDiagnosticArea.Damage,
-                SourceName,
-                $"damage={damageReasons} dirtyRects/frame={(double)dirtyRectCount / safeSampleCount:F1} dirtyPixels/frame={dirtyPixels / safeSampleCount} upload={FormatUploadBytes(uploadBytes, safeSampleCount)} rects/frame={(double)uploadRectCount / safeSampleCount:F1} pixels/frame={uploadPixels / safeSampleCount} textureResize={textureResizeCount}"));
+            diagnostics.Write(
+                new RuntimeDiagnosticEvent(
+                    RuntimeDiagnosticArea.Damage,
+                    SourceName,
+                    $"damage={damageReasons} dirtyRects/frame={(double)dirtyRectCount / safeSampleCount:F1} dirtyPixels/frame={dirtyPixels / safeSampleCount} upload={FormatUploadBytes(uploadBytes, safeSampleCount)} rects/frame={(double)uploadRectCount / safeSampleCount:F1} pixels/frame={uploadPixels / safeSampleCount} textureResize={textureResizeCount}"
+                )
+            );
         }
 
-        if (traceLogFlags.HasFlag(RenderTraceLogFlags.Runtime) &&
-            (rootDiagnostics.RuntimeState.ImeOpen ||
-             rootDiagnostics.RuntimeState.CompositionActive ||
-             rootDiagnostics.RuntimeState.AnimationEnabled ||
-             rootDiagnostics.RuntimeState.ShaderAnimationEnabled ||
-             rootDiagnostics.RuntimeState.RenderInvalidated))
+        if (
+            traceLogFlags.HasFlag(RenderTraceLogFlags.Runtime)
+            && (
+                rootDiagnostics.RuntimeState.ImeOpen
+                || rootDiagnostics.RuntimeState.CompositionActive
+                || rootDiagnostics.RuntimeState.AnimationEnabled
+                || rootDiagnostics.RuntimeState.ShaderAnimationEnabled
+                || rootDiagnostics.RuntimeState.RenderInvalidated
+            )
+        )
         {
-            diagnostics.Write(new RuntimeDiagnosticEvent(
-                RuntimeDiagnosticArea.Rendering,
-                SourceName,
-                $"ime={rootDiagnostics.RuntimeState.ImeOpen} composition={rootDiagnostics.RuntimeState.CompositionActive} anim={rootDiagnostics.RuntimeState.AnimationEnabled} shaderAnim={rootDiagnostics.RuntimeState.ShaderAnimationEnabled} invalidated={rootDiagnostics.RuntimeState.RenderInvalidated}"));
+            diagnostics.Write(
+                new RuntimeDiagnosticEvent(
+                    RuntimeDiagnosticArea.Rendering,
+                    SourceName,
+                    $"ime={rootDiagnostics.RuntimeState.ImeOpen} composition={rootDiagnostics.RuntimeState.CompositionActive} anim={rootDiagnostics.RuntimeState.AnimationEnabled} shaderAnim={rootDiagnostics.RuntimeState.ShaderAnimationEnabled} invalidated={rootDiagnostics.RuntimeState.RenderInvalidated}"
+                )
+            );
         }
     }
 

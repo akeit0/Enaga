@@ -1,13 +1,14 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using Okojo.Annotations;
-using Okojo.Objects;
 using Enaga.Layout;
 using Enaga.Rendering;
 using Enaga.Scene;
-using Okojo.Runtime;
 using Okojo;
+using Okojo.Annotations;
+using Okojo.Objects;
+using Okojo.Runtime;
+
 namespace Enaga.React.OkojoRuntime;
 
 public sealed partial class OkojoNodeReactHost
@@ -25,35 +26,52 @@ public sealed partial class OkojoNodeReactHost
         string runtimeId,
         string? publicId,
         JsValue propsValue,
-        string? text)
+        string? text
+    )
     {
-        var realm = runtime?.MainRealm ?? throw new InvalidOperationException("Native runtime is not initialized.");
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var realm =
+            runtime?.MainRealm
+            ?? throw new InvalidOperationException("Native runtime is not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var children = new JsArray(realm);
         var shapeCache = GetHostInstanceShapeCache(realm, atoms);
-        var instance = new JsUserDataObject<HostInstanceState>(text is null ? shapeCache.ElementShape : shapeCache.TextShape)
+        var instance = new JsUserDataObject<HostInstanceState>(
+            text is null ? shapeCache.ElementShape : shapeCache.TextShape
+        )
         {
-            UserData = new HostInstanceState(kind, runtimeId, children)
+            UserData = new HostInstanceState(kind, runtimeId, children),
         };
         var childrenValue = JsValue.FromObject(children);
 
-        instance.SetNamedSlotUnchecked(HostInstanceShapeCache.RuntimeIdSlot, JsValue.FromString(runtimeId));
+        instance.SetNamedSlotUnchecked(
+            HostInstanceShapeCache.RuntimeIdSlot,
+            JsValue.FromString(runtimeId)
+        );
         instance.SetNamedSlotUnchecked(
             HostInstanceShapeCache.PublicIdSlot,
-            publicId is null ? JsValue.Undefined : JsValue.FromString(publicId));
+            publicId is null ? JsValue.Undefined : JsValue.FromString(publicId)
+        );
         instance.SetNamedSlotUnchecked(HostInstanceShapeCache.TypeSlot, JsValue.FromString(type));
         instance.SetNamedSlotUnchecked(HostInstanceShapeCache.ParentSlot, JsValue.Null);
         instance.SetNamedSlotUnchecked(HostInstanceShapeCache.PropsSlot, propsValue);
         instance.SetNamedSlotUnchecked(HostInstanceShapeCache.ChildrenSlot, childrenValue);
         instance.SetNamedSlotUnchecked(HostInstanceShapeCache.HiddenSlot, JsValue.False);
         if (text is not null)
-            instance.SetNamedSlotUnchecked(HostInstanceShapeCache.TextSlot, JsValue.FromString(text));
+            instance.SetNamedSlotUnchecked(
+                HostInstanceShapeCache.TextSlot,
+                JsValue.FromString(text)
+            );
         UpdateHostResolvedState(instance, propsValue);
         hostNodeLookup[runtimeId] = instance;
         return instance;
     }
 
-    private HostInstanceShapeCache GetHostInstanceShapeCache(JsRealm realm, ReactAppPropertyAtoms atoms)
+    private HostInstanceShapeCache GetHostInstanceShapeCache(
+        JsRealm realm,
+        ReactAppPropertyAtoms atoms
+    )
     {
         if (hostInstanceShapeCache is { } cache && ReferenceEquals(cache.ElementShape.Owner, realm))
             return cache;
@@ -75,7 +93,7 @@ public sealed partial class OkojoNodeReactHost
             "Image" => HostNodeKind.Image,
             "Spacer" => HostNodeKind.Spacer,
             "__text__" => HostNodeKind.RawText,
-            _ => HostNodeKind.Unknown
+            _ => HostNodeKind.Unknown,
         };
     }
 
@@ -89,7 +107,9 @@ public sealed partial class OkojoNodeReactHost
 
     private static HostInstanceState? GetHostInstanceState(JsObject node)
     {
-        return node is JsUserDataObject<HostInstanceState> hostInstance ? hostInstance.UserData : null;
+        return node is JsUserDataObject<HostInstanceState> hostInstance
+            ? hostInstance.UserData
+            : null;
     }
 
     private JsObject? GetHostParent(JsObject node)
@@ -98,7 +118,9 @@ public sealed partial class OkojoNodeReactHost
         if (state?.Parent is not null)
             return state.Parent;
 
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         return TryGetObjectProperty(node, atoms.Parent);
     }
 
@@ -108,7 +130,9 @@ public sealed partial class OkojoNodeReactHost
         if (state?.RuntimeId is { Length: > 0 } runtimeId)
             return runtimeId;
 
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         return GetStringProperty(node, atoms.RuntimeId);
     }
 
@@ -157,7 +181,8 @@ public sealed partial class OkojoNodeReactHost
                 context.ParentTop,
                 context.ParentWidth,
                 context.ParentHeight,
-                context.OverrideFrame);
+                context.OverrideFrame
+            );
         }
 
         return true;
@@ -177,11 +202,24 @@ public sealed partial class OkojoNodeReactHost
         return false;
     }
 
-    private void CommitHostUpdate(JsObject instance, JsValue propsValue, string? publicId, bool layoutAffected)
+    private void CommitHostUpdate(
+        JsObject instance,
+        JsValue propsValue,
+        string? publicId,
+        bool layoutAffected
+    )
     {
-        var realm = runtime?.MainRealm ?? throw new InvalidOperationException("Native runtime is not initialized.");
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
-        instance.TrySetPropertyByAtom(realm, atoms.PublicId, publicId is null ? JsValue.Undefined : JsValue.FromString(publicId));
+        var realm =
+            runtime?.MainRealm
+            ?? throw new InvalidOperationException("Native runtime is not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        instance.TrySetPropertyByAtom(
+            realm,
+            atoms.PublicId,
+            publicId is null ? JsValue.Undefined : JsValue.FromString(publicId)
+        );
         instance.TrySetPropertyByAtom(realm, atoms.Props, propsValue);
         UpdateHostResolvedState(instance, propsValue);
         MarkHostNodeDirty(instance, layoutAffected);
@@ -203,18 +241,70 @@ public sealed partial class OkojoNodeReactHost
 
     private HostResolvedLayout ResolveHostResolvedLayout(JsObject? props, JsObject? style)
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var isFlowLayout = IsFlowLayoutStyle(style, atoms);
-        var (left, leftUnit) = ResolveFrameScalar(props, style, atoms.Left, LayoutValueUnitFlags.LeftPercent);
-        var (top, topUnit) = ResolveFrameScalar(props, style, atoms.Top, LayoutValueUnitFlags.TopPercent);
-        var (right, rightUnit) = ResolveFrameScalar(props, style, atoms.Right, LayoutValueUnitFlags.RightPercent);
-        var (bottom, bottomUnit) = ResolveFrameScalar(props, style, atoms.Bottom, LayoutValueUnitFlags.BottomPercent);
-        var (width, widthUnit) = ResolveFrameScalar(props, style, atoms.Width, LayoutValueUnitFlags.WidthPercent);
-        var (height, heightUnit) = ResolveFrameScalar(props, style, atoms.Height, LayoutValueUnitFlags.HeightPercent);
-        var (minWidth, minWidthUnit) = ResolveFrameScalar(props, style, atoms.MinWidth, LayoutValueUnitFlags.MinWidthPercent);
-        var (maxWidth, maxWidthUnit) = ResolveFrameScalar(props, style, atoms.MaxWidth, LayoutValueUnitFlags.MaxWidthPercent);
-        var (minHeight, minHeightUnit) = ResolveFrameScalar(props, style, atoms.MinHeight, LayoutValueUnitFlags.MinHeightPercent);
-        var (maxHeight, maxHeightUnit) = ResolveFrameScalar(props, style, atoms.MaxHeight, LayoutValueUnitFlags.MaxHeightPercent);
+        var (left, leftUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.Left,
+            LayoutValueUnitFlags.LeftPercent
+        );
+        var (top, topUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.Top,
+            LayoutValueUnitFlags.TopPercent
+        );
+        var (right, rightUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.Right,
+            LayoutValueUnitFlags.RightPercent
+        );
+        var (bottom, bottomUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.Bottom,
+            LayoutValueUnitFlags.BottomPercent
+        );
+        var (width, widthUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.Width,
+            LayoutValueUnitFlags.WidthPercent
+        );
+        var (height, heightUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.Height,
+            LayoutValueUnitFlags.HeightPercent
+        );
+        var (minWidth, minWidthUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.MinWidth,
+            LayoutValueUnitFlags.MinWidthPercent
+        );
+        var (maxWidth, maxWidthUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.MaxWidth,
+            LayoutValueUnitFlags.MaxWidthPercent
+        );
+        var (minHeight, minHeightUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.MinHeight,
+            LayoutValueUnitFlags.MinHeightPercent
+        );
+        var (maxHeight, maxHeightUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.MaxHeight,
+            LayoutValueUnitFlags.MaxHeightPercent
+        );
         return new HostResolvedLayout(
             new HostFrameProps(
                 left,
@@ -228,8 +318,22 @@ public sealed partial class OkojoNodeReactHost
                 minHeight,
                 maxHeight,
                 ResolvePositionMode(props, style, atoms, defaultPositionMode),
-                ParseCrossAlignment(GetStringProperty(props, atoms.AlignSelf) ?? GetStyleStringProperty(style, atoms.AlignSelf), CrossAlignment.Auto),
-                leftUnit | topUnit | rightUnit | bottomUnit | widthUnit | heightUnit | minWidthUnit | maxWidthUnit | minHeightUnit | maxHeightUnit),
+                ParseCrossAlignment(
+                    GetStringProperty(props, atoms.AlignSelf)
+                        ?? GetStyleStringProperty(style, atoms.AlignSelf),
+                    CrossAlignment.Auto
+                ),
+                leftUnit
+                    | topUnit
+                    | rightUnit
+                    | bottomUnit
+                    | widthUnit
+                    | heightUnit
+                    | minWidthUnit
+                    | maxWidthUnit
+                    | minHeightUnit
+                    | maxHeightUnit
+            ),
             ResolveMarginInsets(style, atoms),
             ResolvePaddingInsets(style, atoms),
             Math.Max(0, GetNullableStyleFloatProperty(style, atoms.BorderWidth) ?? 0),
@@ -240,24 +344,39 @@ public sealed partial class OkojoNodeReactHost
             ResolveLayoutDirection(style, atoms),
             isFlowLayout ? ResolveAlignItems(style, atoms) : CrossAlignment.Stretch,
             isFlowLayout ? ResolveJustifyContent(style, atoms) : MainAxisJustification.Start,
-            isFlowLayout ? GetStyleFloatProperty(style, atoms.Gap) : 0);
+            isFlowLayout ? GetStyleFloatProperty(style, atoms.Gap) : 0
+        );
     }
 
-    private HostHotMeasureState ResolveHostHotMeasureState(HostNodeKind kind, JsObject? props, JsObject? style)
+    private HostHotMeasureState ResolveHostHotMeasureState(
+        HostNodeKind kind,
+        JsObject? props,
+        JsObject? style
+    )
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
-        var flexGrow = ReadNonNegativeFloat(props, atoms.FlexGrow)
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var flexGrow =
+            ReadNonNegativeFloat(props, atoms.FlexGrow)
             ?? ReadNonNegativeStyleFloat(style, atoms.FlexGrow);
-        var legacyFlex = ReadNonNegativeFloat(props, atoms.Flex)
+        var legacyFlex =
+            ReadNonNegativeFloat(props, atoms.Flex)
             ?? ReadNonNegativeStyleFloat(style, atoms.Flex)
             ?? 0;
         if (!flexGrow.HasValue)
             flexGrow = legacyFlex;
 
-        var flexShrink = ReadNonNegativeFloat(props, atoms.FlexShrink)
+        var flexShrink =
+            ReadNonNegativeFloat(props, atoms.FlexShrink)
             ?? ReadNonNegativeStyleFloat(style, atoms.FlexShrink)
             ?? 0;
-        var (flexBasis, flexBasisUnit) = ResolveFrameScalar(props, style, atoms.FlexBasis, LayoutValueUnitFlags.FlexBasisPercent);
+        var (flexBasis, flexBasisUnit) = ResolveFrameScalar(
+            props,
+            style,
+            atoms.FlexBasis,
+            LayoutValueUnitFlags.FlexBasisPercent
+        );
 
         var flags = HostMeasureFlags.None;
         if (GetBoolProperty(props, atoms.Wrap) || GetStyleBoolProperty(style, atoms.Wrap))
@@ -275,82 +394,155 @@ public sealed partial class OkojoNodeReactHost
             GetNullableFloatProperty(props, atoms.FontSize)
                 ?? GetNullableStyleFloatProperty(style, atoms.FontSize)
                 ?? 18,
-            GetIntProperty(props, atoms.FontWeight, GetStyleIntProperty(style, atoms.FontWeight, 400)),
+            GetIntProperty(
+                props,
+                atoms.FontWeight,
+                GetStyleIntProperty(style, atoms.FontWeight, 400)
+            ),
             GetNullableFloatProperty(props, atoms.LineHeight)
                 ?? GetNullableStyleFloatProperty(style, atoms.LineHeight)
                 ?? 22,
-            flags);
+            flags
+        );
     }
 
     private HostColdState ResolveHostColdState(HostNodeKind kind, JsObject? props, JsObject? style)
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         return new HostColdState(
-            GetStringProperty(props, atoms.FontFamily) ?? GetStyleStringProperty(style, atoms.FontFamily),
+            GetStringProperty(props, atoms.FontFamily)
+                ?? GetStyleStringProperty(style, atoms.FontFamily),
             kind == HostNodeKind.Text ? GetStringProperty(props, atoms.Content) : null,
-            kind == HostNodeKind.TextInput ? GetStringProperty(props, atoms.Value) ?? string.Empty : null,
-            kind == HostNodeKind.TextInput ? GetStringProperty(props, atoms.Placeholder) ?? string.Empty : null,
-            kind == HostNodeKind.Image ? GetStringProperty(props, atoms.Source) ?? string.Empty : null,
-            kind == HostNodeKind.Image ? GetStringProperty(props, atoms.PlaceholderSource) : null);
+            kind == HostNodeKind.TextInput
+                ? GetStringProperty(props, atoms.Value) ?? string.Empty
+                : null,
+            kind == HostNodeKind.TextInput
+                ? GetStringProperty(props, atoms.Placeholder) ?? string.Empty
+                : null,
+            kind == HostNodeKind.Image
+                ? GetStringProperty(props, atoms.Source) ?? string.Empty
+                : null,
+            kind == HostNodeKind.Image ? GetStringProperty(props, atoms.PlaceholderSource) : null
+        );
     }
 
     private bool HasLayoutAffectingHostPropChange(JsValue oldPropsValue, JsValue newPropsValue)
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var oldProps = oldPropsValue.TryGetObject(out var oldPropsObject) ? oldPropsObject : null;
         var newProps = newPropsValue.TryGetObject(out var newPropsObject) ? newPropsObject : null;
         var oldStyle = TryGetObjectProperty(oldProps, atoms.Style);
         var newStyle = TryGetObjectProperty(newProps, atoms.Style);
 
-        return !(LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Left)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Top)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Right)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Bottom)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Width)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Height)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MinWidth)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MaxWidth)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MinHeight)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MaxHeight)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Position)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Flex)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FlexBasis)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FlexGrow)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FlexShrink)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.AlignSelf)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Margin)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginHorizontal)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginVertical)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginLeft)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginTop)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginRight)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginBottom)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Padding)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.PaddingHorizontal)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.PaddingVertical)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.PaddingLeft)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.PaddingTop)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.PaddingRight)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.PaddingBottom)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.BorderWidth)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.BoxSizing)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FlexDirection)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FlexWrap)
-                  && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Direction)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Gap)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.AlignItems)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.JustifyContent)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Wrap)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FontSize)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FontFamily)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FontWeight)
-                 && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.TextAlign));
+        return !(
+            LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Left)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Top)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Right)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Bottom)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Width)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Height)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MinWidth)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MaxWidth)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MinHeight)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MaxHeight)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Position)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Flex)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FlexBasis)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FlexGrow)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FlexShrink)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.AlignSelf)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Margin)
+            && LayoutRelevantValuesEqual(
+                oldProps,
+                newProps,
+                oldStyle,
+                newStyle,
+                atoms.MarginHorizontal
+            )
+            && LayoutRelevantValuesEqual(
+                oldProps,
+                newProps,
+                oldStyle,
+                newStyle,
+                atoms.MarginVertical
+            )
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginLeft)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginTop)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginRight)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.MarginBottom)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Padding)
+            && LayoutRelevantValuesEqual(
+                oldProps,
+                newProps,
+                oldStyle,
+                newStyle,
+                atoms.PaddingHorizontal
+            )
+            && LayoutRelevantValuesEqual(
+                oldProps,
+                newProps,
+                oldStyle,
+                newStyle,
+                atoms.PaddingVertical
+            )
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.PaddingLeft)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.PaddingTop)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.PaddingRight)
+            && LayoutRelevantValuesEqual(
+                oldProps,
+                newProps,
+                oldStyle,
+                newStyle,
+                atoms.PaddingBottom
+            )
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.BorderWidth)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.BoxSizing)
+            && LayoutRelevantValuesEqual(
+                oldProps,
+                newProps,
+                oldStyle,
+                newStyle,
+                atoms.FlexDirection
+            )
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FlexWrap)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Direction)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Gap)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.AlignItems)
+            && LayoutRelevantValuesEqual(
+                oldProps,
+                newProps,
+                oldStyle,
+                newStyle,
+                atoms.JustifyContent
+            )
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.Wrap)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FontSize)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FontFamily)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.FontWeight)
+            && LayoutRelevantValuesEqual(oldProps, newProps, oldStyle, newStyle, atoms.TextAlign)
+        );
     }
 
-    private static bool LayoutRelevantValuesEqual(JsObject? oldProps, JsObject? newProps, JsObject? oldStyle, JsObject? newStyle, int atom)
+    private static bool LayoutRelevantValuesEqual(
+        JsObject? oldProps,
+        JsObject? newProps,
+        JsObject? oldStyle,
+        JsObject? newStyle,
+        int atom
+    )
     {
-        return JsValue.SameValue(GetPropertyOrUndefined(oldProps, atom), GetPropertyOrUndefined(newProps, atom))
-               && JsValue.SameValue(GetPropertyOrUndefined(oldStyle, atom), GetPropertyOrUndefined(newStyle, atom));
+        return JsValue.SameValue(
+                GetPropertyOrUndefined(oldProps, atom),
+                GetPropertyOrUndefined(newProps, atom)
+            )
+            && JsValue.SameValue(
+                GetPropertyOrUndefined(oldStyle, atom),
+                GetPropertyOrUndefined(newStyle, atom)
+            );
     }
 
     private static JsValue GetPropertyOrUndefined(JsObject? obj, int atom)
@@ -360,8 +552,12 @@ public sealed partial class OkojoNodeReactHost
 
     private void CommitTextUpdate(JsObject textInstance, string oldText, string newText)
     {
-        var realm = runtime?.MainRealm ?? throw new InvalidOperationException("Native runtime is not initialized.");
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var realm =
+            runtime?.MainRealm
+            ?? throw new InvalidOperationException("Native runtime is not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         textInstance.TrySetPropertyByAtom(realm, atoms.Text, JsValue.FromString(newText));
 
         var parent = GetHostParent(textInstance);
@@ -379,8 +575,12 @@ public sealed partial class OkojoNodeReactHost
 
     private void SetNodeHidden(JsObject instance, bool hidden)
     {
-        var realm = runtime?.MainRealm ?? throw new InvalidOperationException("Native runtime is not initialized.");
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var realm =
+            runtime?.MainRealm
+            ?? throw new InvalidOperationException("Native runtime is not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         instance.TrySetPropertyByAtom(realm, atoms.Hidden, hidden ? JsValue.True : JsValue.False);
         MarkFullSceneFlush();
     }
@@ -405,7 +605,9 @@ public sealed partial class OkojoNodeReactHost
         if (!TryFindChildIndex(children, beforeChild, out var beforeIndex))
             return AppendChildNode(parent, child);
 
-        var existingIndex = TryFindChildIndex(children, child, out var foundIndex) ? foundIndex : -1;
+        var existingIndex = TryFindChildIndex(children, child, out var foundIndex)
+            ? foundIndex
+            : -1;
         if (existingIndex == beforeIndex - 1)
             return false;
 
@@ -425,7 +627,10 @@ public sealed partial class OkojoNodeReactHost
 
     private bool RemoveChildNode(JsObject parent, JsObject child)
     {
-        if (!TryGetChildrenArray(parent, out var children) || !TryFindChildIndex(children, child, out var index))
+        if (
+            !TryGetChildrenArray(parent, out var children)
+            || !TryFindChildIndex(children, child, out var index)
+        )
             return false;
 
         RemoveChildAt(children, index);
@@ -446,7 +651,10 @@ public sealed partial class OkojoNodeReactHost
         var length = GetArrayLength(children);
         for (var index = 0; index < length; index++)
         {
-            if (!children.TryGetElement((uint)index, out var childValue) || !childValue.TryGetObject(out var child))
+            if (
+                !children.TryGetElement((uint)index, out var childValue)
+                || !childValue.TryGetObject(out var child)
+            )
                 continue;
 
             SetNodeParent(child, parent: null);
@@ -505,17 +713,29 @@ public sealed partial class OkojoNodeReactHost
 
     private void SetNodeParent(JsObject child, JsObject? parent)
     {
-        var realm = runtime?.MainRealm ?? throw new InvalidOperationException("Native runtime is not initialized.");
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var realm =
+            runtime?.MainRealm
+            ?? throw new InvalidOperationException("Native runtime is not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         if (GetHostInstanceState(child) is { } state)
             state.Parent = parent;
-        child.TrySetPropertyByAtom(realm, atoms.Parent, parent is null ? JsValue.Null : JsValue.FromObject(parent));
+        child.TrySetPropertyByAtom(
+            realm,
+            atoms.Parent,
+            parent is null ? JsValue.Null : JsValue.FromObject(parent)
+        );
     }
 
     private JsArray GetOrCreateChildrenArray(JsObject owner)
     {
-        var realm = runtime?.MainRealm ?? throw new InvalidOperationException("Native runtime is not initialized.");
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var realm =
+            runtime?.MainRealm
+            ?? throw new InvalidOperationException("Native runtime is not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         if (TryGetChildrenArray(owner, out var children))
             return children;
 
@@ -535,7 +755,9 @@ public sealed partial class OkojoNodeReactHost
         }
 
         children = null!;
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         if (TryGetObjectProperty(owner, atoms.Children) is not JsArray childArray)
             return false;
 
@@ -570,7 +792,11 @@ public sealed partial class OkojoNodeReactHost
         }
 
         children.DeleteElement((uint)Math.Max(0, length - 1));
-        children.TrySetPropertyByAtom(children.Realm, AtomTable.IdLength, JsValue.FromInt32(Math.Max(0, length - 1)));
+        children.TrySetPropertyByAtom(
+            children.Realm,
+            AtomTable.IdLength,
+            JsValue.FromInt32(Math.Max(0, length - 1))
+        );
     }
 
     private static bool TryFindChildIndex(JsArray children, JsObject child, out int index)
@@ -616,7 +842,7 @@ public sealed partial class OkojoNodeReactHost
         }
 
         var dirtyRoot = node;
-        for (var current = node; current is not null;)
+        for (var current = node; current is not null; )
         {
             if (IsLayoutBoundary(current))
             {
@@ -649,7 +875,9 @@ public sealed partial class OkojoNodeReactHost
 
     private bool ShouldPromoteDirtyRootToParent(JsObject node)
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var parent = GetHostParent(node);
         if (parent is null || GetHostNodeKind(parent) == HostNodeKind.Unknown)
             return false;
@@ -661,7 +889,8 @@ public sealed partial class OkojoNodeReactHost
 
         return !IsResolvedAxisSize(
             CreateHostNodeSnapshot(node).ResolvedLayout.Frame,
-            ResolveParentLayoutAxis(parentStyle, atoms));
+            ResolveParentLayoutAxis(parentStyle, atoms)
+        );
     }
 
     private static bool IsResolvedAxisSize(in HostFrameProps frame, LayoutAxis axis)
@@ -676,13 +905,28 @@ public sealed partial class OkojoNodeReactHost
         return FlexLayout.ResolveAxis(ResolveFlexDirection(style, atoms));
     }
 
-    private void FlushChildren(JsObject children, string parentId, float parentLeft, float parentTop, float parentWidth, float parentHeight)
+    private void FlushChildren(
+        JsObject children,
+        string parentId,
+        float parentLeft,
+        float parentTop,
+        float parentWidth,
+        float parentHeight
+    )
     {
         if (children is JsArray denseChildren)
         {
             var values = denseChildren.AsReadOnlySpan();
             for (var index = 0; index < values.Length; index++)
-                FlushNodeValue(values[index], parentId, parentLeft, parentTop, parentWidth, parentHeight, null);
+                FlushNodeValue(
+                    values[index],
+                    parentId,
+                    parentLeft,
+                    parentTop,
+                    parentWidth,
+                    parentHeight,
+                    null
+                );
             return;
         }
 
@@ -705,7 +949,10 @@ public sealed partial class OkojoNodeReactHost
             var values = denseDirtyRoots.AsReadOnlySpan();
             for (var index = 0; index < values.Length; index++)
             {
-                if (!values[index].TryGetObject(out var dirtyRoot) || !TryResolveDirtyFlushContext(dirtyRoot, out var context))
+                if (
+                    !values[index].TryGetObject(out var dirtyRoot)
+                    || !TryResolveDirtyFlushContext(dirtyRoot, out var context)
+                )
                     return false;
 
                 FlushNode(
@@ -715,7 +962,8 @@ public sealed partial class OkojoNodeReactHost
                     context.ParentTop,
                     context.ParentWidth,
                     context.ParentHeight,
-                    context.OverrideFrame);
+                    context.OverrideFrame
+                );
             }
 
             return true;
@@ -726,9 +974,11 @@ public sealed partial class OkojoNodeReactHost
 
         for (var index = 0; index < length; index++)
         {
-            if (!dirtyRoots.TryGetElement((uint)index, out var value) ||
-                !value.TryGetObject(out var dirtyRoot) ||
-                !TryResolveDirtyFlushContext(dirtyRoot, out var context))
+            if (
+                !dirtyRoots.TryGetElement((uint)index, out var value)
+                || !value.TryGetObject(out var dirtyRoot)
+                || !TryResolveDirtyFlushContext(dirtyRoot, out var context)
+            )
             {
                 return false;
             }
@@ -740,7 +990,8 @@ public sealed partial class OkojoNodeReactHost
                 context.ParentTop,
                 context.ParentWidth,
                 context.ParentHeight,
-                context.OverrideFrame);
+                context.OverrideFrame
+            );
         }
 
         return true;
@@ -765,18 +1016,21 @@ public sealed partial class OkojoNodeReactHost
 
         var overrideFrame = ResolveDirtyChildOverrideFrame(parent, node, parentLayout);
         context = new DirtyFlushContext(
-            parentKind == HostNodeKind.Scene
-                ? "root"
-                : GetHostRuntimeId(parent) ?? string.Empty,
+            parentKind == HostNodeKind.Scene ? "root" : GetHostRuntimeId(parent) ?? string.Empty,
             overrideFrame.HasValue ? parentLayout.Left : parentLayout.ContentLeft,
             overrideFrame.HasValue ? parentLayout.Top : parentLayout.ContentTop,
             overrideFrame.HasValue ? parentLayout.Width : parentLayout.ContentWidth,
             overrideFrame.HasValue ? parentLayout.Height : parentLayout.ContentHeight,
-            overrideFrame);
+            overrideFrame
+        );
         return context.ParentId.Length > 0;
     }
 
-    private LayoutFrameData? ResolveDirtyChildOverrideFrame(JsObject parent, JsObject child, HostLayoutCacheData parentLayout)
+    private LayoutFrameData? ResolveDirtyChildOverrideFrame(
+        JsObject parent,
+        JsObject child,
+        HostLayoutCacheData parentLayout
+    )
     {
         if (!TryReadLastLayout(child, out var childLayout))
             return null;
@@ -791,7 +1045,8 @@ public sealed partial class OkojoNodeReactHost
             childLayout.Left - parentLayout.Left,
             childLayout.Top - parentLayout.Top,
             childLayout.Width,
-            childLayout.Height);
+            childLayout.Height
+        );
     }
 
     private bool HasTextLayoutChange(JsObject parent, string oldText, string newText)
@@ -819,25 +1074,27 @@ public sealed partial class OkojoNodeReactHost
         var wrap = hot.Wrap;
         var hasLastLayout = TryReadLastLayout(host, out var lastLayout);
         var width = frame.HasWidth
-            ? (!frame.IsWidthPercent
-                ? frame.Width
-                : hasLastLayout
-                    ? lastLayout.Width
-                    : 0)
+            ? (
+                !frame.IsWidthPercent ? frame.Width
+                : hasLastLayout ? lastLayout.Width
+                : 0
+            )
             : MeasureTextWidth(text, fontSize, fontFamily, fontWeight);
         var height = frame.HasHeight
-            ? (!frame.IsHeightPercent
-                ? frame.Height
-                : hasLastLayout
-                    ? lastLayout.Height
-                    : 0)
+            ? (
+                !frame.IsHeightPercent ? frame.Height
+                : hasLastLayout ? lastLayout.Height
+                : 0
+            )
             : (
                 wrap
                     ? MeasureTextHeight(text, width, fontSize, fontFamily, fontWeight)
-                    : (float)Math.Ceiling(fontSize * 1.35f));
+                    : (float)Math.Ceiling(fontSize * 1.35f)
+            );
         return new TextIntrinsicSize(
             Math.Max(0, (int)Math.Ceiling(width)),
-            Math.Max(0, (int)Math.Ceiling(height)));
+            Math.Max(0, (int)Math.Ceiling(height))
+        );
     }
 
     private bool TryReadLastLayout(JsObject node, out HostLayoutCacheData layout)
@@ -859,11 +1116,20 @@ public sealed partial class OkojoNodeReactHost
         float parentTop,
         float parentWidth,
         float parentHeight,
-        LayoutFrameData? overrideFrame)
+        LayoutFrameData? overrideFrame
+    )
     {
         return !nodeValue.TryGetObject(out var node)
             ? null
-            : FlushNode(node, parentId, parentLeft, parentTop, parentWidth, parentHeight, overrideFrame);
+            : FlushNode(
+                node,
+                parentId,
+                parentLeft,
+                parentTop,
+                parentWidth,
+                parentHeight,
+                overrideFrame
+            );
     }
 
     private HostLayoutCacheData? FlushNode(
@@ -873,22 +1139,25 @@ public sealed partial class OkojoNodeReactHost
         float parentTop,
         float parentWidth,
         float parentHeight,
-        LayoutFrameData? overrideFrame)
+        LayoutFrameData? overrideFrame
+    )
     {
         flushTraversalScratch.Clear();
-        flushTraversalScratch.Push(new FlushTraversalWorkItem
-        {
-            Stage = FlushTraversalStage.Enter,
-            Node = node,
-            ParentId = parentId,
-            ParentLeft = parentLeft,
-            ParentTop = parentTop,
-            ParentWidth = parentWidth,
-            ParentHeight = parentHeight,
-            OverrideFrame = overrideFrame,
-            ParentFinalizeIndex = -1,
-            IsRoot = true
-        });
+        flushTraversalScratch.Push(
+            new FlushTraversalWorkItem
+            {
+                Stage = FlushTraversalStage.Enter,
+                Node = node,
+                ParentId = parentId,
+                ParentLeft = parentLeft,
+                ParentTop = parentTop,
+                ParentWidth = parentWidth,
+                ParentHeight = parentHeight,
+                OverrideFrame = overrideFrame,
+                ParentFinalizeIndex = -1,
+                IsRoot = true,
+            }
+        );
 
         HostLayoutCacheData? rootLayout = null;
         while (flushTraversalScratch.TryPop(out var workItem))
@@ -899,10 +1168,20 @@ public sealed partial class OkojoNodeReactHost
                 {
                     ContentWidth = Math.Max(
                         workItem.Layout.ContentWidth,
-                        ResolveMeasuredContentWidth(workItem.MaxRight, workItem.Layout.ContentLeft, workItem.PaddingRight)),
+                        ResolveMeasuredContentWidth(
+                            workItem.MaxRight,
+                            workItem.Layout.ContentLeft,
+                            workItem.PaddingRight
+                        )
+                    ),
                     ContentHeight = Math.Max(
                         workItem.Layout.ContentHeight,
-                        ResolveMeasuredContentHeight(workItem.MaxBottom, workItem.Layout.ContentTop, workItem.PaddingBottom))
+                        ResolveMeasuredContentHeight(
+                            workItem.MaxBottom,
+                            workItem.Layout.ContentTop,
+                            workItem.PaddingBottom
+                        )
+                    ),
                 };
                 WriteLastLayout(workItem.Node, finalizedLayout);
                 if (workItem.Kind == HostNodeKind.ScrollView)
@@ -916,7 +1195,8 @@ public sealed partial class OkojoNodeReactHost
                         finalizedLayout.Height,
                         workItem.Style,
                         finalizedLayout.ContentWidth,
-                        finalizedLayout.ContentHeight);
+                        finalizedLayout.ContentHeight
+                    );
                 }
 
                 if (workItem.IsRoot)
@@ -934,7 +1214,16 @@ public sealed partial class OkojoNodeReactHost
 
             if (kind == HostNodeKind.Scene)
             {
-                var sceneLayout = new HostLayoutCacheData(0, 0, workItem.ParentWidth, workItem.ParentHeight, 0, 0, workItem.ParentWidth, workItem.ParentHeight);
+                var sceneLayout = new HostLayoutCacheData(
+                    0,
+                    0,
+                    workItem.ParentWidth,
+                    workItem.ParentHeight,
+                    0,
+                    0,
+                    workItem.ParentWidth,
+                    workItem.ParentHeight
+                );
                 WriteLastLayout(workItem.Node, sceneLayout);
 
                 var props = TryGetObjectProperty(workItem.Node, propertyAtoms.Props);
@@ -952,7 +1241,8 @@ public sealed partial class OkojoNodeReactHost
                     workItem.ParentHeight,
                     sceneLayout,
                     childFrames: default,
-                    parentFinalizeIndex: -1);
+                    parentFinalizeIndex: -1
+                );
                 continue;
             }
 
@@ -966,7 +1256,8 @@ public sealed partial class OkojoNodeReactHost
                     workItem.ParentLeft + (workItem.OverrideFrame?.Left ?? 0),
                     workItem.ParentTop + (workItem.OverrideFrame?.Top ?? 0),
                     workItem.OverrideFrame?.Width ?? 0,
-                    workItem.OverrideFrame?.Height ?? 0);
+                    workItem.OverrideFrame?.Height ?? 0
+                );
                 WriteLastLayout(workItem.Node, spacerLayout);
                 AccumulateParentMaxBottom(workItem.ParentFinalizeIndex, spacerLayout);
                 if (workItem.IsRoot)
@@ -983,14 +1274,21 @@ public sealed partial class OkojoNodeReactHost
             }
             else
             {
-                var measurement = MeasureHostNodeSize(snapshot, workItem.ParentWidth, workItem.ParentHeight, 0, 0);
+                var measurement = MeasureHostNodeSize(
+                    snapshot,
+                    workItem.ParentWidth,
+                    workItem.ParentHeight,
+                    0,
+                    0
+                );
                 frame = ResolveFrameMetrics(
                     measurement.Frame,
                     workItem.ParentWidth,
                     workItem.ParentHeight,
                     measurement.Width,
                     measurement.Height,
-                    resolvedLayout.Margin);
+                    resolvedLayout.Margin
+                );
             }
 
             var left = workItem.ParentLeft + frame.Left;
@@ -1004,32 +1302,64 @@ public sealed partial class OkojoNodeReactHost
                     PushViewTraversal(workItem, snapshot, left, top, width, height, ref rootLayout);
                     break;
                 case HostNodeKind.ScrollView:
-                    PushScrollViewTraversal(workItem, snapshot, left, top, width, height, ref rootLayout);
+                    PushScrollViewTraversal(
+                        workItem,
+                        snapshot,
+                        left,
+                        top,
+                        width,
+                        height,
+                        ref rootLayout
+                    );
                     break;
                 case HostNodeKind.Text:
-                    {
-                        var layout = FlushTextNode(workItem.ParentId, workItem.Node, snapshot, left, top, width, height);
-                        AccumulateParentMaxBottom(workItem.ParentFinalizeIndex, layout);
-                        if (workItem.IsRoot)
-                            rootLayout = layout;
-                        break;
-                    }
+                {
+                    var layout = FlushTextNode(
+                        workItem.ParentId,
+                        workItem.Node,
+                        snapshot,
+                        left,
+                        top,
+                        width,
+                        height
+                    );
+                    AccumulateParentMaxBottom(workItem.ParentFinalizeIndex, layout);
+                    if (workItem.IsRoot)
+                        rootLayout = layout;
+                    break;
+                }
                 case HostNodeKind.TextInput:
-                    {
-                        var layout = FlushTextInputNode(workItem.ParentId, workItem.Node, snapshot, left, top, width, height);
-                        AccumulateParentMaxBottom(workItem.ParentFinalizeIndex, layout);
-                        if (workItem.IsRoot)
-                            rootLayout = layout;
-                        break;
-                    }
+                {
+                    var layout = FlushTextInputNode(
+                        workItem.ParentId,
+                        workItem.Node,
+                        snapshot,
+                        left,
+                        top,
+                        width,
+                        height
+                    );
+                    AccumulateParentMaxBottom(workItem.ParentFinalizeIndex, layout);
+                    if (workItem.IsRoot)
+                        rootLayout = layout;
+                    break;
+                }
                 case HostNodeKind.Image:
-                    {
-                        var layout = FlushImageNode(workItem.ParentId, workItem.Node, snapshot, left, top, width, height);
-                        AccumulateParentMaxBottom(workItem.ParentFinalizeIndex, layout);
-                        if (workItem.IsRoot)
-                            rootLayout = layout;
-                        break;
-                    }
+                {
+                    var layout = FlushImageNode(
+                        workItem.ParentId,
+                        workItem.Node,
+                        snapshot,
+                        left,
+                        top,
+                        width,
+                        height
+                    );
+                    AccumulateParentMaxBottom(workItem.ParentFinalizeIndex, layout);
+                    if (workItem.IsRoot)
+                        rootLayout = layout;
+                    break;
+                }
             }
         }
 
@@ -1043,10 +1373,13 @@ public sealed partial class OkojoNodeReactHost
         float top,
         float width,
         float height,
-        ref HostLayoutCacheData? rootLayout)
+        ref HostLayoutCacheData? rootLayout
+    )
     {
         View(workItem.ParentId, snapshot.RuntimeId, left, top, width, height, snapshot.Style);
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var resolvedLayout = snapshot.ResolvedLayout;
         var padding = resolvedLayout.Padding;
         var layout = new HostLayoutCacheData(
@@ -1057,7 +1390,8 @@ public sealed partial class OkojoNodeReactHost
             left + padding.Left,
             top + padding.Top,
             Math.Max(0, width - padding.Left - padding.Right),
-            Math.Max(0, height - padding.Top - padding.Bottom));
+            Math.Max(0, height - padding.Top - padding.Bottom)
+        );
         WriteLastLayout(workItem.Node, layout);
         AccumulateParentMaxBottom(workItem.ParentFinalizeIndex, layout);
 
@@ -1084,26 +1418,29 @@ public sealed partial class OkojoNodeReactHost
                 height,
                 layout,
                 childFrames: default,
-                parentFinalizeIndex: -1);
+                parentFinalizeIndex: -1
+            );
             return;
         }
 
-        var finalizeIndex = flushTraversalScratch.Push(new FlushTraversalWorkItem
-        {
-            Stage = FlushTraversalStage.Finalize,
-            Node = workItem.Node,
-            ParentId = workItem.ParentId,
-            RuntimeId = snapshot.RuntimeId,
-            Style = snapshot.Style,
-            Layout = layout,
-            PaddingRight = padding.Right,
-            PaddingBottom = padding.Bottom,
-            MaxRight = layout.ContentLeft,
-            MaxBottom = layout.ContentTop,
-            ParentFinalizeIndex = workItem.ParentFinalizeIndex,
-            IsRoot = workItem.IsRoot,
-            Kind = HostNodeKind.View
-        });
+        var finalizeIndex = flushTraversalScratch.Push(
+            new FlushTraversalWorkItem
+            {
+                Stage = FlushTraversalStage.Finalize,
+                Node = workItem.Node,
+                ParentId = workItem.ParentId,
+                RuntimeId = snapshot.RuntimeId,
+                Style = snapshot.Style,
+                Layout = layout,
+                PaddingRight = padding.Right,
+                PaddingBottom = padding.Bottom,
+                MaxRight = layout.ContentLeft,
+                MaxBottom = layout.ContentTop,
+                ParentFinalizeIndex = workItem.ParentFinalizeIndex,
+                IsRoot = workItem.IsRoot,
+                Kind = HostNodeKind.View,
+            }
+        );
 
         var axis = resolvedLayout.Axis;
         var alignItems = resolvedLayout.AlignItems;
@@ -1120,7 +1457,8 @@ public sealed partial class OkojoNodeReactHost
                 layout.ContentWidth,
                 layout.ContentHeight,
                 alignItems,
-                requestBuffer);
+                requestBuffer
+            );
             LayoutHostFlowChildren(
                 resolvedLayout.FlexDirection,
                 resolvedLayout.Direction,
@@ -1135,7 +1473,8 @@ public sealed partial class OkojoNodeReactHost
                 padding.Right,
                 padding.Bottom,
                 requestBuffer[..preparedCount],
-                childFrames[..preparedCount]);
+                childFrames[..preparedCount]
+            );
             PushChildTraversalItems(
                 snapshot.Children,
                 preparedCount,
@@ -1146,7 +1485,8 @@ public sealed partial class OkojoNodeReactHost
                 height,
                 layout,
                 childFrames[..preparedCount],
-                finalizeIndex);
+                finalizeIndex
+            );
         }
         finally
         {
@@ -1161,9 +1501,12 @@ public sealed partial class OkojoNodeReactHost
         float top,
         float width,
         float height,
-        ref HostLayoutCacheData? rootLayout)
+        ref HostLayoutCacheData? rootLayout
+    )
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var resolvedLayout = snapshot.ResolvedLayout;
         var padding = resolvedLayout.Padding;
         var layout = new HostLayoutCacheData(
@@ -1174,36 +1517,59 @@ public sealed partial class OkojoNodeReactHost
             left + padding.Left,
             top + padding.Top,
             Math.Max(0, width - padding.Left - padding.Right),
-            Math.Max(0, height - padding.Top - padding.Bottom));
+            Math.Max(0, height - padding.Top - padding.Bottom)
+        );
         WriteLastLayout(workItem.Node, layout);
-        ScrollView(workItem.ParentId, snapshot.RuntimeId, left, top, width, height, snapshot.Style, layout.ContentWidth, layout.ContentHeight);
+        ScrollView(
+            workItem.ParentId,
+            snapshot.RuntimeId,
+            left,
+            top,
+            width,
+            height,
+            snapshot.Style,
+            layout.ContentWidth,
+            layout.ContentHeight
+        );
         AccumulateParentMaxBottom(workItem.ParentFinalizeIndex, layout);
 
         var childCount = GetArrayLength(snapshot.Children);
         if (childCount <= 0)
         {
-            ScrollView(workItem.ParentId, snapshot.RuntimeId, left, top, width, height, snapshot.Style, layout.ContentWidth, layout.ContentHeight);
+            ScrollView(
+                workItem.ParentId,
+                snapshot.RuntimeId,
+                left,
+                top,
+                width,
+                height,
+                snapshot.Style,
+                layout.ContentWidth,
+                layout.ContentHeight
+            );
             if (workItem.IsRoot)
                 rootLayout = layout;
             return;
         }
 
-        var finalizeIndex = flushTraversalScratch.Push(new FlushTraversalWorkItem
-        {
-            Stage = FlushTraversalStage.Finalize,
-            Node = workItem.Node,
-            ParentId = workItem.ParentId,
-            RuntimeId = snapshot.RuntimeId,
-            Style = snapshot.Style,
-            Layout = layout,
-            PaddingRight = padding.Right,
-            PaddingBottom = padding.Bottom,
-            MaxRight = layout.ContentLeft,
-            MaxBottom = layout.ContentTop,
-            ParentFinalizeIndex = workItem.ParentFinalizeIndex,
-            IsRoot = workItem.IsRoot,
-            Kind = HostNodeKind.ScrollView
-        });
+        var finalizeIndex = flushTraversalScratch.Push(
+            new FlushTraversalWorkItem
+            {
+                Stage = FlushTraversalStage.Finalize,
+                Node = workItem.Node,
+                ParentId = workItem.ParentId,
+                RuntimeId = snapshot.RuntimeId,
+                Style = snapshot.Style,
+                Layout = layout,
+                PaddingRight = padding.Right,
+                PaddingBottom = padding.Bottom,
+                MaxRight = layout.ContentLeft,
+                MaxBottom = layout.ContentTop,
+                ParentFinalizeIndex = workItem.ParentFinalizeIndex,
+                IsRoot = workItem.IsRoot,
+                Kind = HostNodeKind.ScrollView,
+            }
+        );
 
         if (UsesFlowLayout(snapshot))
         {
@@ -1222,7 +1588,8 @@ public sealed partial class OkojoNodeReactHost
                     layout.ContentWidth,
                     layout.ContentHeight,
                     alignItems,
-                    requestBuffer);
+                    requestBuffer
+                );
                 LayoutHostFlowChildren(
                     resolvedLayout.FlexDirection,
                     resolvedLayout.Direction,
@@ -1237,7 +1604,8 @@ public sealed partial class OkojoNodeReactHost
                     padding.Right,
                     padding.Bottom,
                     requestBuffer[..preparedCount],
-                    childFrames[..preparedCount]);
+                    childFrames[..preparedCount]
+                );
                 PushChildTraversalItems(
                     snapshot.Children,
                     preparedCount,
@@ -1248,7 +1616,8 @@ public sealed partial class OkojoNodeReactHost
                     height,
                     layout,
                     childFrames[..preparedCount],
-                    finalizeIndex);
+                    finalizeIndex
+                );
             }
             finally
             {
@@ -1267,7 +1636,8 @@ public sealed partial class OkojoNodeReactHost
                 height,
                 layout,
                 childFrames: default,
-                finalizeIndex);
+                finalizeIndex
+            );
         }
     }
 
@@ -1281,7 +1651,8 @@ public sealed partial class OkojoNodeReactHost
         float parentHeight,
         HostLayoutCacheData parentLayout,
         ReadOnlySpan<LayoutFrameData?> childFrames,
-        int parentFinalizeIndex)
+        int parentFinalizeIndex
+    )
     {
         if (children is null || childCount <= 0)
             return;
@@ -1304,7 +1675,8 @@ public sealed partial class OkojoNodeReactHost
                     parentHeight,
                     parentLayout,
                     childFrames.IsEmpty ? null : childFrames[index],
-                    parentFinalizeIndex);
+                    parentFinalizeIndex
+                );
             }
 
             return;
@@ -1312,7 +1684,10 @@ public sealed partial class OkojoNodeReactHost
 
         for (var index = childCount - 1; index >= 0; index--)
         {
-            if (!children.TryGetElement((uint)index, out var childValue) || !childValue.TryGetObject(out var child))
+            if (
+                !children.TryGetElement((uint)index, out var childValue)
+                || !childValue.TryGetObject(out var child)
+            )
                 continue;
 
             PushChildTraversalItem(
@@ -1324,7 +1699,8 @@ public sealed partial class OkojoNodeReactHost
                 parentHeight,
                 parentLayout,
                 childFrames.IsEmpty ? null : childFrames[index],
-                parentFinalizeIndex);
+                parentFinalizeIndex
+            );
         }
     }
 
@@ -1337,22 +1713,27 @@ public sealed partial class OkojoNodeReactHost
         float parentHeight,
         HostLayoutCacheData parentLayout,
         LayoutFrameData? childFrame,
-        int parentFinalizeIndex)
+        int parentFinalizeIndex
+    )
     {
-        var effectiveParentFinalizeIndex = ChildAffectsParentExtent(child) ? parentFinalizeIndex : -1;
-        flushTraversalScratch.Push(new FlushTraversalWorkItem
-        {
-            Stage = FlushTraversalStage.Enter,
-            Node = child,
-            ParentId = parentId,
-            ParentLeft = childFrame is null ? parentLayout.ContentLeft : parentLeft,
-            ParentTop = childFrame is null ? parentLayout.ContentTop : parentTop,
-            ParentWidth = childFrame is null ? parentLayout.ContentWidth : parentWidth,
-            ParentHeight = childFrame is null ? parentLayout.ContentHeight : parentHeight,
-            OverrideFrame = childFrame,
-            ParentFinalizeIndex = effectiveParentFinalizeIndex,
-            IsRoot = false
-        });
+        var effectiveParentFinalizeIndex = ChildAffectsParentExtent(child)
+            ? parentFinalizeIndex
+            : -1;
+        flushTraversalScratch.Push(
+            new FlushTraversalWorkItem
+            {
+                Stage = FlushTraversalStage.Enter,
+                Node = child,
+                ParentId = parentId,
+                ParentLeft = childFrame is null ? parentLayout.ContentLeft : parentLeft,
+                ParentTop = childFrame is null ? parentLayout.ContentTop : parentTop,
+                ParentWidth = childFrame is null ? parentLayout.ContentWidth : parentWidth,
+                ParentHeight = childFrame is null ? parentLayout.ContentHeight : parentHeight,
+                OverrideFrame = childFrame,
+                ParentFinalizeIndex = effectiveParentFinalizeIndex,
+                IsRoot = false,
+            }
+        );
     }
 
     private bool ChildAffectsParentExtent(JsObject child)
@@ -1381,11 +1762,30 @@ public sealed partial class OkojoNodeReactHost
         float left,
         float top,
         float width,
-        float height)
+        float height
+    )
     {
-        var textLayout = new HostLayoutCacheData(left, top, width, height, left, top, width, height);
+        var textLayout = new HostLayoutCacheData(
+            left,
+            top,
+            width,
+            height,
+            left,
+            top,
+            width,
+            height
+        );
         WriteLastLayout(node, textLayout);
-        Text(parentId, snapshot.RuntimeId, left, top, width, height, ResolveTextContent(snapshot), snapshot.Style);
+        Text(
+            parentId,
+            snapshot.RuntimeId,
+            left,
+            top,
+            width,
+            height,
+            ResolveTextContent(snapshot),
+            snapshot.Style
+        );
         return textLayout;
     }
 
@@ -1396,9 +1796,19 @@ public sealed partial class OkojoNodeReactHost
         float left,
         float top,
         float width,
-        float height)
+        float height
+    )
     {
-        var textInputLayout = new HostLayoutCacheData(left, top, width, height, left, top, width, height);
+        var textInputLayout = new HostLayoutCacheData(
+            left,
+            top,
+            width,
+            height,
+            left,
+            top,
+            width,
+            height
+        );
         WriteLastLayout(node, textInputLayout);
         TextInputNode(
             parentId,
@@ -1409,7 +1819,8 @@ public sealed partial class OkojoNodeReactHost
             height,
             snapshot.ColdState.TextInputValue ?? string.Empty,
             snapshot.ColdState.TextInputPlaceholder ?? string.Empty,
-            snapshot.Style);
+            snapshot.Style
+        );
         return textInputLayout;
     }
 
@@ -1420,9 +1831,19 @@ public sealed partial class OkojoNodeReactHost
         float left,
         float top,
         float width,
-        float height)
+        float height
+    )
     {
-        var imageLayout = new HostLayoutCacheData(left, top, width, height, left, top, width, height);
+        var imageLayout = new HostLayoutCacheData(
+            left,
+            top,
+            width,
+            height,
+            left,
+            top,
+            width,
+            height
+        );
         WriteLastLayout(node, imageLayout);
         Image(
             parentId,
@@ -1433,15 +1854,21 @@ public sealed partial class OkojoNodeReactHost
             height,
             snapshot.ColdState.ImageSource ?? string.Empty,
             snapshot.ColdState.ImagePlaceholderSource,
-            snapshot.Style);
+            snapshot.Style
+        );
         return imageLayout;
     }
 
     private HostNodeSnapshot CreateHostNodeSnapshot(JsObject node)
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var state = GetHostInstanceState(node);
-        var props = state?.Props ?? TryGetObjectProperty(node, atoms.Props) ?? new JsPlainObject(runtime!.MainRealm);
+        var props =
+            state?.Props
+            ?? TryGetObjectProperty(node, atoms.Props)
+            ?? new JsPlainObject(runtime!.MainRealm);
         var style = state?.Style ?? TryGetObjectProperty(props, atoms.Style);
         var kind = GetHostNodeKind(node);
         var runtimeId = GetHostRuntimeId(node) ?? string.Empty;
@@ -1454,14 +1881,15 @@ public sealed partial class OkojoNodeReactHost
             runtimeId,
             state?.ResolvedLayout ?? ResolveHostResolvedLayout(props, style),
             state?.HotMeasureState ?? ResolveHostHotMeasureState(kind, props, style),
-            state?.ColdState ?? ResolveHostColdState(kind, props, style));
+            state?.ColdState ?? ResolveHostColdState(kind, props, style)
+        );
     }
 
     private bool UsesFlowLayout(in HostNodeSnapshot snapshot)
     {
         return snapshot.ResolvedLayout.IsFlowLayout
-               || snapshot.Kind is HostNodeKind.View or HostNodeKind.ScrollView
-               && HasImplicitFlowLayoutChildren(snapshot.Children);
+            || snapshot.Kind is HostNodeKind.View or HostNodeKind.ScrollView
+                && HasImplicitFlowLayoutChildren(snapshot.Children);
     }
 
     private bool HasImplicitFlowLayoutChildren(JsObject? children)
@@ -1474,7 +1902,10 @@ public sealed partial class OkojoNodeReactHost
             var values = denseChildren.AsReadOnlySpan();
             for (var index = 0; index < values.Length; index++)
             {
-                if (values[index].TryGetObject(out var child) && ChildParticipatesInImplicitFlow(child))
+                if (
+                    values[index].TryGetObject(out var child)
+                    && ChildParticipatesInImplicitFlow(child)
+                )
                     return true;
             }
 
@@ -1486,9 +1917,11 @@ public sealed partial class OkojoNodeReactHost
 
         for (var index = 0; index < length; index++)
         {
-            if (children.TryGetElement((uint)index, out var childValue)
+            if (
+                children.TryGetElement((uint)index, out var childValue)
                 && childValue.TryGetObject(out var child)
-                && ChildParticipatesInImplicitFlow(child))
+                && ChildParticipatesInImplicitFlow(child)
+            )
             {
                 return true;
             }
@@ -1499,7 +1932,9 @@ public sealed partial class OkojoNodeReactHost
 
     private bool ChildParticipatesInImplicitFlow(JsObject child)
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         if (GetBoolProperty(child, atoms.Hidden))
             return false;
 
@@ -1515,9 +1950,12 @@ public sealed partial class OkojoNodeReactHost
         float availableWidth,
         float availableHeight,
         float stretchWidth,
-        float stretchHeight)
+        float stretchHeight
+    )
     {
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var resolvedLayout = node.ResolvedLayout;
         var margin = resolvedLayout.Margin;
         var resolvedAvailableWidth = Math.Max(0, availableWidth - margin.Left - margin.Right);
@@ -1525,8 +1963,16 @@ public sealed partial class OkojoNodeReactHost
         var resolvedStretchWidth = Math.Max(0, stretchWidth - margin.Left - margin.Right);
         var resolvedStretchHeight = Math.Max(0, stretchHeight - margin.Top - margin.Bottom);
         var widthBasis = resolvedStretchWidth > 0 ? resolvedStretchWidth : resolvedAvailableWidth;
-        var heightBasis = resolvedStretchHeight > 0 ? resolvedStretchHeight : resolvedAvailableHeight;
-        var frame = ResolveBoxSizingFrame(resolvedLayout.Frame, resolvedLayout.Padding, resolvedLayout.BorderWidth, resolvedLayout.BoxSizing, widthBasis, heightBasis);
+        var heightBasis =
+            resolvedStretchHeight > 0 ? resolvedStretchHeight : resolvedAvailableHeight;
+        var frame = ResolveBoxSizingFrame(
+            resolvedLayout.Frame,
+            resolvedLayout.Padding,
+            resolvedLayout.BorderWidth,
+            resolvedLayout.BoxSizing,
+            widthBasis,
+            heightBasis
+        );
         var resolvedLeft = LayoutValue.Resolve(frame.Left, frame.IsLeftPercent, widthBasis);
         var resolvedTop = LayoutValue.Resolve(frame.Top, frame.IsTopPercent, heightBasis);
         var resolvedRight = LayoutValue.Resolve(frame.Right, frame.IsRightPercent, widthBasis);
@@ -1534,16 +1980,16 @@ public sealed partial class OkojoNodeReactHost
         var resolvedWidth = LayoutValue.Resolve(frame.Width, frame.IsWidthPercent, widthBasis);
         var resolvedHeight = LayoutValue.Resolve(frame.Height, frame.IsHeightPercent, heightBasis);
 
-        var width = frame.HasWidth
-            ? resolvedWidth
+        var width =
+            frame.HasWidth ? resolvedWidth
             : frame.HasRight
                 ? Math.Max(0, widthBasis - (frame.HasLeft ? resolvedLeft : 0) - resolvedRight)
-                : resolvedStretchWidth;
-        var height = frame.HasHeight
-            ? resolvedHeight
+            : resolvedStretchWidth;
+        var height =
+            frame.HasHeight ? resolvedHeight
             : frame.HasBottom
                 ? Math.Max(0, heightBasis - (frame.HasTop ? resolvedTop : 0) - resolvedBottom)
-                : resolvedStretchHeight;
+            : resolvedStretchHeight;
 
         if (node.Kind == HostNodeKind.Text && height <= 0)
         {
@@ -1593,7 +2039,10 @@ public sealed partial class OkojoNodeReactHost
                 var measuredAvailableWidth = frame.HasWidth ? width : widthBasis;
                 var measuredAvailableHeight = frame.HasHeight ? height : heightBasis;
                 var innerWidth = Math.Max(0, measuredAvailableWidth - padding.Left - padding.Right);
-                var innerHeight = Math.Max(0, measuredAvailableHeight - padding.Top - padding.Bottom);
+                var innerHeight = Math.Max(
+                    0,
+                    measuredAvailableHeight - padding.Top - padding.Bottom
+                );
                 var measured = default(LayoutOutput);
                 var childCount = GetArrayLength(node.Children);
                 if (childCount > 0)
@@ -1602,14 +2051,22 @@ public sealed partial class OkojoNodeReactHost
                     var requestBuffer = flowLayoutScratch.AllocateRequests(childCount);
                     try
                     {
-                        var preparedCount = PrepareHostFlowLayoutChildren(node.Children, axis, innerWidth, innerHeight, alignItems, requestBuffer);
+                        var preparedCount = PrepareHostFlowLayoutChildren(
+                            node.Children,
+                            axis,
+                            innerWidth,
+                            innerHeight,
+                            alignItems,
+                            requestBuffer
+                        );
                         measured = stackLayoutCalculator!.ComputeFlexLayout(
                             CreateHostFlowInput(
                                 frame.HasWidth ? measuredAvailableWidth : null,
                                 frame.HasHeight ? measuredAvailableHeight : null,
                                 measuredAvailableWidth,
                                 measuredAvailableHeight,
-                                LayoutRunMode.ComputeSize),
+                                LayoutRunMode.ComputeSize
+                            ),
                             CreateHostFlowContainerStyle(
                                 resolvedLayout.FlexDirection,
                                 resolvedLayout.Direction,
@@ -1617,9 +2074,11 @@ public sealed partial class OkojoNodeReactHost
                                 gap,
                                 alignItems,
                                 resolvedLayout.JustifyContent,
-                                padding),
+                                padding
+                            ),
                             requestBuffer[..preparedCount],
-                            []);
+                            []
+                        );
                     }
                     finally
                     {
@@ -1628,24 +2087,35 @@ public sealed partial class OkojoNodeReactHost
                 }
                 if (!frame.HasWidth)
                 {
-                    width = stretchWidth > 0
-                        ? measuredAvailableWidth
-                        : measured.Size.Width;
+                    width = stretchWidth > 0 ? measuredAvailableWidth : measured.Size.Width;
                 }
 
                 if (!frame.HasHeight)
                 {
-                    height = stretchHeight > 0
-                        ? measuredAvailableHeight
-                        : measured.Size.Height;
+                    height = stretchHeight > 0 ? measuredAvailableHeight : measured.Size.Height;
                 }
             }
         }
 
         return new HostNodeMeasurement(
-            ClampMeasuredSize(width, frame.MinWidth, frame.IsMinWidthPercent, frame.MaxWidth, frame.IsMaxWidthPercent, widthBasis),
-            ClampMeasuredSize(height, frame.MinHeight, frame.IsMinHeightPercent, frame.MaxHeight, frame.IsMaxHeightPercent, heightBasis),
-            frame);
+            ClampMeasuredSize(
+                width,
+                frame.MinWidth,
+                frame.IsMinWidthPercent,
+                frame.MaxWidth,
+                frame.IsMaxWidthPercent,
+                widthBasis
+            ),
+            ClampMeasuredSize(
+                height,
+                frame.MinHeight,
+                frame.IsMinHeightPercent,
+                frame.MaxHeight,
+                frame.IsMaxHeightPercent,
+                heightBasis
+            ),
+            frame
+        );
     }
 
     private int PrepareHostFlowLayoutChildren(
@@ -1654,7 +2124,8 @@ public sealed partial class OkojoNodeReactHost
         float width,
         float height,
         CrossAlignment alignItems,
-        Span<LayoutChildRequest> results)
+        Span<LayoutChildRequest> results
+    )
     {
         if (children is null)
             return 0;
@@ -1663,7 +2134,13 @@ public sealed partial class OkojoNodeReactHost
         {
             var values = denseChildren.AsReadOnlySpan();
             for (var index = 0; index < values.Length; index++)
-                results[index] = PrepareHostFlowLayoutChild(values[index], axis, width, height, alignItems);
+                results[index] = PrepareHostFlowLayoutChild(
+                    values[index],
+                    axis,
+                    width,
+                    height,
+                    alignItems
+                );
             return values.Length;
         }
 
@@ -1678,7 +2155,13 @@ public sealed partial class OkojoNodeReactHost
                 continue;
             }
 
-            results[index] = PrepareHostFlowLayoutChild(childValue, axis, width, height, alignItems);
+            results[index] = PrepareHostFlowLayoutChild(
+                childValue,
+                axis,
+                width,
+                height,
+                alignItems
+            );
         }
 
         return length;
@@ -1689,13 +2172,12 @@ public sealed partial class OkojoNodeReactHost
         in HostFrameProps frame,
         EdgeInsets margin,
         float patchedWidth,
-        float patchedHeight)
+        float patchedHeight
+    )
     {
         var hot = snapshot.HotMeasureState;
         var cold = snapshot.ColdState;
-        var text = snapshot.Kind == HostNodeKind.Text
-            ? ResolveTextContent(snapshot)
-            : null;
+        var text = snapshot.Kind == HostNodeKind.Text ? ResolveTextContent(snapshot) : null;
         var units = frame.Units;
         if (LayoutValue.IsSet(patchedWidth))
             units &= ~LayoutValueUnitFlags.WidthPercent;
@@ -1730,7 +2212,8 @@ public sealed partial class OkojoNodeReactHost
             FlexGrow: hot.FlexGrow,
             FlexShrink: hot.FlexShrink,
             FlexBasis: hot.FlexBasis,
-            Units: units);
+            Units: units
+        );
     }
 
     private void LayoutHostFlowChildren(
@@ -1747,7 +2230,8 @@ public sealed partial class OkojoNodeReactHost
         float paddingRight,
         float paddingBottom,
         ReadOnlySpan<LayoutChildRequest> requests,
-        Span<LayoutFrameData?> frames)
+        Span<LayoutFrameData?> frames
+    )
     {
         stackLayoutCalculator!.ComputeFlexLayout(
             LayoutInput.Definite(width, height),
@@ -1758,9 +2242,11 @@ public sealed partial class OkojoNodeReactHost
                 gap,
                 alignItems,
                 justifyContent,
-                new EdgeInsets(paddingLeft, paddingTop, paddingRight, paddingBottom)),
+                new EdgeInsets(paddingLeft, paddingTop, paddingRight, paddingBottom)
+            ),
             requests,
-            frames);
+            frames
+        );
     }
 
     private static LayoutInput CreateHostFlowInput(
@@ -1768,15 +2254,18 @@ public sealed partial class OkojoNodeReactHost
         float? knownHeight,
         float availableWidth,
         float availableHeight,
-        LayoutRunMode runMode)
+        LayoutRunMode runMode
+    )
     {
         return new LayoutInput(
             new LayoutKnownSize(knownWidth, knownHeight),
             new LayoutKnownSize(availableWidth, availableHeight),
             new LayoutAvailableSize(
                 LayoutAvailableSpace.Definite(availableWidth),
-                LayoutAvailableSpace.Definite(availableHeight)),
-            runMode);
+                LayoutAvailableSpace.Definite(availableHeight)
+            ),
+            runMode
+        );
     }
 
     private static LayoutContainerStyle CreateHostFlowContainerStyle(
@@ -1786,7 +2275,8 @@ public sealed partial class OkojoNodeReactHost
         float gap,
         CrossAlignment alignItems,
         MainAxisJustification justifyContent,
-        EdgeInsets padding)
+        EdgeInsets padding
+    )
     {
         return new LayoutContainerStyle(
             flexDirection,
@@ -1796,7 +2286,8 @@ public sealed partial class OkojoNodeReactHost
             ColumnGap: gap,
             alignItems,
             justifyContent,
-            new LayoutBoxEdges(padding.Left, padding.Top, padding.Right, padding.Bottom));
+            new LayoutBoxEdges(padding.Left, padding.Top, padding.Right, padding.Bottom)
+        );
     }
 
     private static int GetArrayLength(JsObject? array)
@@ -1813,7 +2304,8 @@ public sealed partial class OkojoNodeReactHost
         float parentWidth,
         float parentHeight,
         HostLayoutCacheData parentLayout,
-        ReadOnlySpan<LayoutFrameData?> childFrames = default)
+        ReadOnlySpan<LayoutFrameData?> childFrames = default
+    )
     {
         var maxBottom = parentLayout.ContentTop;
         if (children is null || childCount <= 0)
@@ -1833,9 +2325,13 @@ public sealed partial class OkojoNodeReactHost
                     childFrame is null ? parentLayout.ContentTop : parentTop,
                     childFrame is null ? parentLayout.ContentWidth : parentWidth,
                     childFrame is null ? parentLayout.ContentHeight : parentHeight,
-                    childFrame);
+                    childFrame
+                );
                 if (childLayout.HasValue)
-                    maxBottom = Math.Max(maxBottom, childLayout.Value.Top + childLayout.Value.Height);
+                    maxBottom = Math.Max(
+                        maxBottom,
+                        childLayout.Value.Top + childLayout.Value.Height
+                    );
             }
 
             return maxBottom;
@@ -1854,7 +2350,8 @@ public sealed partial class OkojoNodeReactHost
                 childFrame is null ? parentLayout.ContentTop : parentTop,
                 childFrame is null ? parentLayout.ContentWidth : parentWidth,
                 childFrame is null ? parentLayout.ContentHeight : parentHeight,
-                childFrame);
+                childFrame
+            );
             if (childLayout.HasValue)
                 maxBottom = Math.Max(maxBottom, childLayout.Value.Top + childLayout.Value.Height);
         }
@@ -1867,12 +2364,15 @@ public sealed partial class OkojoNodeReactHost
         LayoutAxis axis,
         float width,
         float height,
-        CrossAlignment alignItems)
+        CrossAlignment alignItems
+    )
     {
         if (!childValue.TryGetObject(out var child))
             return LayoutChildRequest.Invalid;
 
-        var atoms = propertyAtoms ?? throw new InvalidOperationException("Property atoms are not initialized.");
+        var atoms =
+            propertyAtoms
+            ?? throw new InvalidOperationException("Property atoms are not initialized.");
         var kind = GetHostNodeKind(child);
         if (GetBoolProperty(child, atoms.Hidden) || kind == HostNodeKind.RawText)
             return LayoutChildRequest.Invalid;
@@ -1882,10 +2382,7 @@ public sealed partial class OkojoNodeReactHost
             var props = TryGetObjectProperty(child, atoms.Props);
             var size = GetFloatProperty(props, atoms.Size);
             var flex = ReadNonNegativeFloat(props, atoms.Flex) ?? 1;
-            return new LayoutChildRequest(
-                Kind: LayoutChildKind.Spacer,
-                Size: size,
-                FlexGrow: flex);
+            return new LayoutChildRequest(Kind: LayoutChildKind.Spacer, Size: size, FlexGrow: flex);
         }
 
         var snapshot = CreateHostNodeSnapshot(child);
@@ -1896,20 +2393,27 @@ public sealed partial class OkojoNodeReactHost
         var childAlign = ResolveChildAlign(alignItems, rawFrame.AlignSelf);
         var measured = MeasureHostNodeSize(
             snapshot,
-            axis == LayoutAxis.Row && childGrow > 0 && !hot.HasFlexBasis && !rawFrame.HasWidth ? 0 : width,
-            axis == LayoutAxis.Column && childGrow > 0 && !hot.HasFlexBasis && !rawFrame.HasHeight ? 0 : height,
+            axis == LayoutAxis.Row && childGrow > 0 && !hot.HasFlexBasis && !rawFrame.HasWidth
+                ? 0
+                : width,
+            axis == LayoutAxis.Column && childGrow > 0 && !hot.HasFlexBasis && !rawFrame.HasHeight
+                ? 0
+                : height,
             axis == LayoutAxis.Column && childAlign == CrossAlignment.Stretch ? width : 0,
-            0);
+            0
+        );
         var frame = measured.Frame;
         if (frame.Position == PositionMode.Absolute)
             return LayoutChildRequest.Invalid;
 
-        var patchedWidth = !frame.HasWidth && !(axis == LayoutAxis.Row && childGrow > 0 && !hot.HasFlexBasis)
-            ? measured.Width
-            : LayoutValue.Unset;
-        var patchedHeight = !frame.HasHeight && !(axis == LayoutAxis.Column && childGrow > 0 && !hot.HasFlexBasis)
-            ? measured.Height
-            : LayoutValue.Unset;
+        var patchedWidth =
+            !frame.HasWidth && !(axis == LayoutAxis.Row && childGrow > 0 && !hot.HasFlexBasis)
+                ? measured.Width
+                : LayoutValue.Unset;
+        var patchedHeight =
+            !frame.HasHeight && !(axis == LayoutAxis.Column && childGrow > 0 && !hot.HasFlexBasis)
+                ? measured.Height
+                : LayoutValue.Unset;
 
         return CreateHostFlowRequest(snapshot, frame, margin, patchedWidth, patchedHeight);
     }
@@ -1940,7 +2444,10 @@ public sealed partial class OkojoNodeReactHost
         var parts = new List<string>();
         for (var index = 0; index < length; index++)
         {
-            if (!children.TryGetElement((uint)index, out var childValue) || !childValue.TryGetObject(out var child))
+            if (
+                !children.TryGetElement((uint)index, out var childValue)
+                || !childValue.TryGetObject(out var child)
+            )
                 continue;
 
             var kind = GetHostNodeKind(child);
@@ -1963,18 +2470,45 @@ public sealed partial class OkojoNodeReactHost
         return parts.Count == 0 ? string.Empty : string.Concat(parts);
     }
 
-    private static (float Value, LayoutValueUnitFlags Unit) ResolveFrameScalar(JsObject? props, JsObject? style, int atom, LayoutValueUnitFlags percentUnit)
+    private static (float Value, LayoutValueUnitFlags Unit) ResolveFrameScalar(
+        JsObject? props,
+        JsObject? style,
+        int atom,
+        LayoutValueUnitFlags percentUnit
+    )
     {
-        if (TryGetLayoutScalarProperty(props, atom, percentUnit, out var propValue, out var propUnit))
+        if (
+            TryGetLayoutScalarProperty(
+                props,
+                atom,
+                percentUnit,
+                out var propValue,
+                out var propUnit
+            )
+        )
             return (propValue, propUnit);
 
-        if (TryGetStyleLayoutScalarProperty(style, atom, percentUnit, out var styleValue, out var styleUnit))
+        if (
+            TryGetStyleLayoutScalarProperty(
+                style,
+                atom,
+                percentUnit,
+                out var styleValue,
+                out var styleUnit
+            )
+        )
             return (styleValue, styleUnit);
 
         return (LayoutValue.Unset, LayoutValueUnitFlags.None);
     }
 
-    private static bool TryGetLayoutScalarProperty(JsObject? obj, int atom, LayoutValueUnitFlags percentUnit, out float value, out LayoutValueUnitFlags unit)
+    private static bool TryGetLayoutScalarProperty(
+        JsObject? obj,
+        int atom,
+        LayoutValueUnitFlags percentUnit,
+        out float value,
+        out LayoutValueUnitFlags unit
+    )
     {
         value = LayoutValue.Unset;
         unit = LayoutValueUnitFlags.None;
@@ -1983,7 +2517,13 @@ public sealed partial class OkojoNodeReactHost
             && TryParseLayoutScalar(propertyValue, percentUnit, out value, out unit);
     }
 
-    private static bool TryGetStyleLayoutScalarProperty(JsObject? style, int atom, LayoutValueUnitFlags percentUnit, out float value, out LayoutValueUnitFlags unit)
+    private static bool TryGetStyleLayoutScalarProperty(
+        JsObject? style,
+        int atom,
+        LayoutValueUnitFlags percentUnit,
+        out float value,
+        out LayoutValueUnitFlags unit
+    )
     {
         value = LayoutValue.Unset;
         unit = LayoutValueUnitFlags.None;
@@ -1995,8 +2535,16 @@ public sealed partial class OkojoNodeReactHost
             var values = denseStyle.AsReadOnlySpan();
             for (var index = values.Length - 1; index >= 0; index--)
             {
-                if (values[index].TryGetObject(out var itemStyle)
-                    && TryGetStyleLayoutScalarProperty(itemStyle, atom, percentUnit, out value, out unit))
+                if (
+                    values[index].TryGetObject(out var itemStyle)
+                    && TryGetStyleLayoutScalarProperty(
+                        itemStyle,
+                        atom,
+                        percentUnit,
+                        out value,
+                        out unit
+                    )
+                )
                 {
                     return true;
                 }
@@ -2009,10 +2557,21 @@ public sealed partial class OkojoNodeReactHost
         {
             for (var index = length - 1; index >= 0; index--)
             {
-                if (!style.TryGetElement((uint)index, out var item) || !item.TryGetObject(out var itemStyle))
+                if (
+                    !style.TryGetElement((uint)index, out var item)
+                    || !item.TryGetObject(out var itemStyle)
+                )
                     continue;
 
-                if (TryGetStyleLayoutScalarProperty(itemStyle, atom, percentUnit, out value, out unit))
+                if (
+                    TryGetStyleLayoutScalarProperty(
+                        itemStyle,
+                        atom,
+                        percentUnit,
+                        out value,
+                        out unit
+                    )
+                )
                     return true;
             }
 
@@ -2022,7 +2581,12 @@ public sealed partial class OkojoNodeReactHost
         return TryGetLayoutScalarProperty(style, atom, percentUnit, out value, out unit);
     }
 
-    private static bool TryParseLayoutScalar(JsValue value, LayoutValueUnitFlags percentUnit, out float result, out LayoutValueUnitFlags unit)
+    private static bool TryParseLayoutScalar(
+        JsValue value,
+        LayoutValueUnitFlags percentUnit,
+        out float result,
+        out LayoutValueUnitFlags unit
+    )
     {
         unit = LayoutValueUnitFlags.None;
         if (value.IsNumber)
@@ -2050,58 +2614,78 @@ public sealed partial class OkojoNodeReactHost
             return false;
         }
 
-        return float.TryParse(trimmed[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out result);
+        return float.TryParse(
+            trimmed[..^1],
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out result
+        );
     }
 
     private static EdgeInsets ResolvePaddingInsets(JsObject? style, ReactAppPropertyAtoms atoms)
     {
         var borderWidth = Math.Max(0, GetNullableStyleFloatProperty(style, atoms.BorderWidth) ?? 0);
-        var resolvedPaddingX = GetNullableStyleFloatProperty(style, atoms.PaddingHorizontal)
+        var resolvedPaddingX =
+            GetNullableStyleFloatProperty(style, atoms.PaddingHorizontal)
             ?? GetNullableStyleFloatProperty(style, atoms.Padding)
             ?? 0;
-        var resolvedPaddingY = GetNullableStyleFloatProperty(style, atoms.PaddingVertical)
+        var resolvedPaddingY =
+            GetNullableStyleFloatProperty(style, atoms.PaddingVertical)
             ?? GetNullableStyleFloatProperty(style, atoms.Padding)
             ?? 0;
         return new EdgeInsets(
-            (GetNullableStyleFloatProperty(style, atoms.PaddingLeft) ?? resolvedPaddingX) + borderWidth,
-            (GetNullableStyleFloatProperty(style, atoms.PaddingTop) ?? resolvedPaddingY) + borderWidth,
-            (GetNullableStyleFloatProperty(style, atoms.PaddingRight) ?? resolvedPaddingX) + borderWidth,
-            (GetNullableStyleFloatProperty(style, atoms.PaddingBottom) ?? resolvedPaddingY) + borderWidth);
+            (GetNullableStyleFloatProperty(style, atoms.PaddingLeft) ?? resolvedPaddingX)
+                + borderWidth,
+            (GetNullableStyleFloatProperty(style, atoms.PaddingTop) ?? resolvedPaddingY)
+                + borderWidth,
+            (GetNullableStyleFloatProperty(style, atoms.PaddingRight) ?? resolvedPaddingX)
+                + borderWidth,
+            (GetNullableStyleFloatProperty(style, atoms.PaddingBottom) ?? resolvedPaddingY)
+                + borderWidth
+        );
     }
 
     private static EdgeInsets ResolveMarginInsets(JsObject? style, ReactAppPropertyAtoms atoms)
     {
-        var resolvedMarginX = GetNullableStyleFloatProperty(style, atoms.MarginHorizontal)
+        var resolvedMarginX =
+            GetNullableStyleFloatProperty(style, atoms.MarginHorizontal)
             ?? GetNullableStyleFloatProperty(style, atoms.Margin)
             ?? 0;
-        var resolvedMarginY = GetNullableStyleFloatProperty(style, atoms.MarginVertical)
+        var resolvedMarginY =
+            GetNullableStyleFloatProperty(style, atoms.MarginVertical)
             ?? GetNullableStyleFloatProperty(style, atoms.Margin)
             ?? 0;
         return new EdgeInsets(
             GetNullableStyleFloatProperty(style, atoms.MarginLeft) ?? resolvedMarginX,
             GetNullableStyleFloatProperty(style, atoms.MarginTop) ?? resolvedMarginY,
             GetNullableStyleFloatProperty(style, atoms.MarginRight) ?? resolvedMarginX,
-            GetNullableStyleFloatProperty(style, atoms.MarginBottom) ?? resolvedMarginY);
+            GetNullableStyleFloatProperty(style, atoms.MarginBottom) ?? resolvedMarginY
+        );
     }
 
     private static bool IsFlowLayoutStyle(JsObject? style, ReactAppPropertyAtoms atoms)
     {
         return GetStyleStringProperty(style, atoms.FlexDirection) is not null
-               || GetStyleStringProperty(style, atoms.FlexWrap) is not null
-               || GetNullableStyleFloatProperty(style, atoms.Gap).HasValue
-               || GetStyleStringProperty(style, atoms.AlignItems) is not null
-               || GetStyleStringProperty(style, atoms.JustifyContent) is not null;
+            || GetStyleStringProperty(style, atoms.FlexWrap) is not null
+            || GetNullableStyleFloatProperty(style, atoms.Gap).HasValue
+            || GetStyleStringProperty(style, atoms.AlignItems) is not null
+            || GetStyleStringProperty(style, atoms.JustifyContent) is not null;
     }
 
     private static PositionMode ResolvePositionMode(
         JsObject? props,
         JsObject? style,
         ReactAppPropertyAtoms atoms,
-        DefaultPositionMode defaultPositionMode)
+        DefaultPositionMode defaultPositionMode
+    )
     {
         return ParsePositionMode(
-            GetStringProperty(props, atoms.Position) ?? GetStyleStringProperty(style, atoms.Position),
-            defaultPositionMode == DefaultPositionMode.Static ? PositionMode.Static : PositionMode.Relative);
+            GetStringProperty(props, atoms.Position)
+                ?? GetStyleStringProperty(style, atoms.Position),
+            defaultPositionMode == DefaultPositionMode.Static
+                ? PositionMode.Static
+                : PositionMode.Relative
+        );
     }
 
     private static FlexDirection ResolveFlexDirection(JsObject? style, ReactAppPropertyAtoms atoms)
@@ -2111,13 +2695,17 @@ public sealed partial class OkojoNodeReactHost
             "row" => FlexDirection.Row,
             "row-reverse" => FlexDirection.RowReverse,
             "column-reverse" => FlexDirection.ColumnReverse,
-            _ => FlexDirection.Column
+            _ => FlexDirection.Column,
         };
     }
 
     private static FlexWrap ResolveFlexWrap(JsObject? style, ReactAppPropertyAtoms atoms)
     {
-        return string.Equals(GetStyleStringProperty(style, atoms.FlexWrap), "wrap", StringComparison.Ordinal)
+        return string.Equals(
+            GetStyleStringProperty(style, atoms.FlexWrap),
+            "wrap",
+            StringComparison.Ordinal
+        )
             ? FlexWrap.Wrap
             : FlexWrap.NoWrap;
     }
@@ -2127,7 +2715,7 @@ public sealed partial class OkojoNodeReactHost
         return GetStyleStringProperty(style, atoms.BoxSizing) switch
         {
             "content-box" => BoxSizingMode.ContentBox,
-            _ => BoxSizingMode.BorderBox
+            _ => BoxSizingMode.BorderBox,
         };
     }
 
@@ -2138,39 +2726,52 @@ public sealed partial class OkojoNodeReactHost
             "absolute" => PositionMode.Absolute,
             "static" => PositionMode.Static,
             "relative" => PositionMode.Relative,
-            _ => fallback
+            _ => fallback,
         };
     }
 
-    private static LayoutDirection ResolveLayoutDirection(JsObject? style, ReactAppPropertyAtoms atoms)
+    private static LayoutDirection ResolveLayoutDirection(
+        JsObject? style,
+        ReactAppPropertyAtoms atoms
+    )
     {
-        return string.Equals(GetStyleStringProperty(style, atoms.Direction), "rtl", StringComparison.Ordinal)
+        return string.Equals(
+            GetStyleStringProperty(style, atoms.Direction),
+            "rtl",
+            StringComparison.Ordinal
+        )
             ? LayoutDirection.Rtl
             : LayoutDirection.Ltr;
     }
 
     private static CrossAlignment ResolveAlignItems(JsObject? style, ReactAppPropertyAtoms atoms)
     {
-        return ParseCrossAlignment(GetStyleStringProperty(style, atoms.AlignItems), CrossAlignment.Stretch);
+        return ParseCrossAlignment(
+            GetStyleStringProperty(style, atoms.AlignItems),
+            CrossAlignment.Stretch
+        );
     }
 
-    private static MainAxisJustification ResolveJustifyContent(JsObject? style, ReactAppPropertyAtoms atoms)
+    private static MainAxisJustification ResolveJustifyContent(
+        JsObject? style,
+        ReactAppPropertyAtoms atoms
+    )
     {
-        return ParseJustifyContent(GetStyleStringProperty(style, atoms.JustifyContent), MainAxisJustification.Start);
+        return ParseJustifyContent(
+            GetStyleStringProperty(style, atoms.JustifyContent),
+            MainAxisJustification.Start
+        );
     }
 
     private static CrossAlignment ResolveChildAlign(
         CrossAlignment alignItems,
-        CrossAlignment alignSelf)
+        CrossAlignment alignSelf
+    )
     {
-        return alignSelf == CrossAlignment.Auto
-            ? alignItems
-            : alignSelf;
+        return alignSelf == CrossAlignment.Auto ? alignItems : alignSelf;
     }
 
-    private static CrossAlignment ParseCrossAlignment(
-        string? value,
-        CrossAlignment fallback)
+    private static CrossAlignment ParseCrossAlignment(string? value, CrossAlignment fallback)
     {
         return value switch
         {
@@ -2179,13 +2780,14 @@ public sealed partial class OkojoNodeReactHost
             "end" => CrossAlignment.End,
             "stretch" => CrossAlignment.Stretch,
             "auto" => CrossAlignment.Auto,
-            _ => fallback
+            _ => fallback,
         };
     }
 
     private static MainAxisJustification ParseJustifyContent(
         string? value,
-        MainAxisJustification fallback)
+        MainAxisJustification fallback
+    )
     {
         return value switch
         {
@@ -2194,7 +2796,7 @@ public sealed partial class OkojoNodeReactHost
             "space-between" => MainAxisJustification.SpaceBetween,
             "space-around" => MainAxisJustification.SpaceAround,
             "start" => MainAxisJustification.Start,
-            _ => fallback
+            _ => fallback,
         };
     }
 
@@ -2204,7 +2806,8 @@ public sealed partial class OkojoNodeReactHost
         float parentHeight,
         float fallbackWidth,
         float fallbackHeight,
-        EdgeInsets margin)
+        EdgeInsets margin
+    )
     {
         var usesInsets = frame.Position != PositionMode.Static;
         var resolvedX = ResolveAxisFrame(
@@ -2215,7 +2818,8 @@ public sealed partial class OkojoNodeReactHost
             frame.Width,
             frame.IsWidthPercent,
             Math.Max(0, parentWidth - margin.Left - margin.Right),
-            fallbackWidth);
+            fallbackWidth
+        );
         var resolvedY = ResolveAxisFrame(
             usesInsets ? frame.Top : LayoutValue.Unset,
             usesInsets && frame.IsTopPercent,
@@ -2224,12 +2828,14 @@ public sealed partial class OkojoNodeReactHost
             frame.Height,
             frame.IsHeightPercent,
             Math.Max(0, parentHeight - margin.Top - margin.Bottom),
-            fallbackHeight);
+            fallbackHeight
+        );
         return new LayoutFrameData(
             resolvedX.Start + margin.Left,
             resolvedY.Start + margin.Top,
             resolvedX.Size,
-            resolvedY.Size);
+            resolvedY.Size
+        );
     }
 
     private static AxisFrame ResolveAxisFrame(
@@ -2240,7 +2846,8 @@ public sealed partial class OkojoNodeReactHost
         float size,
         bool sizeIsPercent,
         float parentSize,
-        float fallbackSize)
+        float fallbackSize
+    )
     {
         var resolvedStart = LayoutValue.Resolve(start, startIsPercent, parentSize);
         var resolvedEnd = LayoutValue.Resolve(end, endIsPercent, parentSize);
@@ -2250,7 +2857,11 @@ public sealed partial class OkojoNodeReactHost
         var hasEnd = LayoutValue.IsSet(end);
         var resolvedSize = hasSize
             ? resolvedExplicitSize
-            : (hasEnd ? Math.Max(0, parentSize - (hasStart ? resolvedStart : 0) - resolvedEnd) : fallbackSize);
+            : (
+                hasEnd
+                    ? Math.Max(0, parentSize - (hasStart ? resolvedStart : 0) - resolvedEnd)
+                    : fallbackSize
+            );
         var finalStart = hasStart
             ? resolvedStart
             : (hasEnd ? Math.Max(0, parentSize - resolvedSize - resolvedEnd) : 0);
@@ -2263,7 +2874,8 @@ public sealed partial class OkojoNodeReactHost
         float borderWidth,
         BoxSizingMode boxSizing,
         float widthBasis,
-        float heightBasis)
+        float heightBasis
+    )
     {
         if (boxSizing != BoxSizingMode.ContentBox)
             return frame;
@@ -2284,37 +2896,61 @@ public sealed partial class OkojoNodeReactHost
 
         if (frame.HasWidth)
         {
-            width = Math.Max(LayoutValue.Resolve(frame.Width, frame.IsWidthPercent, widthBasis) + horizontalBorder, horizontalInsets);
+            width = Math.Max(
+                LayoutValue.Resolve(frame.Width, frame.IsWidthPercent, widthBasis)
+                    + horizontalBorder,
+                horizontalInsets
+            );
             units &= ~LayoutValueUnitFlags.WidthPercent;
         }
 
         if (frame.HasHeight)
         {
-            height = Math.Max(LayoutValue.Resolve(frame.Height, frame.IsHeightPercent, heightBasis) + verticalBorder, verticalInsets);
+            height = Math.Max(
+                LayoutValue.Resolve(frame.Height, frame.IsHeightPercent, heightBasis)
+                    + verticalBorder,
+                verticalInsets
+            );
             units &= ~LayoutValueUnitFlags.HeightPercent;
         }
 
         if (frame.HasMinWidth)
         {
-            minWidth = Math.Max(LayoutValue.Resolve(frame.MinWidth, frame.IsMinWidthPercent, widthBasis) + horizontalBorder, horizontalPadding + horizontalBorder);
+            minWidth = Math.Max(
+                LayoutValue.Resolve(frame.MinWidth, frame.IsMinWidthPercent, widthBasis)
+                    + horizontalBorder,
+                horizontalPadding + horizontalBorder
+            );
             units &= ~LayoutValueUnitFlags.MinWidthPercent;
         }
 
         if (frame.HasMaxWidth)
         {
-            maxWidth = Math.Max(LayoutValue.Resolve(frame.MaxWidth, frame.IsMaxWidthPercent, widthBasis) + horizontalBorder, horizontalPadding + horizontalBorder);
+            maxWidth = Math.Max(
+                LayoutValue.Resolve(frame.MaxWidth, frame.IsMaxWidthPercent, widthBasis)
+                    + horizontalBorder,
+                horizontalPadding + horizontalBorder
+            );
             units &= ~LayoutValueUnitFlags.MaxWidthPercent;
         }
 
         if (frame.HasMinHeight)
         {
-            minHeight = Math.Max(LayoutValue.Resolve(frame.MinHeight, frame.IsMinHeightPercent, heightBasis) + verticalBorder, verticalPadding + verticalBorder);
+            minHeight = Math.Max(
+                LayoutValue.Resolve(frame.MinHeight, frame.IsMinHeightPercent, heightBasis)
+                    + verticalBorder,
+                verticalPadding + verticalBorder
+            );
             units &= ~LayoutValueUnitFlags.MinHeightPercent;
         }
 
         if (frame.HasMaxHeight)
         {
-            maxHeight = Math.Max(LayoutValue.Resolve(frame.MaxHeight, frame.IsMaxHeightPercent, heightBasis) + verticalBorder, verticalPadding + verticalBorder);
+            maxHeight = Math.Max(
+                LayoutValue.Resolve(frame.MaxHeight, frame.IsMaxHeightPercent, heightBasis)
+                    + verticalBorder,
+                verticalPadding + verticalBorder
+            );
             units &= ~LayoutValueUnitFlags.MaxHeightPercent;
         }
 
@@ -2331,25 +2967,45 @@ public sealed partial class OkojoNodeReactHost
             maxHeight,
             frame.Position,
             frame.AlignSelf,
-            units);
+            units
+        );
     }
 
     private float MeasureTextWidth(string text, float fontSize, string? fontFamily, int fontWeight)
     {
         return backendServices.Text.MeasureTextWidth(
             text,
-            new SceneTextStyle(fontSize, Font: new SceneFont(fontSize, fontFamily, fontWeight)));
+            new SceneTextStyle(fontSize, Font: new SceneFont(fontSize, fontFamily, fontWeight))
+        );
     }
 
-    private float MeasureTextHeight(string text, float width, float fontSize, string? fontFamily, int fontWeight)
+    private float MeasureTextHeight(
+        string text,
+        float width,
+        float fontSize,
+        string? fontFamily,
+        int fontWeight
+    )
     {
         return backendServices.Text.MeasureTextHeight(
             text,
             width,
-            new SceneTextStyle(fontSize, WrapText: true, Font: new SceneFont(fontSize, fontFamily, fontWeight)));
+            new SceneTextStyle(
+                fontSize,
+                WrapText: true,
+                Font: new SceneFont(fontSize, fontFamily, fontWeight)
+            )
+        );
     }
 
-    private static float ClampMeasuredSize(float value, float minValue, bool minIsPercent, float maxValue, bool maxIsPercent, float availableSize)
+    private static float ClampMeasuredSize(
+        float value,
+        float minValue,
+        bool minIsPercent,
+        float maxValue,
+        bool maxIsPercent,
+        float availableSize
+    )
     {
         var result = float.IsFinite(value) ? value : 0;
         var resolvedMin = LayoutValue.Resolve(minValue, minIsPercent, availableSize);
@@ -2358,17 +3014,28 @@ public sealed partial class OkojoNodeReactHost
             result = Math.Max(result, Math.Max(0, resolvedMin));
 
         if (LayoutValue.IsSet(resolvedMax))
-            result = Math.Min(result, Math.Max(LayoutValue.IsSet(resolvedMin) ? resolvedMin : 0, resolvedMax));
+            result = Math.Min(
+                result,
+                Math.Max(LayoutValue.IsSet(resolvedMin) ? resolvedMin : 0, resolvedMax)
+            );
 
         return Math.Max(0, result);
     }
 
-    private static float ResolveMeasuredContentHeight(float maxBottom, float contentTop, float paddingBottom)
+    private static float ResolveMeasuredContentHeight(
+        float maxBottom,
+        float contentTop,
+        float paddingBottom
+    )
     {
         return Math.Max(0, maxBottom - contentTop + paddingBottom);
     }
 
-    private static float ResolveMeasuredContentWidth(float maxRight, float contentLeft, float paddingRight)
+    private static float ResolveMeasuredContentWidth(
+        float maxRight,
+        float contentLeft,
+        float paddingRight
+    )
     {
         return Math.Max(0, maxRight - contentLeft + paddingRight);
     }
@@ -2409,7 +3076,8 @@ public sealed partial class OkojoNodeReactHost
         float ContentLeft,
         float ContentTop,
         float ContentWidth,
-        float ContentHeight);
+        float ContentHeight
+    );
 
     private readonly record struct TextIntrinsicSize(int Width, int Height);
 
@@ -2419,7 +3087,7 @@ public sealed partial class OkojoNodeReactHost
         None = 0,
         Wrap = 1 << 0,
         Multiline = 1 << 1,
-        FlexBasisPercent = 1 << 2
+        FlexBasisPercent = 1 << 2,
     }
 
     private readonly struct HostHotMeasureState
@@ -2432,7 +3100,8 @@ public sealed partial class OkojoNodeReactHost
             float FontSize,
             int FontWeight,
             float LineHeight,
-            HostMeasureFlags Flags)
+            HostMeasureFlags Flags
+        )
         {
             this.Kind = Kind;
             this.FlexGrow = FlexGrow;
@@ -2466,7 +3135,8 @@ public sealed partial class OkojoNodeReactHost
             string? TextInputValue,
             string? TextInputPlaceholder,
             string? ImageSource,
-            string? ImagePlaceholderSource)
+            string? ImagePlaceholderSource
+        )
         {
             this.FontFamily = FontFamily;
             this.DirectTextContent = DirectTextContent;
@@ -2499,7 +3169,8 @@ public sealed partial class OkojoNodeReactHost
             float MaxHeight,
             PositionMode Position,
             CrossAlignment AlignSelf,
-            LayoutValueUnitFlags Units)
+            LayoutValueUnitFlags Units
+        )
         {
             this.Left = Left;
             this.Top = Top;
@@ -2555,7 +3226,8 @@ public sealed partial class OkojoNodeReactHost
     private readonly record struct HostNodeMeasurement(
         float Width,
         float Height,
-        HostFrameProps Frame);
+        HostFrameProps Frame
+    );
 
     private readonly struct HostResolvedLayout
     {
@@ -2571,7 +3243,8 @@ public sealed partial class OkojoNodeReactHost
             LayoutDirection Direction,
             CrossAlignment AlignItems,
             MainAxisJustification JustifyContent,
-            float Gap)
+            float Gap
+        )
         {
             this.Frame = Frame;
             this.Margin = Margin;
@@ -2611,7 +3284,8 @@ public sealed partial class OkojoNodeReactHost
         string RuntimeId,
         HostResolvedLayout ResolvedLayout,
         HostHotMeasureState HotMeasureState,
-        HostColdState ColdState);
+        HostColdState ColdState
+    );
 
     private readonly record struct DirtyFlushContext(
         string ParentId,
@@ -2619,12 +3293,13 @@ public sealed partial class OkojoNodeReactHost
         float ParentTop,
         float ParentWidth,
         float ParentHeight,
-        LayoutFrameData? OverrideFrame);
+        LayoutFrameData? OverrideFrame
+    );
 
     private enum FlushTraversalStage : byte
     {
         Enter,
-        Finalize
+        Finalize,
     }
 
     private struct FlushTraversalWorkItem
@@ -2740,7 +3415,10 @@ public sealed partial class OkojoNodeReactHost
             if (requestBuffer.Length >= requiredLength)
                 return;
 
-            Array.Resize(ref requestBuffer, Math.Max(requiredLength, Math.Max(16, requestBuffer.Length * 2)));
+            Array.Resize(
+                ref requestBuffer,
+                Math.Max(requiredLength, Math.Max(16, requestBuffer.Length * 2))
+            );
         }
 
         private void EnsureFrameCapacity(int requiredLength)
@@ -2748,7 +3426,10 @@ public sealed partial class OkojoNodeReactHost
             if (frameBuffer.Length >= requiredLength)
                 return;
 
-            Array.Resize(ref frameBuffer, Math.Max(requiredLength, Math.Max(16, frameBuffer.Length * 2)));
+            Array.Resize(
+                ref frameBuffer,
+                Math.Max(requiredLength, Math.Max(16, frameBuffer.Length * 2))
+            );
         }
 
         public readonly record struct ScratchMark(int RequestOffset, int FrameOffset);
@@ -2765,7 +3446,10 @@ public sealed partial class OkojoNodeReactHost
         public const int HiddenSlot = 6;
         public const int TextSlot = 7;
 
-        private HostInstanceShapeCache(StaticNamedPropertyLayout elementShape, StaticNamedPropertyLayout textShape)
+        private HostInstanceShapeCache(
+            StaticNamedPropertyLayout elementShape,
+            StaticNamedPropertyLayout textShape
+        )
         {
             ElementShape = elementShape;
             TextShape = textShape;
@@ -2778,13 +3462,41 @@ public sealed partial class OkojoNodeReactHost
         public static HostInstanceShapeCache Create(JsRealm realm, ReactAppPropertyAtoms atoms)
         {
             var elementShape = realm.EmptyShape;
-            elementShape = elementShape.GetOrAddTransition(atoms.RuntimeId, JsShapePropertyFlags.Open, out var runtimeIdInfo);
-            elementShape = elementShape.GetOrAddTransition(atoms.PublicId, JsShapePropertyFlags.Open, out var publicIdInfo);
-            elementShape = elementShape.GetOrAddTransition(atoms.Type, JsShapePropertyFlags.Open, out var typeInfo);
-            elementShape = elementShape.GetOrAddTransition(atoms.Parent, JsShapePropertyFlags.Open, out var parentInfo);
-            elementShape = elementShape.GetOrAddTransition(atoms.Props, JsShapePropertyFlags.Open, out var propsInfo);
-            elementShape = elementShape.GetOrAddTransition(atoms.Children, JsShapePropertyFlags.Open, out var childrenInfo);
-            elementShape = elementShape.GetOrAddTransition(atoms.Hidden, JsShapePropertyFlags.Open, out var hiddenInfo);
+            elementShape = elementShape.GetOrAddTransition(
+                atoms.RuntimeId,
+                JsShapePropertyFlags.Open,
+                out var runtimeIdInfo
+            );
+            elementShape = elementShape.GetOrAddTransition(
+                atoms.PublicId,
+                JsShapePropertyFlags.Open,
+                out var publicIdInfo
+            );
+            elementShape = elementShape.GetOrAddTransition(
+                atoms.Type,
+                JsShapePropertyFlags.Open,
+                out var typeInfo
+            );
+            elementShape = elementShape.GetOrAddTransition(
+                atoms.Parent,
+                JsShapePropertyFlags.Open,
+                out var parentInfo
+            );
+            elementShape = elementShape.GetOrAddTransition(
+                atoms.Props,
+                JsShapePropertyFlags.Open,
+                out var propsInfo
+            );
+            elementShape = elementShape.GetOrAddTransition(
+                atoms.Children,
+                JsShapePropertyFlags.Open,
+                out var childrenInfo
+            );
+            elementShape = elementShape.GetOrAddTransition(
+                atoms.Hidden,
+                JsShapePropertyFlags.Open,
+                out var hiddenInfo
+            );
 
             Debug.Assert(runtimeIdInfo.Slot == RuntimeIdSlot);
             Debug.Assert(publicIdInfo.Slot == PublicIdSlot);
@@ -2794,7 +3506,11 @@ public sealed partial class OkojoNodeReactHost
             Debug.Assert(childrenInfo.Slot == ChildrenSlot);
             Debug.Assert(hiddenInfo.Slot == HiddenSlot);
 
-            var textShape = elementShape.GetOrAddTransition(atoms.Text, JsShapePropertyFlags.Open, out var textInfo);
+            var textShape = elementShape.GetOrAddTransition(
+                atoms.Text,
+                JsShapePropertyFlags.Open,
+                out var textInfo
+            );
             Debug.Assert(textInfo.Slot == TextSlot);
 
             return new HostInstanceShapeCache(elementShape, textShape);
@@ -2843,6 +3559,6 @@ public sealed partial class OkojoNodeReactHost
         TextInput,
         Image,
         Spacer,
-        RawText
+        RawText,
     }
 }

@@ -11,18 +11,29 @@ public static partial class HtmlDocumentLoader
         LoadedTextSource documentSource,
         List<string> styleSheets,
         HttpClient httpClient,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
-        var document = await HtmlParser.ParseDocumentAsync(documentSource.Text, cancellationToken).ConfigureAwait(false);
+        var document = await HtmlParser
+            .ParseDocumentAsync(documentSource.Text, cancellationToken)
+            .ConfigureAwait(false);
         foreach (var element in document.QuerySelectorAll("link"))
         {
-            if (!IsStyleSheetLink(element) ||
-                string.IsNullOrWhiteSpace(element.GetAttribute("href")))
+            if (
+                !IsStyleSheetLink(element)
+                || string.IsNullOrWhiteSpace(element.GetAttribute("href"))
+            )
             {
                 continue;
             }
 
-            var styleSheet = await ReadTextSourceAsync(element.GetAttribute("href")!, documentSource, httpClient, cancellationToken).ConfigureAwait(false);
+            var styleSheet = await ReadTextSourceAsync(
+                    element.GetAttribute("href")!,
+                    documentSource,
+                    httpClient,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
             styleSheets.Add(styleSheet.Text);
         }
     }
@@ -44,7 +55,11 @@ public static partial class HtmlDocumentLoader
             while (index < span.Length && !char.IsWhiteSpace(span[index]))
                 index++;
 
-            if (start < index && span[start..index].Equals("stylesheet".AsSpan(), StringComparison.OrdinalIgnoreCase))
+            if (
+                start < index
+                && span[start..index]
+                    .Equals("stylesheet".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            )
                 return true;
         }
 
@@ -60,9 +75,11 @@ public static partial class HtmlDocumentLoader
             return false;
 
         var href = anchors[0].GetAttribute("href");
-        if (string.IsNullOrWhiteSpace(href) ||
-            !Uri.TryCreate(pageUri, href.Trim(), out var linkUri) ||
-            !IsSameDocumentUri(pageUri, linkUri))
+        if (
+            string.IsNullOrWhiteSpace(href)
+            || !Uri.TryCreate(pageUri, href.Trim(), out var linkUri)
+            || !IsSameDocumentUri(pageUri, linkUri)
+        )
         {
             return false;
         }
@@ -71,10 +88,10 @@ public static partial class HtmlDocumentLoader
         return true;
     }
 
-    private static bool IsSameDocumentUri(Uri left, Uri right)
-        => string.Equals(left.Scheme, right.Scheme, StringComparison.OrdinalIgnoreCase) &&
-           string.Equals(left.Host, right.Host, StringComparison.OrdinalIgnoreCase) &&
-           left.Port == right.Port &&
-           string.Equals(left.AbsolutePath, right.AbsolutePath, StringComparison.Ordinal) &&
-           string.Equals(left.Query, right.Query, StringComparison.Ordinal);
+    private static bool IsSameDocumentUri(Uri left, Uri right) =>
+        string.Equals(left.Scheme, right.Scheme, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(left.Host, right.Host, StringComparison.OrdinalIgnoreCase)
+        && left.Port == right.Port
+        && string.Equals(left.AbsolutePath, right.AbsolutePath, StringComparison.Ordinal)
+        && string.Equals(left.Query, right.Query, StringComparison.Ordinal);
 }

@@ -13,13 +13,16 @@ internal sealed class HtmlStyledSceneTreeCache
         int candidateViewportWidth,
         int candidateViewportHeight,
         uint candidateStyleVersion,
-        out HtmlStyledSceneTree cachedTree)
+        out HtmlStyledSceneTree cachedTree
+    )
     {
-        if (ReferenceEquals(document, candidateDocument) &&
-            viewportWidth == candidateViewportWidth &&
-            viewportHeight == candidateViewportHeight &&
-            styleVersion == candidateStyleVersion &&
-            tree is not null)
+        if (
+            ReferenceEquals(document, candidateDocument)
+            && viewportWidth == candidateViewportWidth
+            && viewportHeight == candidateViewportHeight
+            && styleVersion == candidateStyleVersion
+            && tree is not null
+        )
         {
             cachedTree = tree;
             return true;
@@ -34,7 +37,8 @@ internal sealed class HtmlStyledSceneTreeCache
         int nextViewportWidth,
         int nextViewportHeight,
         uint nextStyleVersion,
-        HtmlStyledSceneTree nextTree)
+        HtmlStyledSceneTree nextTree
+    )
     {
         document = nextDocument;
         viewportWidth = nextViewportWidth;

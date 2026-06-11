@@ -28,8 +28,8 @@ internal sealed class RuntimeReloadCoordinator
 
     public bool ShouldWaitForStabilization(DateTime utcNow)
     {
-        return ReloadRequestedAtUtc != default &&
-               utcNow - ReloadRequestedAtUtc < Options.StabilizationDelay;
+        return ReloadRequestedAtUtc != default
+            && utcNow - ReloadRequestedAtUtc < Options.StabilizationDelay;
     }
 
     public void MarkReloadStarted()

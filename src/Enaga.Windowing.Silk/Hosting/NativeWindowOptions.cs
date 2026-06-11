@@ -32,18 +32,29 @@ public sealed class NativeWindowOptions
 
     internal WindowOptions ToSilkWindowOptions()
     {
-        var options = GraphicsBackend == RenderGraphicsBackend.Vulkan
-            ? WindowOptions.DefaultVulkan
-            : WindowOptions.Default;
+        var options =
+            GraphicsBackend == RenderGraphicsBackend.Vulkan
+                ? WindowOptions.DefaultVulkan
+                : WindowOptions.Default;
         options.Title = string.IsNullOrWhiteSpace(Title) ? "Native React Host" : Title;
         options.Size = InitialSize;
         options.WindowBorder = WindowBorder;
         options.TransparentFramebuffer = TransparentFramebuffer;
         options.TopMost = TopMost;
         if (GraphicsBackend == RenderGraphicsBackend.OpenGl)
-            options.API = new(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.Default, new APIVersion(3, 3));
+            options.API = new(
+                ContextAPI.OpenGL,
+                ContextProfile.Core,
+                ContextFlags.Default,
+                new APIVersion(3, 3)
+            );
         else if (GraphicsBackend == RenderGraphicsBackend.Metal)
-            options.API = new(ContextAPI.None, ContextProfile.Core, ContextFlags.Default, new APIVersion(1, 0));
+            options.API = new(
+                ContextAPI.None,
+                ContextProfile.Core,
+                ContextFlags.Default,
+                new APIVersion(1, 0)
+            );
         options.IsVisible = false;
         options.IsEventDriven = false;
         options.ShouldSwapAutomatically = true;
@@ -58,7 +69,8 @@ public sealed class NativeWindowOptions
         double framesPerSecond,
         RenderTraceLogFlags traceLogFlags,
         RenderGraphicsBackend graphicsBackend,
-        SKColor? startupClearColor)
+        SKColor? startupClearColor
+    )
     {
         return new NativeWindowOptions
         {
@@ -68,14 +80,17 @@ public sealed class NativeWindowOptions
             TraceLogFlags = traceLogFlags,
             GraphicsBackend = graphicsBackend,
             StartupClearColor = startupClearColor,
-            Diagnostics = CreateDiagnostics(traceLogFlags)
+            Diagnostics = CreateDiagnostics(traceLogFlags),
         };
     }
 
     private static IRuntimeDiagnosticsSink CreateDiagnostics(RenderTraceLogFlags traceLogFlags)
     {
         List<RuntimeDiagnosticArea> areas = [];
-        if (traceLogFlags.HasFlag(RenderTraceLogFlags.Paint) || traceLogFlags.HasFlag(RenderTraceLogFlags.Runtime))
+        if (
+            traceLogFlags.HasFlag(RenderTraceLogFlags.Paint)
+            || traceLogFlags.HasFlag(RenderTraceLogFlags.Runtime)
+        )
             areas.Add(RuntimeDiagnosticArea.Rendering);
         if (traceLogFlags.HasFlag(RenderTraceLogFlags.Damage))
             areas.Add(RuntimeDiagnosticArea.Damage);

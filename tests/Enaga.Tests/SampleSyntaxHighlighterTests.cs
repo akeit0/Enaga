@@ -10,12 +10,14 @@ public sealed class SampleSyntaxHighlighterTests
     {
         var highlighter = new SampleSyntaxHighlighter();
 
-        var lines = highlighter.BuildHighlightedLines("""
+        var lines = highlighter.BuildHighlightedLines(
+            """
             function Demo() {
                 const [count, setCount] = React.useState(0);
                 return <button>{count}</button>;
             }
-            """);
+            """
+        );
         var buttonTags = lines
             .SelectMany(line => line.Segments)
             .Where(segment => segment.Text == "button")
@@ -30,20 +32,32 @@ public sealed class SampleSyntaxHighlighterTests
     {
         var highlighter = new SampleSyntaxHighlighter();
 
-        var lines = highlighter.BuildHighlightedLines("""
+        var lines = highlighter.BuildHighlightedLines(
+            """
             <Row style={{ gap: 25 }}>
               <Label text={`count: ${count}`} />
               <Button label="+1" onPress={() => setCount((value) => value + 1)} />
             </Row>
-            """);
+            """
+        );
         var segments = lines.SelectMany(line => line.Segments).ToArray();
 
         AssertTagKind(segments, "Row", "jsx-tag");
         AssertTagKind(segments, "Label", "jsx-tag");
         AssertTagKind(segments, "Button", "jsx-tag");
-        Assert.Contains(segments, segment => segment.Text == "count" && segment.Kind == "identifier");
-        Assert.Contains(segments, segment => segment.Text == "setCount" && segment.Kind == "identifier");
-        Assert.Contains(segments, segment => segment.Text.Contains("+1", StringComparison.Ordinal) && segment.Kind == "string");
+        Assert.Contains(
+            segments,
+            segment => segment.Text == "count" && segment.Kind == "identifier"
+        );
+        Assert.Contains(
+            segments,
+            segment => segment.Text == "setCount" && segment.Kind == "identifier"
+        );
+        Assert.Contains(
+            segments,
+            segment =>
+                segment.Text.Contains("+1", StringComparison.Ordinal) && segment.Kind == "string"
+        );
         Assert.Contains(segments, segment => segment.Text == "=>" && segment.Kind == "operator");
     }
 
@@ -60,7 +74,8 @@ public sealed class SampleSyntaxHighlighterTests
     private static void AssertTagKind(
         SampleSyntaxHighlighter.HighlightedCodeSegment[] segments,
         string text,
-        string expectedKind)
+        string expectedKind
+    )
     {
         var matches = segments.Where(segment => segment.Text == text).ToArray();
         Assert.NotEmpty(matches);

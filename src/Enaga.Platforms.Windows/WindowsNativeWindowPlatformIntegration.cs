@@ -1,8 +1,8 @@
 using Enaga.Hosting;
+using Enaga.Input;
 using Enaga.Rendering;
 using Enaga.Rendering.Skia;
 using Silk.NET.Windowing;
-using Enaga.Input;
 
 namespace Enaga.Platforms.Windows;
 
@@ -15,17 +15,23 @@ public sealed class WindowsNativeWindowPlatformIntegration : INativeWindowPlatfo
     public bool HandlesTextInput => true;
     public bool HasPendingInput => imeContext?.HasPendingTextInput ?? false;
 
-    public bool ShouldForwardTextInput(char character) => imeContext?.ShouldForwardTextInput(character) ?? true;
+    public bool ShouldForwardTextInput(char character) =>
+        imeContext?.ShouldForwardTextInput(character) ?? true;
 
     public WindowsNativeWindowPlatformIntegration()
-        : this(new WindowsNativeWindowPlatformOptions())
-    {
-    }
+        : this(new WindowsNativeWindowPlatformOptions()) { }
 
     public WindowsNativeWindowPlatformIntegration(WindowsNativeWindowPlatformOptions options)
     {
         this.options = options ?? throw new ArgumentNullException(nameof(options));
-        NativeTextConfiguration.ConfigureFonts("Segoe UI", "Yu Gothic UI", "Yu Gothic", "Meiryo", "Segoe UI Emoji", "Segoe UI Symbol");
+        NativeTextConfiguration.ConfigureFonts(
+            "Segoe UI",
+            "Yu Gothic UI",
+            "Yu Gothic",
+            "Meiryo",
+            "Segoe UI Emoji",
+            "Segoe UI Symbol"
+        );
     }
 
     public void Attach(IWindow window, IRenderRoot renderRoot)
@@ -73,10 +79,10 @@ public sealed class WindowsNativeWindowPlatformIntegration : INativeWindowPlatfo
 
     private static bool ShouldApplyOverlayStyles(WindowsNativeWindowPlatformOptions options)
     {
-        return options.OwnerWindowHandle != 0 ||
-               options.MousePassthrough ||
-               options.HideFromTaskbarAndAltTab ||
-               options.NoActivate;
+        return options.OwnerWindowHandle != 0
+            || options.MousePassthrough
+            || options.HideFromTaskbarAndAltTab
+            || options.NoActivate;
     }
 
     private nint TryGetWin32WindowHandle(IWindow nextWindow)

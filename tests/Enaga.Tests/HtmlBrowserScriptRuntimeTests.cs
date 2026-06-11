@@ -18,7 +18,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
     [Fact]
     public void CreateAndRun_DrainsAwaitContinuation_FromInlineScript()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status">loading</div>
               <script>
@@ -28,7 +29,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 })();
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
 
@@ -39,16 +41,20 @@ public sealed class HtmlBrowserScriptRuntimeTests
     [Fact]
     public void ExecuteJavaScriptUrl_RunsAgainstCurrentDocument()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status">idle</div>
             </body>D
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
         Assert.NotNull(runtime);
 
-        runtime.ExecuteJavaScriptUrl("javascript:document.getElementById('status').textContent = 'clicked'");
+        runtime.ExecuteJavaScriptUrl(
+            "javascript:document.getElementById('status').textContent = 'clicked'"
+        );
 
         Assert.Contains("clicked", runtime.CurrentDocument.Html, StringComparison.Ordinal);
     }
@@ -56,7 +62,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
     [Fact]
     public void DispatchClick_DrainsAwaitContinuation_FromAsyncHandler()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <button id="btn">click</button>
               <div id="status">idle</div>
@@ -67,12 +74,15 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 };
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
         Assert.NotNull(runtime);
 
-        var parsed = new Enaga.Html.Dom.HtmlDocumentParser().Parse(document.Html, document.BasePath).ToDomDocument();
+        var parsed = new Enaga.Html.Dom.HtmlDocumentParser()
+            .Parse(document.Html, document.BasePath)
+            .ToDomDocument();
         var button = Assert.IsType<HtmlDomElement>(parsed.GetElementById("btn"));
 
         runtime.DispatchClick(button);
@@ -83,7 +93,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
     [Fact]
     public void EventLoopWake_PumpsQueuedScriptWork_WithoutRenderWakeUntilDocumentChanges()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status">idle</div>
               <script>
@@ -92,7 +103,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 }, 10);
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
         Assert.NotNull(runtime);
@@ -118,7 +130,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
     [Fact]
     public void EventLoopWake_RunsBrowserTimersWithArgsAndClearInterval()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status">idle</div>
               <script>
@@ -134,13 +147,17 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 }, 50);
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
         Assert.NotNull(runtime);
 
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
-        while (DateTime.UtcNow < deadline && !runtime.CurrentDocument.Html.Contains("args!:1", StringComparison.Ordinal))
+        while (
+            DateTime.UtcNow < deadline
+            && !runtime.CurrentDocument.Html.Contains("args!:1", StringComparison.Ordinal)
+        )
         {
             Thread.Sleep(10);
             runtime.PumpEventLoopUntilIdle();
@@ -152,7 +169,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
     [Fact]
     public void ValueProperty_GetsAndSetsInputValue()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <input id="name" value="old">
               <div id="status"></div>
@@ -162,19 +180,25 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 document.getElementById("status").textContent = inputField.value;
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
 
         Assert.NotNull(runtime);
-        Assert.Contains("value=\"old-new\"", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "value=\"old-new\"",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
         Assert.Contains("old-new", runtime.CurrentDocument.Html, StringComparison.Ordinal);
     }
 
     [Fact]
     public void ValueProperty_ReadsLiveRendererInputValue_WhenDomAttributeIsEmpty()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <input id="name">
               <button id="read">read</button>
@@ -185,7 +209,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 };
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
         Assert.NotNull(runtime);
@@ -195,18 +220,25 @@ public sealed class HtmlBrowserScriptRuntimeTests
             return elementId == "name";
         };
 
-        var parsed = new Enaga.Html.Dom.HtmlDocumentParser().Parse(document.Html, document.BasePath).ToDomDocument();
+        var parsed = new Enaga.Html.Dom.HtmlDocumentParser()
+            .Parse(document.Html, document.BasePath)
+            .ToDomDocument();
         var button = Assert.IsType<HtmlDomElement>(parsed.GetElementById("read"));
 
         runtime.DispatchClick(button);
 
-        Assert.Contains("<div id=\"status\">typed</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div id=\"status\">typed</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
     public void ValueProperty_GetsAndSetsTextAreaValue()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <textarea id="message">old</textarea>
               <div id="status"></div>
@@ -216,13 +248,22 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 document.getElementById("status").textContent = textarea.value;
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
 
         Assert.NotNull(runtime);
-        Assert.Contains("<textarea id=\"message\">old-new</textarea>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
-        Assert.Contains("<div id=\"status\">old-new</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<textarea id=\"message\">old-new</textarea>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            "<div id=\"status\">old-new</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
@@ -235,7 +276,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
 
         try
         {
-            var document = new HtmlDocument("""
+            var document = new HtmlDocument(
+                """
                 <body>
                   <div id="status"></div>
                   <script src="./api.js.ダウンロード" async="" defer=""></script>
@@ -243,12 +285,18 @@ public sealed class HtmlBrowserScriptRuntimeTests
                     document.getElementById("status").textContent = window.externalValue || "missing";
                   </script>
                 </body>
-                """, BasePath: tempDirectory);
+                """,
+                BasePath: tempDirectory
+            );
 
             using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
 
             Assert.NotNull(runtime);
-            Assert.Contains("<div id=\"status\">loaded</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+            Assert.Contains(
+                "<div id=\"status\">loaded</div>",
+                runtime.CurrentDocument.Html,
+                StringComparison.Ordinal
+            );
         }
         finally
         {
@@ -259,7 +307,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
     [Fact]
     public void CreateAndRun_ProvidesNavigatorAndDataLayerGlobals()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status"></div>
               <script>
@@ -270,40 +319,53 @@ public sealed class HtmlBrowserScriptRuntimeTests
                     : "missing";
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
 
         Assert.NotNull(runtime);
-        Assert.Contains("<div id=\"status\">available</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div id=\"status\">available</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
     public void CreateAndRun_AllowsCustomUserAgentOption()
     {
         const string customUserAgent = "Mozilla/5.0 (compatible; EnagaBrowserTest/1.0)";
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status"></div>
               <script>
                 document.getElementById("status").textContent = navigator.userAgent;
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
             document,
             "inline:test.html",
-            new HtmlBrowserScriptRuntimeOptions(customUserAgent));
+            new HtmlBrowserScriptRuntimeOptions(customUserAgent)
+        );
 
         Assert.NotNull(runtime);
-        Assert.Contains($"<div id=\"status\">{customUserAgent}</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<div id=\"status\">{customUserAgent}</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
     public void CreateAndRun_ExposesWindowAssignmentsAsGlobalsForLaterScripts()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status"></div>
               <script>
@@ -315,18 +377,24 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 document.getElementById("status").textContent = libraryValue;
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
 
         Assert.NotNull(runtime);
-        Assert.Contains("<div id=\"status\">available</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div id=\"status\">available</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
     public void CreateAndRun_ProvidesMinimalDomProbeApis()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <html>
               <head></head>
               <body>
@@ -365,30 +433,41 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 </script>
               </body>
             </html>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
 
         Assert.NotNull(runtime);
-        Assert.Contains("<div id=\"status\">available</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div id=\"status\">available</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
     public void CreateAndRun_ImplementsGetElementsByClassName()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div class="badge">idle</div>
               <script>
                 document.getElementsByClassName("badge")[0].textContent = "done";
               </script>
             </body>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
 
         Assert.NotNull(runtime);
-        Assert.Contains("<div class=\"badge\">done</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div class=\"badge\">done</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
@@ -422,32 +501,43 @@ public sealed class HtmlBrowserScriptRuntimeTests
         string? serverReferer = null;
         using var server = new TestHttpServer(request =>
         {
-            if (request.Path == "/static/_js/iana.js?version=1" &&
-                request.Headers.TryGetValue("User-Agent", out var userAgent) &&
-                userAgent.Contains("Mozilla/5.0", StringComparison.Ordinal) &&
-                request.Headers.TryGetValue("Referer", out var referer) &&
-                string.Equals(referer, serverReferer, StringComparison.Ordinal) &&
-                request.Headers.TryGetValue("Sec-Fetch-Dest", out var fetchDest) &&
-                string.Equals(fetchDest, "script", StringComparison.OrdinalIgnoreCase))
+            if (
+                request.Path == "/static/_js/iana.js?version=1"
+                && request.Headers.TryGetValue("User-Agent", out var userAgent)
+                && userAgent.Contains("Mozilla/5.0", StringComparison.Ordinal)
+                && request.Headers.TryGetValue("Referer", out var referer)
+                && string.Equals(referer, serverReferer, StringComparison.Ordinal)
+                && request.Headers.TryGetValue("Sec-Fetch-Dest", out var fetchDest)
+                && string.Equals(fetchDest, "script", StringComparison.OrdinalIgnoreCase)
+            )
             {
-                return TestHttpResponse.Ok("document.getElementById('status').textContent = 'remote-loaded';");
+                return TestHttpResponse.Ok(
+                    "document.getElementById('status').textContent = 'remote-loaded';"
+                );
             }
 
             return TestHttpResponse.Forbidden();
         });
         serverReferer = server.Url("/domains");
 
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status"></div>
               <script type="text/javascript" src="./static/_js/iana.js?version=1"></script>
             </body>
-            """, BasePath: server.Url("/"));
+            """,
+            BasePath: server.Url("/")
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, serverReferer);
 
         Assert.NotNull(runtime);
-        Assert.Contains("<div id=\"status\">remote-loaded</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div id=\"status\">remote-loaded</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
@@ -457,33 +547,45 @@ public sealed class HtmlBrowserScriptRuntimeTests
         string? serverReferer = null;
         using var server = new TestHttpServer(request =>
         {
-            if (request.Path == "/static/_js/iana.js?version=2" &&
-                request.Headers.TryGetValue("User-Agent", out var userAgent) &&
-                string.Equals(userAgent, customUserAgent, StringComparison.Ordinal) &&
-                request.Headers.TryGetValue("Referer", out var referer) &&
-                string.Equals(referer, serverReferer, StringComparison.Ordinal))
+            if (
+                request.Path == "/static/_js/iana.js?version=2"
+                && request.Headers.TryGetValue("User-Agent", out var userAgent)
+                && string.Equals(userAgent, customUserAgent, StringComparison.Ordinal)
+                && request.Headers.TryGetValue("Referer", out var referer)
+                && string.Equals(referer, serverReferer, StringComparison.Ordinal)
+            )
             {
-                return TestHttpResponse.Ok("document.getElementById('status').textContent = 'custom-ua';");
+                return TestHttpResponse.Ok(
+                    "document.getElementById('status').textContent = 'custom-ua';"
+                );
             }
 
             return TestHttpResponse.Forbidden();
         });
         serverReferer = server.Url("/domains");
 
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status"></div>
               <script src="./static/_js/iana.js?version=2"></script>
             </body>
-            """, BasePath: server.Url("/"));
+            """,
+            BasePath: server.Url("/")
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
             document,
             serverReferer,
-            new HtmlBrowserScriptRuntimeOptions(customUserAgent));
+            new HtmlBrowserScriptRuntimeOptions(customUserAgent)
+        );
 
         Assert.NotNull(runtime);
-        Assert.Contains("<div id=\"status\">custom-ua</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div id=\"status\">custom-ua</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
@@ -497,37 +599,53 @@ public sealed class HtmlBrowserScriptRuntimeTests
             if (request.Path == "/static/_js/iana.js?version=3")
             {
                 capturedRequest = request;
-                return TestHttpResponse.Ok("document.getElementById('status').textContent = 'custom-language';");
+                return TestHttpResponse.Ok(
+                    "document.getElementById('status').textContent = 'custom-language';"
+                );
             }
 
             return TestHttpResponse.Forbidden();
         });
 
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <body>
               <div id="status"></div>
               <script src="./static/_js/iana.js?version=3"></script>
             </body>
-            """, BasePath: server.Url("/"));
+            """,
+            BasePath: server.Url("/")
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
             document,
             server.Url("/domains"),
-            new HtmlBrowserScriptRuntimeOptions(new BrowserRequestProfile(customUserAgent, customAcceptLanguage)));
+            new HtmlBrowserScriptRuntimeOptions(
+                new BrowserRequestProfile(customUserAgent, customAcceptLanguage)
+            )
+        );
 
         Assert.NotNull(runtime);
-        Assert.Contains("<div id=\"status\">custom-language</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div id=\"status\">custom-language</div>",
+            runtime.CurrentDocument.Html,
+            StringComparison.Ordinal
+        );
         Assert.NotNull(capturedRequest);
         Assert.Equal(customUserAgent, capturedRequest!.Headers["User-Agent"]);
         Assert.Equal(
             customAcceptLanguage.Replace(" ", string.Empty, StringComparison.Ordinal),
-            capturedRequest.Headers["Accept-Language"].Replace(" ", string.Empty, StringComparison.Ordinal));
+            capturedRequest
+                .Headers["Accept-Language"]
+                .Replace(" ", string.Empty, StringComparison.Ordinal)
+        );
     }
 
     [Fact]
     public void CreateAndRun_PreservesHeadStylesAfterBodySerialization()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <html>
               <head>
                 <style>
@@ -541,7 +659,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 </script>
               </body>
             </html>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
         Assert.NotNull(runtime);
@@ -556,7 +675,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
     [Fact]
     public void DocumentMutation_RelayoutsCenteredInlineBlockBadge()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <html>
               <head>
                 <style>
@@ -584,12 +704,16 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 </div>
               </body>
             </html>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
         Assert.NotNull(runtime);
 
-        var source = new HtmlSceneFrameSource(runtime.CurrentDocument, new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create()));
+        var source = new HtmlSceneFrameSource(
+            runtime.CurrentDocument,
+            new HtmlOptions(BackendServices: DummyRuntimeBackendServices.Create())
+        );
         runtime.DocumentMutated += source.UpdateDocument;
 
         var initial = source.RenderFrame(420, 180, TimeSpan.Zero);
@@ -597,30 +721,55 @@ public sealed class HtmlBrowserScriptRuntimeTests
         var initialBadgeId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key;
         var initialMain = initial.Commit.Layout[initialMainId];
         var initialBadge = initial.Commit.Layout[initialBadgeId];
-        var initialBody = initial.Commit.Layout[initial.Commit.Nodes[initialMainId].ParentId!.Value];
+        var initialBody = initial.Commit.Layout[
+            initial.Commit.Nodes[initialMainId].ParentId!.Value
+        ];
 
-        Assert.Equal(initialBody.AbsLeft + (initialBody.Width - initialMain.Width) * 0.5f, initialMain.AbsLeft, precision: 1);
-        Assert.Equal(initialMain.AbsLeft + (initialMain.Width - initialBadge.Width) * 0.5f, initialBadge.AbsLeft, precision: 1);
+        Assert.Equal(
+            initialBody.AbsLeft + (initialBody.Width - initialMain.Width) * 0.5f,
+            initialMain.AbsLeft,
+            precision: 1
+        );
+        Assert.Equal(
+            initialMain.AbsLeft + (initialMain.Width - initialBadge.Width) * 0.5f,
+            initialBadge.AbsLeft,
+            precision: 1
+        );
 
-        runtime.ExecuteJavaScriptUrl("javascript:document.getElementById('badge').textContent = '実行されました';");
+        runtime.ExecuteJavaScriptUrl(
+            "javascript:document.getElementById('badge').textContent = '実行されました';"
+        );
 
         var updated = source.RenderFrame(420, 180, TimeSpan.FromMilliseconds(16));
         var updatedMainId = updated.Commit.Nodes.Single(pair => pair.Value.Label == "main").Key;
         var updatedBadgeId = updated.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key;
         var updatedMain = updated.Commit.Layout[updatedMainId];
         var updatedBadge = updated.Commit.Layout[updatedBadgeId];
-        var updatedBadgeText = updated.Commit.Layout.Values.Single(box => box.TextContent == "実行されました");
+        var updatedBadgeText = updated.Commit.Layout.Values.Single(box =>
+            box.TextContent == "実行されました"
+        );
 
-        Assert.True(updatedBadge.Width > initialBadge.Width + 20, $"initialBadge.Width={initialBadge.Width} updatedBadge.Width={updatedBadge.Width}");
-        Assert.True(updatedBadge.Width >= updatedBadgeText.Width + 15, $"badge.Width={updatedBadge.Width} text.Width={updatedBadgeText.Width}");
+        Assert.True(
+            updatedBadge.Width > initialBadge.Width + 20,
+            $"initialBadge.Width={initialBadge.Width} updatedBadge.Width={updatedBadge.Width}"
+        );
+        Assert.True(
+            updatedBadge.Width >= updatedBadgeText.Width + 15,
+            $"badge.Width={updatedBadge.Width} text.Width={updatedBadgeText.Width}"
+        );
         Assert.Equal(initialMain.AbsLeft, updatedMain.AbsLeft, precision: 1);
-        Assert.Equal(updatedMain.AbsLeft + (updatedMain.Width - updatedBadge.Width) * 0.5f, updatedBadge.AbsLeft, precision: 1);
+        Assert.Equal(
+            updatedMain.AbsLeft + (updatedMain.Width - updatedBadge.Width) * 0.5f,
+            updatedBadge.AbsLeft,
+            precision: 1
+        );
     }
 
     [Fact]
     public void DocumentMutation_UpdatesRendererFromDomModelWithoutRuntimeReload()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <html>
               <head>
                 <style>
@@ -632,7 +781,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 <div id="status">idle</div>
               </body>
             </html>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
         Assert.NotNull(runtime);
@@ -642,19 +792,25 @@ public sealed class HtmlBrowserScriptRuntimeTests
         runtime.DocumentMutated += source.UpdateDocument;
         _ = source.RenderFrame(320, 120, TimeSpan.Zero);
 
-        runtime.ExecuteJavaScriptUrl("javascript:document.getElementById('status').textContent = 'updated text';");
+        runtime.ExecuteJavaScriptUrl(
+            "javascript:document.getElementById('status').textContent = 'updated text';"
+        );
 
         var updated = source.RenderFrame(320, 120, TimeSpan.FromMilliseconds(16));
 
         Assert.Contains(updated.Commit.Layout.Values, box => box.TextContent == "updated text");
-        Assert.False(updated.DamageReasons.HasFlag(SceneDamageReason.RuntimeReload), updated.DamageReasons.ToString());
+        Assert.False(
+            updated.DamageReasons.HasFlag(SceneDamageReason.RuntimeReload),
+            updated.DamageReasons.ToString()
+        );
         Assert.Contains("updated text", runtime.CurrentDocument.Html, StringComparison.Ordinal);
     }
 
     [Fact]
     public void DocumentMutation_WithSkiaBackend_RelayoutsBootstrapStyleBadgeInsideHeading()
     {
-        var document = new HtmlDocument("""
+        var document = new HtmlDocument(
+            """
             <html>
               <head>
                 <style>
@@ -705,41 +861,78 @@ public sealed class HtmlBrowserScriptRuntimeTests
                 </div>
               </body>
             </html>
-            """);
+            """
+        );
 
         using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, "inline:test.html");
         Assert.NotNull(runtime);
 
         using var backend = SkiaRuntimeBackendServices.Create();
-        var source = new HtmlSceneFrameSource(runtime.CurrentDocument, new HtmlOptions(BackendServices: backend));
+        var source = new HtmlSceneFrameSource(
+            runtime.CurrentDocument,
+            new HtmlOptions(BackendServices: backend)
+        );
         runtime.DocumentMutated += source.UpdateDocument;
 
         var initial = source.RenderFrame(780, 220, TimeSpan.Zero);
         var initialMainId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "main").Key;
-        var initialHeadingId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "heading").Key;
+        var initialHeadingId = initial
+            .Commit.Nodes.Single(pair => pair.Value.Label == "heading")
+            .Key;
         var initialBadgeId = initial.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key;
         var initialMain = initial.Commit.Layout[initialMainId];
         var initialHeading = initial.Commit.Layout[initialHeadingId];
         var initialBadge = initial.Commit.Layout[initialBadgeId];
         var initialRoot = initial.Commit.Layout[initial.Commit.RootId];
 
-        Assert.Equal(initialRoot.AbsLeft + (initialRoot.Width - initialMain.Width) * 0.5f, initialMain.AbsLeft, precision: 1);
-        Assert.Equal(initialMain.AbsLeft + (initialMain.Width - initialHeading.Width) * 0.5f, initialHeading.AbsLeft, precision: 1);
-        Assert.Equal(initialHeading.AbsLeft + (initialHeading.Width - initialBadge.Width) * 0.5f, initialBadge.AbsLeft, precision: 1);
+        Assert.Equal(
+            initialRoot.AbsLeft + (initialRoot.Width - initialMain.Width) * 0.5f,
+            initialMain.AbsLeft,
+            precision: 1
+        );
+        Assert.Equal(
+            initialMain.AbsLeft + (initialMain.Width - initialHeading.Width) * 0.5f,
+            initialHeading.AbsLeft,
+            precision: 1
+        );
+        Assert.Equal(
+            initialHeading.AbsLeft + (initialHeading.Width - initialBadge.Width) * 0.5f,
+            initialBadge.AbsLeft,
+            precision: 1
+        );
 
-        runtime.ExecuteJavaScriptUrl("javascript:document.getElementById('badge').textContent = '実行されました';");
+        runtime.ExecuteJavaScriptUrl(
+            "javascript:document.getElementById('badge').textContent = '実行されました';"
+        );
 
         var updated = source.RenderFrame(780, 220, TimeSpan.FromMilliseconds(16));
-        var updatedHeadingId = updated.Commit.Nodes.Single(pair => pair.Value.Label == "heading").Key;
+        var updatedHeadingId = updated
+            .Commit.Nodes.Single(pair => pair.Value.Label == "heading")
+            .Key;
         var updatedBadgeId = updated.Commit.Nodes.Single(pair => pair.Value.Label == "badge").Key;
         var updatedHeading = updated.Commit.Layout[updatedHeadingId];
         var updatedBadge = updated.Commit.Layout[updatedBadgeId];
-        var updatedBadgeText = updated.Commit.Layout.Values.Single(box => box.TextContent == "実行されました");
+        var updatedBadgeText = updated.Commit.Layout.Values.Single(box =>
+            box.TextContent == "実行されました"
+        );
 
-        Assert.True(updatedHeading.Width > initialHeading.Width + 20, $"initialHeading.Width={initialHeading.Width} updatedHeading.Width={updatedHeading.Width}");
-        Assert.True(updatedBadge.Width > initialBadge.Width + 20, $"initialBadge.Width={initialBadge.Width} updatedBadge.Width={updatedBadge.Width}");
-        Assert.True(updatedBadge.Width >= updatedBadgeText.Width + 8, $"badge.Width={updatedBadge.Width} text.Width={updatedBadgeText.Width}");
-        Assert.Equal(updatedHeading.AbsLeft + (updatedHeading.Width - updatedBadge.Width) * 0.5f, updatedBadge.AbsLeft, precision: 1);
+        Assert.True(
+            updatedHeading.Width > initialHeading.Width + 20,
+            $"initialHeading.Width={initialHeading.Width} updatedHeading.Width={updatedHeading.Width}"
+        );
+        Assert.True(
+            updatedBadge.Width > initialBadge.Width + 20,
+            $"initialBadge.Width={initialBadge.Width} updatedBadge.Width={updatedBadge.Width}"
+        );
+        Assert.True(
+            updatedBadge.Width >= updatedBadgeText.Width + 8,
+            $"badge.Width={updatedBadge.Width} text.Width={updatedBadgeText.Width}"
+        );
+        Assert.Equal(
+            updatedHeading.AbsLeft + (updatedHeading.Width - updatedBadge.Width) * 0.5f,
+            updatedBadge.AbsLeft,
+            precision: 1
+        );
     }
 
     [Fact]
@@ -752,7 +945,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
 
         try
         {
-            var document = new HtmlDocument("""
+            var document = new HtmlDocument(
+                """
                 <body>
                   <div id="status"></div>
                   <script>
@@ -763,20 +957,34 @@ public sealed class HtmlBrowserScriptRuntimeTests
                     })();
                   </script>
                 </body>
-                """, BasePath: tempDirectory);
+                """,
+                BasePath: tempDirectory
+            );
 
-            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, Path.Combine(tempDirectory, "login.html"));
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
+                document,
+                Path.Combine(tempDirectory, "login.html")
+            );
 
             Assert.NotNull(runtime);
             var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-            while (DateTime.UtcNow < deadline &&
-                   !runtime.CurrentDocument.Html.Contains("<div id=\"status\">relative</div>", StringComparison.Ordinal))
+            while (
+                DateTime.UtcNow < deadline
+                && !runtime.CurrentDocument.Html.Contains(
+                    "<div id=\"status\">relative</div>",
+                    StringComparison.Ordinal
+                )
+            )
             {
                 Thread.Sleep(10);
                 runtime.PumpEventLoopUntilIdle();
             }
 
-            Assert.Contains("<div id=\"status\">relative</div>", runtime.CurrentDocument.Html, StringComparison.Ordinal);
+            Assert.Contains(
+                "<div id=\"status\">relative</div>",
+                runtime.CurrentDocument.Html,
+                StringComparison.Ordinal
+            );
         }
         finally
         {
@@ -791,7 +999,8 @@ public sealed class HtmlBrowserScriptRuntimeTests
         Directory.CreateDirectory(tempDirectory);
         try
         {
-            var document = new HtmlDocument("""
+            var document = new HtmlDocument(
+                """
                 <body>
                   <button id="go">go</button>
                   <script>
@@ -800,14 +1009,21 @@ public sealed class HtmlBrowserScriptRuntimeTests
                     };
                   </script>
                 </body>
-                """, BasePath: tempDirectory);
+                """,
+                BasePath: tempDirectory
+            );
 
-            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(document, Path.Combine(tempDirectory, "login.html"));
+            using var runtime = HtmlBrowserScriptRuntime.CreateAndRun(
+                document,
+                Path.Combine(tempDirectory, "login.html")
+            );
             Assert.NotNull(runtime);
             string? requestedUrl = null;
             runtime.NavigationRequested += url => requestedUrl = url;
 
-            var parsed = new Enaga.Html.Dom.HtmlDocumentParser().Parse(document.Html, document.BasePath).ToDomDocument();
+            var parsed = new Enaga.Html.Dom.HtmlDocumentParser()
+                .Parse(document.Html, document.BasePath)
+                .ToDomDocument();
             var button = Assert.IsType<HtmlDomElement>(parsed.GetElementById("go"));
             runtime.DispatchClick(button);
 
@@ -830,18 +1046,24 @@ public sealed class HtmlBrowserScriptRuntimeTests
 
         try
         {
-            using var host = new OkojoNodeReactHost(entryPath, debugEnabled: false, backendServices: DummyRuntimeBackendServices.Create());
+            using var host = new OkojoNodeReactHost(
+                entryPath,
+                debugEnabled: false,
+                backendServices: DummyRuntimeBackendServices.Create()
+            );
             host.InitializeBenchmarkRuntime();
 
             var realm = host.BenchmarkRealm;
-            _ = realm.Eval("""
+            _ = realm.Eval(
+                """
                 globalThis.done = false;
                 globalThis.start = async function () {
                   await new Promise(resolve => setTimeout(resolve, 10));
                   done = true;
                 };
                 start();
-                """);
+                """
+            );
 
             var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
             while (DateTime.UtcNow < deadline && !realm.Global["done"].IsTrue)
@@ -950,12 +1172,18 @@ public sealed class HtmlBrowserScriptRuntimeTests
 
     private sealed record TestHttpRequest(string Path, IReadOnlyDictionary<string, string> Headers);
 
-    private sealed record TestHttpResponse(string Status, string Body, IReadOnlyDictionary<string, string> Headers)
+    private sealed record TestHttpResponse(
+        string Status,
+        string Body,
+        IReadOnlyDictionary<string, string> Headers
+    )
     {
-        public static TestHttpResponse Ok(string body, IReadOnlyDictionary<string, string>? headers = null)
-            => new("200 OK", body, headers ?? new Dictionary<string, string>());
+        public static TestHttpResponse Ok(
+            string body,
+            IReadOnlyDictionary<string, string>? headers = null
+        ) => new("200 OK", body, headers ?? new Dictionary<string, string>());
 
-        public static TestHttpResponse Forbidden()
-            => new("403 Forbidden", string.Empty, new Dictionary<string, string>());
+        public static TestHttpResponse Forbidden() =>
+            new("403 Forbidden", string.Empty, new Dictionary<string, string>());
     }
 }

@@ -11,7 +11,8 @@ public interface ILowLevelSkiaRenderer
         int width,
         int height,
         TimeSpan elapsed,
-        ReadOnlySpan<SceneDamageRect> dirtyRects);
+        ReadOnlySpan<SceneDamageRect> dirtyRects
+    );
 }
 
 public interface ILowLevelSkiaLayer
@@ -23,5 +24,6 @@ public interface ILowLevelSkiaLayer
         int width,
         int height,
         TimeSpan elapsed,
-        ReadOnlySpan<SceneDamageRect> dirtyRects);
+        ReadOnlySpan<SceneDamageRect> dirtyRects
+    );
 }

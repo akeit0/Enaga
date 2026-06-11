@@ -41,7 +41,12 @@ public sealed class ManualDirtyRegionTracker
             if (right <= left || bottom <= top)
                 continue;
 
-            normalized[normalizedCount++] = new SceneDamageRect(left, top, right - left, bottom - top);
+            normalized[normalizedCount++] = new SceneDamageRect(
+                left,
+                top,
+                right - left,
+                bottom - top
+            );
         }
 
         dirtyRects.Clear();
