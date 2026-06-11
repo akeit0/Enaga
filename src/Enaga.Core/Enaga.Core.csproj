@@ -15,7 +15,6 @@
     <ProjectReference Include="..\Enaga.Layout\Enaga.Layout.csproj" />
     <ProjectReference Include="..\Enaga.Rendering\Enaga.Rendering.csproj" />
     <ProjectReference Include="..\Enaga.Rendering.Skia\Enaga.Rendering.Skia.csproj" />
-    <ProjectReference Include="..\Enaga.React.OkojoRuntime\Enaga.React.OkojoRuntime.csproj" />
     <ProjectReference Include="..\Enaga.Windowing.Silk\Enaga.Windowing.Silk.csproj" />
   </ItemGroup>
 
