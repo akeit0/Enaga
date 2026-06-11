@@ -13,6 +13,16 @@ public sealed class MacNativeWindowPlatformIntegration : INativeWindowPlatformIn
 
     public bool HasPendingInput => imeContext?.HasPendingVisualUpdate ?? false;
 
+    public MacNativeWindowPlatformIntegration()
+    {
+        NativeTextConfiguration.ConfigureFonts(
+            "Helvetica Neue",
+            "Arial Unicode MS",
+            "Hiragino Sans",
+            "Apple Color Emoji"
+        );
+    }
+
     public void Attach(IWindow window, IRenderRoot renderRoot)
     {
         if (!OperatingSystem.IsMacOS() || renderRoot is not ITextCompositionSink compositionSink)
