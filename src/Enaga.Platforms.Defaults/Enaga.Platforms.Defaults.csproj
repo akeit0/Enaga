@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Enaga.Platforms.Defaults</AssemblyName>
+    <RootNamespace>Enaga.Platforms.Defaults</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+    <DefineConstants>$(DefineConstants);HOST_WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+    <DefineConstants>$(DefineConstants);HOST_UNIX</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Enaga.Windowing.Silk/Enaga.Windowing.Silk.csproj" />
+    <ProjectReference Include="../Enaga.Platforms.Windows/Enaga.Platforms.Windows.csproj" />
+    <ProjectReference Include="../Enaga.Platforms.Mac/Enaga.Platforms.Mac.csproj" />
+  </ItemGroup>
+</Project>

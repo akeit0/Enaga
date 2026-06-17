@@ -12,6 +12,7 @@
         <Project Path="src/Enaga.Windowing.Silk/Enaga.Windowing.Silk.csproj" />
         <Project Path="src/Enaga.Platforms.Mac/Enaga.Platforms.Mac.csproj" />
         <Project Path="src/Enaga.Platforms.Windows/Enaga.Platforms.Windows.csproj" />
+        <Project Path="src/Enaga.Platforms.Defaults/Enaga.Platforms.Defaults.csproj" />
         <Project Path="src/NativeInlineIme.Windows/NativeInlineIme.Windows.csproj" />
         <Project Path="src/Enaga.Html.Layout/Enaga.Html.Layout.csproj" />
         <Project Path="src/Enaga.Html.Dom/Enaga.Html.Dom.csproj" />
